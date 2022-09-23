@@ -8,7 +8,7 @@
 ![GitHub issues](https://img.shields.io/github/issues/legend-exp/pylegendmeta?logo=github)
 ![GitHub pull requests](https://img.shields.io/github/issues-pr/legend-exp/pylegendmeta?logo=github)
 ![License](https://img.shields.io/github/license/legend-exp/pylegendmeta)
-[![Read the Docs](https://img.shields.io/readthedocs/legendmeta?logo=readthedocs)](https://legendmeta.readthedocs.io)
+[![Read the Docs](https://img.shields.io/readthedocs/pylegendmeta?logo=readthedocs)](https://pylegendmeta.readthedocs.io)
 
 Access [legend-metadata](https://github.com/legend-exp/legend-metadata) in Python.
 
