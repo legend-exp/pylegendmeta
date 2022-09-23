@@ -23,3 +23,7 @@ def test_file_not_found():
 def test_git_ref_not_found():
     with pytest.raises(GitCommandError):
         mdata.checkout("non-existent-ref")
+
+
+def test_getitem():
+    assert mdata["hardware"]["detectors"]["B00000A"]["det_name"] == "B00000A"

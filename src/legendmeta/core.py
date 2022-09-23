@@ -5,6 +5,8 @@ from tempfile import gettempdir
 
 from git import GitCommandError, InvalidGitRepositoryError, Repo
 
+from legendmeta.jsondb import JsonDB
+
 log = logging.getLogger(__name__)
 
 
@@ -31,6 +33,7 @@ class LegendMetadata:
             self._repo_path = os.path.join(gettempdir(), "legend-metadata-" + getuser())
 
         self._repo: Repo = self._init_testdata_repo()
+        self._db: JsonDB = JsonDB(self._repo_path)
 
     def _init_testdata_repo(self):
         """Clone legend-metadata, if not existing, and checkout default Git ref."""
@@ -64,19 +67,6 @@ class LegendMetadata:
         """Checkout legend-metadata to default Git ref."""
         self._repo.git.checkout(self._default_git_ref)
 
-    def get_path(self, filename: str) -> str:
-        """Get an absolute path to a LEGEND metadata file.
-
-        Parameters
-        ----------
-        filename : str
-            path of the file relative to legend-metadata
-        """
-        full_path = os.path.abspath(os.path.join(self._repo_path, filename))
-
-        if not os.path.exists(full_path):
-            raise FileNotFoundError(
-                f'Test file/directory "{filename}" not found in legend-metadata repository'
-            )
-
-        return full_path
+    def __getitem__(self, item: str) -> JsonDB | dict:
+        """Get a JsonDB (if a directory) or dict (if a JSON file) from the metadata."""
+        return self._db[item]
