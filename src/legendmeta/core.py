@@ -10,14 +10,32 @@ log = logging.getLogger(__name__)
 
 
 class LegendMetadata:
-    def __init__(self):
+    """LEGEND metadata.
+
+    Class representing the LEGEND metadata repository with utilities for fast
+    access.
+
+    Parameters
+    ----------
+    path
+        path to legend-metadata repository. If not existing, will attempt a
+        git-clone through SSH. If ``None``, legend-metadata will be cloned
+        in a temporary directory (see :func:`gettempdir`).
+    """
+
+    def __init__(self, path: str = None) -> None:
         self._default_git_ref = "main"
-        self._repo_path = path.join(gettempdir(), "legend-metadata-" + getuser())
+
+        if isinstance(path, str):
+            self._repo_path = path
+        else:
+            self._repo_path = path.join(gettempdir(), "legend-metadata-" + getuser())
+
         self._repo: Repo = self._init_testdata_repo()
 
     def _init_testdata_repo(self):
-
-        if not path.isdir(self._repo_path):
+        """Clone legend-metadata, if not existing, and checkout default Git ref."""
+        if not path.exists(self._repo_path):
             os.mkdir(self._repo_path)
 
         repo = None
@@ -25,27 +43,29 @@ class LegendMetadata:
             repo = Repo(self._repo_path)
         except InvalidGitRepositoryError:
             log.info(
-                f"Cloning https://github.com/legend-exp/legend-metadata in {self._repo_path}..."
+                f"Cloning git@github.com:legend-exp/legend-metadata in {self._repo_path}..."
             )
             repo = Repo.clone_from(
-                "https://github.com/legend-exp/legend-metadata", self._repo_path
+                "git@github.com:legend-exp/legend-metadata", self._repo_path
             )
 
         repo.git.checkout(self._default_git_ref)
 
         return repo
 
-    def checkout(self, git_ref: str):
+    def checkout(self, git_ref: str) -> None:
+        """Select legend-metadata version."""
         try:
             self._repo.git.checkout(git_ref)
         except GitCommandError:
             self._repo.remote().pull()
             self._repo.git.checkout(git_ref)
 
-    def reset(self):
+    def reset(self) -> None:
+        """Checkout legend-metadata to default Git ref."""
         self._repo.git.checkout(self._default_git_ref)
 
-    def get_path(self, filename: str):
+    def get_path(self, filename: str) -> str:
         """Get an absolute path to a LEGEND metadata file.
 
         Parameters
