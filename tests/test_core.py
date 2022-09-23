@@ -1,5 +1,5 @@
-import pkgplaceholder
+import legendmeta
 
 
 def test_core():
-    assert pkgplaceholder.hello_world() == "Hello World!"
+    assert legendmeta.hello_world() == "Hello World!"

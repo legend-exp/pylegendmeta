@@ -1,4 +1,4 @@
-Welcome to pkgplaceholder's documentation!
+Welcome to legendmeta's documentation!
 ==========================================
 
 Table of Contents
