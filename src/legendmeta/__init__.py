@@ -1,4 +1,6 @@
-from legendmeta._version import version as __version__
-from legendmeta.core import hello_world
+"""A package to access `legend-metadata <https://github.com/legend-exp/legend-metadata>`_ in Python."""
 
-__all__ = ["__version__", "hello_world"]
+from legendmeta._version import version as __version__
+from legendmeta.core import LegendMetadata
+
+__all__ = ["__version__", "LegendMetadata"]
