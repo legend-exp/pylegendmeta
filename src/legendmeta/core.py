@@ -1,6 +1,5 @@
 import logging
 import os
-import os.path as path
 from getpass import getuser
 from tempfile import gettempdir
 
@@ -29,13 +28,13 @@ class LegendMetadata:
         if isinstance(path, str):
             self._repo_path = path
         else:
-            self._repo_path = path.join(gettempdir(), "legend-metadata-" + getuser())
+            self._repo_path = os.path.join(gettempdir(), "legend-metadata-" + getuser())
 
         self._repo: Repo = self._init_testdata_repo()
 
     def _init_testdata_repo(self):
         """Clone legend-metadata, if not existing, and checkout default Git ref."""
-        if not path.exists(self._repo_path):
+        if not os.path.exists(self._repo_path):
             os.mkdir(self._repo_path)
 
         repo = None
@@ -73,9 +72,9 @@ class LegendMetadata:
         filename : str
             path of the file relative to legend-metadata
         """
-        full_path = path.abspath(path.join(self._repo_path, filename))
+        full_path = os.path.abspath(os.path.join(self._repo_path, filename))
 
-        if not path.exists(full_path):
+        if not os.path.exists(full_path):
             raise FileNotFoundError(
                 f'Test file/directory "{filename}" not found in legend-metadata repository'
             )
