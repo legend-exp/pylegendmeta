@@ -60,7 +60,7 @@ class JsonDB:
             db_ptr = db_ptr[d]
 
         # store JSON file names without extension
-        item_id = item.name.removesuffix(".json")
+        item_id = item.name.rstrip(".json")
         if item_id not in db_ptr._store:
             obj = db_ptr.path / item.name
             if obj.is_dir():
