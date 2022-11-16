@@ -74,7 +74,7 @@ class JsonDB:
                     with obj.open() as f:
                         db_ptr._store[item_id] = json.load(f)
                 else:
-                    raise ValueError(
+                    raise FileNotFoundError(
                         f"{str(obj).replace('.json.json', '.json')} is not a valid file or directory"
                     )
 

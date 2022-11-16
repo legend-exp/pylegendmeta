@@ -30,7 +30,10 @@ class LegendMetadata:
         if isinstance(path, str):
             self._repo_path = path
         else:
-            self._repo_path = os.path.join(gettempdir(), "legend-metadata-" + getuser())
+            self._repo_path = os.getenv(
+                "LEGEND_METADATA",
+                os.path.join(gettempdir(), "legend-testdata-" + getuser()),
+            )
 
         self._repo: Repo = self._init_testdata_repo()
         self._db: JsonDB = JsonDB(self._repo_path)

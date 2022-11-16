@@ -23,7 +23,7 @@ def test_access():
 
     with pytest.raises(ValueError):
         JsonDB("non-existent-db")
-    with pytest.raises(ValueError):
+    with pytest.raises(FileNotFoundError):
         jdb["non-existent-file"]
 
 
