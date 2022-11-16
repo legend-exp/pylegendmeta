@@ -49,7 +49,6 @@ jobs:
 
   test-coverage:
     name: Calculate and upload test coverage
-    needs: build-and-test
     runs-on: ubuntu-latest
 
     steps:
