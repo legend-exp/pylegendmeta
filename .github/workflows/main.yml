@@ -40,6 +40,7 @@ jobs:
       uses: actions/checkout@v2
       with:
         repository: legend-exp/legend-metadata
+        fetch-depth: 0
         token:  ${{ secrets.READPRIVATE }}
         path: ${{ env.LEGEND_METADATA }}
     - name: Run unit tests
@@ -65,6 +66,7 @@ jobs:
         uses: actions/checkout@v2
         with:
           repository: legend-exp/legend-metadata
+          fetch-depth: 0
           token:  ${{ secrets.READPRIVATE }}
           path: ${{ env.LEGEND_METADATA }}
       - name: Generate Report
