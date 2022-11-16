@@ -12,6 +12,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  LEGEND_METADATA: ${{ env.GITHUB_WORKSPACE }}/legend-metadata
+
 jobs:
 
   build-and-test:
@@ -29,15 +32,50 @@ jobs:
       uses: actions/setup-python@v2
       with:
         python-version: ${{ matrix.python-version }}
-    - name: Get dependencies and install the legendmeta
+    - name: Get dependencies and install legendmeta
       run: |
         python -m pip install --upgrade pip wheel setuptools
         python -m pip install --upgrade .[test]
+    - name: Clone legend-metadata
+      uses: actions/checkout@v2
+      with:
+        repository: legend-exp/legend-metadata
+        token:  ${{ secrets.READPRIVATE }}
+        path: ${{ env.LEGEND_METADATA }}
+    - name: Run unit tests
+      run: |
+        pytest
+
+  test-coverage:
+    name: Calculate and upload test coverage
+    needs: build-and-test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.10'
+      - name: Clone legend-metadata
+        uses: actions/checkout@v2
+        with:
+          repository: legend-exp/legend-metadata
+          token:  ${{ secrets.READPRIVATE }}
+          path: ${{ env.LEGEND_METADATA }}
+      - name: Generate Report
+        run: |
+          python -m pip install --upgrade pip wheel setuptools
+          python -m pip install --upgrade .[test]
+          pytest --cov=pkgplaceholder --cov-report=xml
+      - name: Upload Coverage to codecov.io
+        uses: codecov/codecov-action@v3
 
   build-docs:
     name: Build documentation
-    needs: build-and-test
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v2
         with:
