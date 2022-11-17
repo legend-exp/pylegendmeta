@@ -3,6 +3,8 @@ from git import GitCommandError
 
 from legendmeta import LegendMetadata
 
+pytestmark = pytest.mark.private
+
 mdata = LegendMetadata()
 mdata.checkout("3866a0b")
 

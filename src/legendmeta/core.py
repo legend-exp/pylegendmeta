@@ -34,13 +34,13 @@ class LegendMetadata:
         else:
             self._repo_path = os.getenv(
                 "LEGEND_METADATA",
-                os.path.join(gettempdir(), "legend-testdata-" + getuser()),
+                os.path.join(gettempdir(), "legend-metadata-" + getuser()),
             )
 
-        self._repo: Repo = self._init_testdata_repo()
+        self._repo: Repo = self._init_metadata_repo()
         self._db: JsonDB = JsonDB(self._repo_path)
 
-    def _init_testdata_repo(self):
+    def _init_metadata_repo(self):
         """Clone legend-metadata, if not existing, and checkout default Git ref."""
         if not os.path.exists(self._repo_path):
             os.mkdir(self._repo_path)
