@@ -2,8 +2,12 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import re
 from pathlib import Path
 from typing import Iterator
+from legendmeta.Props import Props
+from legendmeta.catalog import Catalog
 
 log = logging.getLogger(__name__)
 
@@ -33,6 +37,7 @@ class JsonDB:
     >>> jdb["dir1"]["file1"]  # nested JSON file
     >>> jdb["dir1/file1"]  # also works
     """
+    tstamp_form = re.compile("\d{8}T\d{6}Z")
 
     def __init__(self, path: str | Path) -> None:
         self.path: Path = Path(path).expanduser().resolve()
@@ -49,6 +54,47 @@ class JsonDB:
             except (json.JSONDecodeError, ValueError):
                 log.warning(f"could not scan file {j}")
 
+    def _time_validity(self, timestamp:str|datetime, system="cal", pattern=None) -> JsonDB | dict:
+        key_resolve = os.path.join(self.path, "key_resolve.jsonl")
+        file_list = Catalog.get_files(key_resolve, timestamp, system)
+        #select only files matching pattern if specfied
+        if pattern is not None:
+            c = re.compile(pattern)
+            out_files = []
+            for file in file_list:
+                if c.match(file):
+                    out_files.append(file)
+            return out_files
+        else: return file_list
+        
+    def __gettstamp__(self, d) ->  dict:
+        db_ptr = self
+        #define defaults
+        pattern=None
+        system="all"
+        #check if system or file pattern is specified
+        if len(d)>16:
+            if d.count(",")==2:
+                d, system, pattern = d.split(",")
+            elif d.count(",")==1:
+                d,system = d.split(",")
+        # get the files from the jsonl
+        files = self._time_validity(d,system=system, pattern=pattern)
+
+        # read files in and combine as necessary
+        if isinstance(files, list):
+            result={}
+            for file in files:
+                fp = self.path.rglob(file)
+                fp = [i for i in fp][0]
+                Props.add_to(result, db_ptr[fp])
+            db_ptr = result
+        else:
+            fp = self.path.rglob(file)
+            fp = [i for i in fp][0]
+            db_ptr = db_ptr[fp]
+        return db_ptr
+
     def __getitem__(self, item: str | Path) -> JsonDB | dict:
         """Access files or directories in the database."""
         # resolve relative paths / links, but keep it relative to self.path
@@ -56,6 +102,8 @@ class JsonDB:
 
         # now call this very function recursively to walk the directories to the file
         db_ptr = self
+        if (isinstance(item.parts[0], str) and self.tstamp_form.match(item.parts[0][:16])):
+            return self.__gettstamp__(item.parts[0])
         for d in item.parts[0:-1]:
             db_ptr = db_ptr[d]
 
