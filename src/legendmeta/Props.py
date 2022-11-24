@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # Copyright (C) 2015 Oliver Schulz <oschulz@mpp.mpg.de>
 #
@@ -15,27 +14,26 @@
 # limitations under the License.
 #
 
-from collections import namedtuple
-import types
-import collections
-import json
 import copy
+import json
 import os
 from string import Template
 
-class Props():
+
+class Props:
     @staticmethod
-    def read_from(sources, subst_pathvar = False, subst_env = False, trim_null = False):
+    def read_from(sources, subst_pathvar=False, subst_env=False, trim_null=False):
         def read_impl(sources):
             if isinstance(sources, str):
                 file_name = sources
-                with open(file_name, 'r') as file:
+                with open(file_name) as file:
                     result = json.load(file)
                     if subst_pathvar:
                         Props.subst_vars(
                             result,
-                            var_values = {'_': os.path.dirname(file_name)},
-                            use_env = False, ignore_missing = True
+                            var_values={"_": os.path.dirname(file_name)},
+                            use_env=False,
+                            ignore_missing=True,
                         )
                     return result
 
@@ -45,24 +43,24 @@ class Props():
                     Props.add_to(result, p)
                 return result
             else:
-                raise ValueError(f"Can't run Props.read_from on sources-value of type {type(sources)}")
+                raise ValueError(
+                    f"Can't run Props.read_from on sources-value of type {type(sources)}"
+                )
 
         result = read_impl(sources)
         if subst_env:
-            Props.subst_vars(result, var_values = {}, use_env = True, ignore_missing = False)
+            Props.subst_vars(result, var_values={}, use_env=True, ignore_missing=False)
         if trim_null:
             Props.trim_null(result)
         return result
 
-
     @staticmethod
-    def write_to(file_name, obj, pretty = False):
-        separators = None if pretty else (',', ':')
+    def write_to(file_name, obj, pretty=False):
+        separators = None if pretty else (",", ":")
         indent = 2 if pretty else None
-        with open(file_name, 'w') as file:
-            json.dump(obj, file, indent = indent, separators = separators)
-            file.write('\n')
-
+        with open(file_name, "w") as file:
+            json.dump(obj, file, indent=indent, separators=separators)
+            file.write("\n")
 
     @staticmethod
     def add_to(props_a, props_b):
@@ -78,26 +76,24 @@ class Props():
             else:
                 a[key] = copy.copy(b[key])
 
-
     @staticmethod
-    def subst_vars(props, var_values = {}, use_env = False, ignore_missing = False):
+    def subst_vars(props, var_values={}, use_env=False, ignore_missing=False):
         combined_var_values = var_values
         if use_env:
             combined_var_values = env_list(var_values)
         for key in props:
             value = props[key]
-            if isinstance(value, str) and '$' in value:
+            if isinstance(value, str) and "$" in value:
                 new_value = None
                 if ignore_missing:
                     new_value = Template(value).safe_substitute(combined_var_values)
                 else:
                     new_value = Template(value).substitute(combined_var_values)
 
-                if (new_value != value):
+                if new_value != value:
                     props[key] = new_value
             elif isinstance(value, dict):
                 Props.subst_vars(value, combined_var_values, False, ignore_missing)
-
 
     @staticmethod
     def trim_null(props_a):
