@@ -17,7 +17,6 @@
 import copy
 import json
 import os
-from string import Template
 
 
 class Props:

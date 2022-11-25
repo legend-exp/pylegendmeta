@@ -56,7 +56,9 @@ class JsonDB:
             except (json.JSONDecodeError, ValueError):
                 log.warning(f"could not scan file {j}")
 
-    def _time_validity(self, timestamp:str, system="cal", pattern=None) -> JsonDB | dict:
+    def _time_validity(
+        self, timestamp: str, system="cal", pattern=None
+    ) -> JsonDB | dict:
         key_resolve = os.path.join(self.path, "key_resolve.jsonl")
         file_list = Catalog.get_files(key_resolve, timestamp, system)
         # select only files matching pattern if specfied
