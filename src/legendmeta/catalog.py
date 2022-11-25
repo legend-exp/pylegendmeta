@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # Copyright (C) 2015 Oliver Schulz <oschulz@mpp.mpg.de>
 #
@@ -15,45 +14,45 @@
 # limitations under the License.
 #
 
-from collections import namedtuple
 import bisect
-import types
 import collections
 import json
-import copy
-import os
-from string import Template
+import types
+from collections import namedtuple
 from datetime import datetime
+
 
 def unix_time(value):
     if isinstance(value, str):
-        return datetime.timestamp(datetime.strptime(value, '%Y%m%dT%H%M%SZ'))
+        return datetime.timestamp(datetime.strptime(value, "%Y%m%dT%H%M%SZ"))
     else:
         raise ValueError(f"Can't convert type {type(value)} to unix time")
 
-class PropsStream():
+
+class PropsStream:
     @staticmethod
     def get(value):
         if isinstance(value, str):
             return PropsStream.read_from(value)
-        elif isinstance(value, collections.Sequence) or isinstance(value, types.GeneratorType):
+        elif isinstance(value, collections.abc.Sequence) or isinstance(
+            value, types.GeneratorType
+        ):
             return value
         else:
             raise ValueError(f"Can't get PropsStream from value of type {type(value)}")
 
-
     @staticmethod
     def read_from(file_name):
-        with open(file_name, 'r') as file:
+        with open(file_name) as file:
             for json_str in file:
                 yield json.loads(json_str)
 
-class Catalog(namedtuple('Catalog', ['entries'])):
+
+class Catalog(namedtuple("Catalog", ["entries"])):
     __slots__ = ()
 
-    class Entry(namedtuple('Entry', ['valid_from','file'])):
+    class Entry(namedtuple("Entry", ["valid_from", "file"])):
         __slots__ = ()
-
 
     @staticmethod
     def get(value):
@@ -63,7 +62,6 @@ class Catalog(namedtuple('Catalog', ['entries'])):
             return Catalog.read_from(value)
         else:
             raise ValueError(f"Can't get Catalog from value of type {type(value)}")
-
 
     @staticmethod
     def read_from(file_name):
@@ -78,31 +76,34 @@ class Catalog(namedtuple('Catalog', ['entries'])):
             file_key = props["apply"]
             if system not in entries:
                 entries[system] = []
-            entries[system].append(Catalog.Entry(unix_time(timestamp),file_key))
+            entries[system].append(Catalog.Entry(unix_time(timestamp), file_key))
 
         for system in entries:
             entries[system] = sorted(
-                entries[system],
-                key = lambda entry: entry.valid_from
+                entries[system], key=lambda entry: entry.valid_from
             )
         return Catalog(entries)
 
-
-    def valid_for(self, timestamp, system="all", allow_none = False):
+    def valid_for(self, timestamp, system="all", allow_none=False):
         if system in self.entries:
-            valid_from = [ entry.valid_from for entry in self.entries[system]]
+            valid_from = [entry.valid_from for entry in self.entries[system]]
             pos = bisect.bisect_right(valid_from, unix_time(timestamp))
             if pos > 0:
                 return self.entries[system][pos - 1].file
             else:
-                if allow_none: return None
-                else: raise RuntimeError(f'No valid entries found for timestamp: {timestamp}, system: {system}')
+                if allow_none:
+                    return None
+                else:
+                    raise RuntimeError(
+                        f"No valid entries found for timestamp: {timestamp}, system: {system}"
+                    )
         else:
-            if allow_none: return None
-            else: raise RuntimeError(f'No entries found for system: {system}')
-    
+            if allow_none:
+                return None
+            else:
+                raise RuntimeError(f"No entries found for system: {system}")
+
     @staticmethod
     def get_files(catalog_file, timestamp, category="all"):
         catalog = Catalog.read_from(catalog_file)
-        return Catalog.valid_for(catalog,timestamp, category)
-    
+        return Catalog.valid_for(catalog, timestamp, category)
