@@ -78,27 +78,6 @@ class Props():
             else:
                 a[key] = copy.copy(b[key])
 
-
-    @staticmethod
-    def subst_vars(props, var_values = {}, use_env = False, ignore_missing = False):
-        combined_var_values = var_values
-        if use_env:
-            combined_var_values = env_list(var_values)
-        for key in props:
-            value = props[key]
-            if isinstance(value, str) and '$' in value:
-                new_value = None
-                if ignore_missing:
-                    new_value = Template(value).safe_substitute(combined_var_values)
-                else:
-                    new_value = Template(value).substitute(combined_var_values)
-
-                if (new_value != value):
-                    props[key] = new_value
-            elif isinstance(value, dict):
-                Props.subst_vars(value, combined_var_values, False, ignore_missing)
-
-
     @staticmethod
     def trim_null(props_a):
         a = props_a
