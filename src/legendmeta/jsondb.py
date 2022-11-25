@@ -61,7 +61,7 @@ class JsonDB:
     ) -> JsonDB | dict:
         key_resolve = os.path.join(self.path, "key_resolve.jsonl")
         file_list = Catalog.get_files(key_resolve, timestamp, system)
-        # select only files matching pattern if specfied
+        # select only files matching pattern if specified
         if pattern is not None:
             c = re.compile(pattern)
             out_files = []
