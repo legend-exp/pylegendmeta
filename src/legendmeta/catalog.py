@@ -39,7 +39,7 @@ class PropsStream():
         elif isinstance(value, collections.Sequence) or isinstance(value, types.GeneratorType):
             return value
         else:
-            raise ValueError(f"Can't get PropsStream from value of type {type(source)}")
+            raise ValueError(f"Can't get PropsStream from value of type {type(value)}")
 
 
     @staticmethod
@@ -62,7 +62,7 @@ class Catalog(namedtuple('Catalog', ['entries'])):
         if isinstance(value, str):
             return Catalog.read_from(value)
         else:
-            raise ValueError(f"Can't get Catalog from value of type {type(source)}")
+            raise ValueError(f"Can't get Catalog from value of type {type(value)}")
 
 
     @staticmethod
