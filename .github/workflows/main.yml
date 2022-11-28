@@ -15,7 +15,6 @@ concurrency:
 jobs:
 
   build-and-test:
-    if: github.event_name != 'pull_request'
     name: Test legendmeta with Python
     runs-on: ${{ matrix.os }}
     strategy:
@@ -45,14 +44,9 @@ jobs:
         fetch-depth: 0
         token:  ${{ secrets.READPRIVATE }}
         path: ${{ env.LEGEND_METADATA }}
-    - name: Run (all) unit tests
-      if: github.event_name != 'pull_request'
-      run: |
-        pytest
     - name: Run unit tests
-      if: github.event_name == 'pull_request'
       run: |
-        pytest -m "not private"
+        python -m pytest
 
   test-coverage:
     name: Calculate and upload test coverage
@@ -81,13 +75,8 @@ jobs:
         token:  ${{ secrets.READPRIVATE }}
         path: ${{ env.LEGEND_METADATA }}
     - name: Generate report for (all) unit tests
-      if: github.event_name != 'pull_request'
       run: |
-        pytest --cov=legendmeta --cov-report=xml
-    - name: Generate report
-      if: github.event_name == 'pull_request'
-      run: |
-        pytest --cov=legendmeta --cov-report=xml -m "not private"
+        python -m pytest --cov=legendmeta --cov-report=xml
     - name: Upload Coverage to codecov.io
       uses: codecov/codecov-action@v3
 
