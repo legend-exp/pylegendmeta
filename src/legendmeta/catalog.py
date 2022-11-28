@@ -16,12 +16,12 @@
 
 import bisect
 import collections
+import copy
 import json
+import os
 import types
 from collections import namedtuple
 from datetime import datetime
-import copy
-import os
 
 
 def unix_time(value):
