@@ -3,7 +3,7 @@ from git import GitCommandError
 
 from legendmeta import LegendMetadata
 
-pytestmark = pytest.mark.xfail(run=True)
+pytestmark = pytest.mark.xfail(run=True, reason="requires access to legend-metadata")
 
 
 @pytest.fixture(scope="module")

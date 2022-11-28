@@ -30,3 +30,18 @@ def test_access():
 def test_scan():
     jdb = JsonDB(testdb)
     jdb.scan()
+
+
+def test_time_validity():
+    jdb = JsonDB(testdb)
+    assert isinstance(jdb["dir1"]["20220628T221955Z"], dict)
+
+    assert jdb["dir1"]["20220628T221955Z"]["data"] == 1
+    assert jdb["dir1"]["20220629T221955Z"]["data"] == 2
+    # time point in between
+    assert jdb["dir1"]["20220628T233500Z"]["data"] == 1
+    # time point after
+    assert jdb["dir1"]["20220630T233500Z"]["data"] == 2
+    # time point before
+    with pytest.raises(RuntimeError):
+        assert jdb["dir1"]["20220627T233500Z"]["data"]
