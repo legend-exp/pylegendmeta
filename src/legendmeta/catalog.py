@@ -20,6 +20,8 @@ import json
 import types
 from collections import namedtuple
 from datetime import datetime
+import copy
+import os
 
 
 def unix_time(value):
@@ -107,3 +109,70 @@ class Catalog(namedtuple("Catalog", ["entries"])):
     def get_files(catalog_file, timestamp, category="all"):
         catalog = Catalog.read_from(catalog_file)
         return Catalog.valid_for(catalog, timestamp, category)
+
+
+class Props:
+    @staticmethod
+    def read_from(sources, subst_pathvar=False, subst_env=False, trim_null=False):
+        def read_impl(sources):
+            if isinstance(sources, str):
+                file_name = sources
+                with open(file_name) as file:
+                    result = json.load(file)
+                    if subst_pathvar:
+                        Props.subst_vars(
+                            result,
+                            var_values={"_": os.path.dirname(file_name)},
+                            use_env=False,
+                            ignore_missing=True,
+                        )
+                    return result
+
+            elif isinstance(sources, list):
+                result = {}
+                for p in map(read_impl, sources):
+                    Props.add_to(result, p)
+                return result
+            else:
+                raise ValueError(
+                    f"Can't run Props.read_from on sources-value of type {type(sources)}"
+                )
+
+        result = read_impl(sources)
+        if subst_env:
+            Props.subst_vars(result, var_values={}, use_env=True, ignore_missing=False)
+        if trim_null:
+            Props.trim_null(result)
+        return result
+
+    @staticmethod
+    def write_to(file_name, obj, pretty=False):
+        separators = None if pretty else (",", ":")
+        indent = 2 if pretty else None
+        with open(file_name, "w") as file:
+            json.dump(obj, file, indent=indent, separators=separators)
+            file.write("\n")
+
+    @staticmethod
+    def add_to(props_a, props_b):
+        a = props_a
+        b = props_b
+
+        for key in b:
+            if key in a:
+                if isinstance(a[key], dict) and isinstance(b[key], dict):
+                    Props.add_to(a[key], b[key])
+                elif a[key] != b[key]:
+                    a[key] = copy.copy(b[key])
+            else:
+                a[key] = copy.copy(b[key])
+
+    @staticmethod
+    def trim_null(props_a):
+        a = props_a
+
+        for key in a.keys():
+            if isinstance(a[key], dict):
+                Props.trim_null(a[key])
+            elif a[key] is None:
+                del a[key]
