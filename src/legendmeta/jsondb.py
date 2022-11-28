@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Iterator
 
 from legendmeta.catalog import Catalog
-from legendmeta.Props import Props
+from legendmeta.props import Props
 
 log = logging.getLogger(__name__)
 
