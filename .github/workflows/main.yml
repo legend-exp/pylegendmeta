@@ -83,11 +83,11 @@ jobs:
     - name: Generate report for (all) unit tests
       if: github.event_name != 'pull_request'
       run: |
-        pytest --cov=pkgplaceholder --cov-report=xml
+        pytest --cov=legendmeta --cov-report=xml
     - name: Generate report
       if: github.event_name == 'pull_request'
       run: |
-        pytest --cov=pkgplaceholder --cov-report=xml -m "not private"
+        pytest --cov=legendmeta --cov-report=xml -m "not private"
     - name: Upload Coverage to codecov.io
       uses: codecov/codecov-action@v3
 
