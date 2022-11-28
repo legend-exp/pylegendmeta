@@ -45,3 +45,7 @@ def test_time_validity():
     # time point before
     with pytest.raises(RuntimeError):
         assert jdb["dir1"]["20220627T233500Z"]["data"]
+
+    # directory with no .jsonl
+    with pytest.raises(RuntimeError):
+        assert jdb["dir1"]["dir2"]["20220627T233500Z"]

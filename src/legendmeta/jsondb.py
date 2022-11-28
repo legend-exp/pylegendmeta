@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import re
+from glob import glob
 from pathlib import Path
 from typing import Iterator
 
@@ -58,7 +59,12 @@ class JsonDB:
     def _time_validity(
         self, timestamp: str, system="cal", pattern=None
     ) -> JsonDB | dict:
-        key_resolve = os.path.join(self.path, "key_resolve.jsonl")
+        files = glob(os.path.join(self.path, "*.jsonl"))
+        if len(files) == 0:
+            raise RuntimeError("no .jsonl file found")
+        if len(files) > 1:
+            raise RuntimeError("unsupported: multiple .jsonl files found")
+        key_resolve = files[0]
         file_list = Catalog.get_files(key_resolve, timestamp, system)
         # select only files matching pattern if specified
         if pattern is not None:
