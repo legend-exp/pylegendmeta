@@ -27,6 +27,8 @@ from datetime import datetime
 def unix_time(value):
     if isinstance(value, str):
         return datetime.timestamp(datetime.strptime(value, "%Y%m%dT%H%M%SZ"))
+    elif isinstance(value, datetime):
+        return datetime.timestamp(value)
     else:
         raise ValueError(f"Can't convert type {type(value)} to unix time")
 
