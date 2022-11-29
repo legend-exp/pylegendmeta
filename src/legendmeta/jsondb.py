@@ -6,11 +6,24 @@ import os
 import re
 from glob import glob
 from pathlib import Path
-from typing import Iterator
+from typing import Any, Iterator
 
 from legendmeta.catalog import Catalog, Props
 
 log = logging.getLogger(__name__)
+
+
+class AttrsDict(dict):
+    """ """
+
+    def __getattr__(self, name: str) -> Any:
+        try:
+            return self[name]
+        except KeyError as e:
+            raise AttributeError(e)
+
+    def __setattr__(self, name: str, value: Any):
+        self[name] = value
 
 
 class JsonDB:
@@ -46,7 +59,7 @@ class JsonDB:
         if not self.path.is_dir():
             raise ValueError("input path is not a valid directory")
 
-        self._store: dict = {}
+        self._store = AttrsDict()
 
     def scan(self) -> None:
         """Populate the database by walking the directory."""
@@ -57,8 +70,8 @@ class JsonDB:
                 log.warning(f"could not scan file {j}")
 
     def _time_validity(
-        self, timestamp: str, system="cal", pattern=None
-    ) -> JsonDB | dict:
+        self, timestamp: str, system: str = "cal", pattern: str = None
+    ) -> JsonDB | AttrsDict:
         files = glob(os.path.join(self.path, "*.jsonl"))
         if len(files) == 0:
             raise RuntimeError("no .jsonl file found")
@@ -77,7 +90,7 @@ class JsonDB:
         else:
             return file_list
 
-    def __gettstamp__(self, d) -> dict:
+    def __gettstamp__(self, d: str) -> AttrsDict:
         db_ptr = self
         # define defaults
         pattern = None
@@ -93,7 +106,7 @@ class JsonDB:
 
         # read files in and combine as necessary
         if isinstance(files, list):
-            result = {}
+            result = AttrsDict()
             for file in files:
                 fp = self.path.rglob(file)
                 fp = [i for i in fp][0]
@@ -105,17 +118,18 @@ class JsonDB:
             db_ptr = db_ptr[fp]
         return db_ptr
 
-    def __getitem__(self, item: str | Path) -> JsonDB | dict:
+    def __getitem__(self, item: str | Path) -> JsonDB | AttrsDict:
         """Access files or directories in the database."""
         # resolve relative paths / links, but keep it relative to self.path
         item = Path(self.path / item).expanduser().resolve().relative_to(self.path)
 
-        # now call this very function recursively to walk the directories to the file
         db_ptr = self
         if isinstance(item.parts[0], str) and self.tstamp_form.match(
             item.parts[0][:16]
         ):
             return self.__gettstamp__(item.parts[0])
+
+        # now call this very function recursively to walk the directories to the file
         for d in item.parts[0:-1]:
             db_ptr = db_ptr[d]
 
@@ -132,13 +146,19 @@ class JsonDB:
 
                 if obj.is_file():
                     with obj.open() as f:
-                        db_ptr._store[item_id] = json.load(f)
+                        db_ptr._store[item_id] = AttrsDict(json.load(f))
                 else:
                     raise FileNotFoundError(
                         f"{str(obj).replace('.json.json', '.json')} is not a valid file or directory"
                     )
 
         return db_ptr._store[item_id]
+
+    def __getattr__(self, name: str) -> JsonDB | AttrsDict:
+        try:
+            return self[name]
+        except KeyError as e:
+            raise AttributeError(e)
 
     def __len__(self) -> int:
         return len(self._store)
