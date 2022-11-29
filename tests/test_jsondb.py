@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -45,18 +46,27 @@ def test_scan():
 
 def test_time_validity():
     jdb = JsonDB(testdb)
-    assert isinstance(jdb["dir1"]["20220628T221955Z"], dict)
+    assert isinstance(jdb["dir1"].at("20220628T221955Z"), AttrsDict)
 
-    assert jdb["dir1"]["20220628T221955Z"]["data"] == 1
-    assert jdb["dir1"]["20220629T221955Z"]["data"] == 2
+    assert jdb["dir1"].at("20220628T221955Z")["data"] == 1
+    assert jdb.dir1.at("20220629T221955Z").data == 2
     # time point in between
-    assert jdb["dir1"]["20220628T233500Z"]["data"] == 1
+    assert jdb["dir1"].at("20220628T233500Z")["data"] == 1
     # time point after
-    assert jdb["dir1"]["20220630T233500Z"]["data"] == 2
+    assert jdb["dir1"].at("20220630T233500Z")["data"] == 2
     # time point before
     with pytest.raises(RuntimeError):
-        assert jdb["dir1"]["20220627T233500Z"]["data"]
+        jdb["dir1"].at("20220627T233500Z")["data"]
 
     # directory with no .jsonl
     with pytest.raises(RuntimeError):
-        assert jdb["dir1"]["dir2"]["20220627T233500Z"]
+        jdb["dir1"]["dir2"].at("20220627T233500Z")
+
+    # invalid timestamp
+    with pytest.raises(ValueError):
+        jdb.dir1.at("20220627T2335002Z")
+
+    # test usage of datetime object
+    tstamp = datetime(2022, 6, 28, 23, 35, 00, tzinfo=timezone.utc)
+    assert jdb.dir1.at(tstamp).data == 1
+    assert jdb.dir1.at(tstamp, r"^file3.*", "all").data == 1

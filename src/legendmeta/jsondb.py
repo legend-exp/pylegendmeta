@@ -52,8 +52,6 @@ class JsonDB:
     >>> jdb["dir1/file1"]  # also works
     """
 
-    tstamp_form = re.compile(r"\d{8}T\d{6}Z")
-
     def __init__(self, path: str | Path) -> None:
         self.path: Path = Path(path).expanduser().resolve()
         if not self.path.is_dir():
@@ -69,9 +67,14 @@ class JsonDB:
             except (json.JSONDecodeError, ValueError):
                 log.warning(f"could not scan file {j}")
 
-    def _time_validity(
-        self, timestamp: str, system: str = "cal", pattern: str = None
-    ) -> JsonDB | AttrsDict:
+    def at(self, timestamp: str, pattern: str = None, system: str = "all") -> AttrsDict:
+        """Query database in `time[, file pattern, system]`.
+
+        A (only one) valid ``.jsonl`` file must exist in the directory to
+        specify a validity mapping. This functionality relies on the
+        :mod:`.catalog` module.
+        """
+        # get the files from the jsonl
         files = glob(os.path.join(self.path, "*.jsonl"))
         if len(files) == 0:
             raise RuntimeError("no .jsonl file found")
@@ -86,25 +89,12 @@ class JsonDB:
             for file in file_list:
                 if c.match(file):
                     out_files.append(file)
-            return out_files
+            files = out_files
         else:
-            return file_list
-
-    def __gettstamp__(self, d: str) -> AttrsDict:
-        db_ptr = self
-        # define defaults
-        pattern = None
-        system = "all"
-        # check if system or file pattern is specified
-        if len(d) > 16:
-            if d.count(",") == 2:
-                d, system, pattern = d.split(",")
-            elif d.count(",") == 1:
-                d, system = d.split(",")
-        # get the files from the jsonl
-        files = self._time_validity(d, system=system, pattern=pattern)
+            files = file_list
 
         # read files in and combine as necessary
+        db_ptr = self
         if isinstance(files, list):
             result = AttrsDict()
             for file in files:
@@ -123,13 +113,8 @@ class JsonDB:
         # resolve relative paths / links, but keep it relative to self.path
         item = Path(self.path / item).expanduser().resolve().relative_to(self.path)
 
-        db_ptr = self
-        if isinstance(item.parts[0], str) and self.tstamp_form.match(
-            item.parts[0][:16]
-        ):
-            return self.__gettstamp__(item.parts[0])
-
         # now call this very function recursively to walk the directories to the file
+        db_ptr = self
         for d in item.parts[0:-1]:
             db_ptr = db_ptr[d]
 
