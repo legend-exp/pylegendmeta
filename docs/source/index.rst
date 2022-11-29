@@ -18,7 +18,7 @@ Getting started
 
     .. code-block:: console
 
-        $ pip install pylegendmeta@git+https://github.com/legend-exp/pylegendmeta@main
+        $ pip install pylegendmeta@git+https://github.com/legend-exp/pylegendmeta@main#egg=legendmeta
 
 Next steps
 ----------

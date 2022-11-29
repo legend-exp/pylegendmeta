@@ -1,5 +1,6 @@
 # pylegendmeta
 
+[![PyPI](https://img.shields.io/pypi/v/pylegendmeta?logo=pypi)](https://pypi.org/project/pylegendmeta/)
 ![GitHub tag (latest by date)](https://img.shields.io/github/v/tag/legend-exp/pylegendmeta?logo=git)
 [![GitHub Workflow Status](https://img.shields.io/github/workflow/status/legend-exp/pylegendmeta/legendmeta/main?label=main%20branch&logo=github)](https://github.com/legend-exp/pylegendmeta/actions)
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)](https://github.com/pre-commit/pre-commit)
