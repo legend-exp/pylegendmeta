@@ -7,9 +7,9 @@ from pkg_resources import get_distribution
 
 sys.path.insert(0, Path(__file__).parents[2].resolve().as_posix())
 
-project = "legendmeta"
+project = "pylegendmeta"
 copyright = "Copyright Holder"
-version = get_distribution("legendmeta").version
+version = get_distribution("pylegendmeta").version
 
 extensions = [
     "sphinx.ext.githubpages",
@@ -32,7 +32,7 @@ language = "python"
 # Furo theme
 html_theme = "furo"
 html_theme_options = {
-    "source_repository": "https://github.com/legend-exp/legendmeta",
+    "source_repository": "https://github.com/legend-exp/pylegendmeta",
     "source_branch": "main",
     "source_directory": "docs/source",
 }
