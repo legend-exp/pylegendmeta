@@ -12,7 +12,7 @@ from legendmeta.jsondb import JsonDB
 log = logging.getLogger(__name__)
 
 
-class LegendMetadata:
+class LegendMetadata(JsonDB):
     """LEGEND metadata.
 
     Class representing the LEGEND metadata repository with utilities for fast
@@ -38,7 +38,8 @@ class LegendMetadata:
             )
 
         self._repo: Repo = self._init_metadata_repo()
-        self._db: JsonDB = JsonDB(self._repo_path)
+
+        super().__init__(self._repo_path)
 
     def _init_metadata_repo(self):
         """Clone legend-metadata, if not existing, and checkout default Git ref."""
@@ -71,7 +72,3 @@ class LegendMetadata:
     def reset(self) -> None:
         """Checkout legend-metadata to default Git ref."""
         self._repo.git.checkout(self._default_git_ref)
-
-    def __getitem__(self, item: str) -> JsonDB | dict:
-        """Get a JsonDB (if a directory) or dict (if a JSON file) from the metadata."""
-        return self._db[item]
