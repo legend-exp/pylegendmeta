@@ -19,6 +19,7 @@ def test_get_file(metadb):
 
 def test_get_directory(metadb):
     metadb["hardware"]
+    metadb.hardware
 
 
 def test_file_not_found(metadb):
@@ -33,3 +34,4 @@ def test_git_ref_not_found(metadb):
 
 def test_nested_get(metadb):
     assert metadb["hardware"]["detectors"]["B00000A"]["det_name"] == "B00000A"
+    assert metadb.hardware.detectors.B00000A.det_name == "B00000A"
