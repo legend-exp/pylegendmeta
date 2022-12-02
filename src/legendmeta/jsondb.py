@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import re
+from datetime import datetime
 from glob import glob
 from pathlib import Path
 from typing import Any, Iterator
@@ -67,12 +68,24 @@ class JsonDB:
             except (json.JSONDecodeError, ValueError):
                 log.warning(f"could not scan file {j}")
 
-    def at(self, timestamp: str, pattern: str = None, system: str = "all") -> AttrsDict:
+    def at(
+        self, timestamp: str | datetime, pattern: str = None, system: str = "all"
+    ) -> AttrsDict:
         """Query database in `time[, file pattern, system]`.
 
         A (only one) valid ``.jsonl`` file must exist in the directory to
         specify a validity mapping. This functionality relies on the
         :mod:`.catalog` module.
+
+        Parameters
+        ----------
+        timestamp
+            a :class:`datetime` object or a string matching the pattern
+            ``YYYYmmddTHHMMSSZ``.
+        pattern
+            query by filename pattern.
+        system: {'all', 'phy', 'cal', 'lar', ...}
+            query only a data taking "system".
         """
         # get the files from the jsonl
         files = glob(os.path.join(self.path, "*.jsonl"))

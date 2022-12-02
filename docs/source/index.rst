@@ -1,5 +1,5 @@
-Welcome to legendmeta's documentation!
-==========================================
+Welcome to pylegendmeta's documentation!
+========================================
 
 Getting started
 ---------------
@@ -26,4 +26,5 @@ Next steps
 .. toctree::
    :maxdepth: 1
 
+   tutorial
    Package API reference <api/modules>
