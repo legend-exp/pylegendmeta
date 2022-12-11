@@ -1,0 +1,30 @@
+{
+  "detname": "^S\\d{3}$",
+  "location": {
+    "fiber": 0,
+    "position": 0
+  },
+  "daq": {
+    "crate": 0,
+    "card": {
+      "id": 0,
+      "serialno": 0,
+      "address": ""
+    },
+    "channel": 0,
+    "fc_channel": 0
+  },
+  "electronics": {
+    "card": {
+      "id": 0,
+      "serialno": null
+    },
+    "channel": 0,
+    "cable": "",
+    "flange": "",
+    "dsub": {
+      "id": "",
+      "pinpair": 0
+    }
+  }
+}

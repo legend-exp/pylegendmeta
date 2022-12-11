@@ -1,0 +1,34 @@
+{
+  "detname": "^[VPBC]\\w{6}$",
+  "location": {
+    "string": 0,
+    "position": 0
+  },
+  "daq": {
+    "crate": 0,
+    "card": {
+      "id": 0,
+      "serialno": 0,
+      "address": ""
+    },
+    "channel": 0,
+    "fc_channel": 0
+  },
+  "voltage": {
+    "card": {
+      "id": 0,
+      "serialno": null
+    },
+    "channel": 0,
+    "filter": {
+      "id": 0,
+      "channel": 0
+    }
+  },
+  "electronics": {
+    "cc4": {
+      "id": "",
+      "channel": 0
+    }
+  }
+}
