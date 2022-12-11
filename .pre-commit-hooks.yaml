@@ -1,0 +1,5 @@
+- id: validate-legend-chmaps
+  name: check LEGEND channel maps format
+  entry: validate-legend-chmaps
+  language: python
+  types: [json]
