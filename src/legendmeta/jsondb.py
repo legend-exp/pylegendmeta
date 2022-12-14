@@ -15,7 +15,13 @@ log = logging.getLogger(__name__)
 
 
 class AttrsDict(dict):
-    """Access dictionary items as attributes."""
+    """Access dictionary items as attributes.
+
+    Examples
+    --------
+    >>> d = AttrsDict({"key1": {"key2": 1}})
+    >>> d.key1.key2 # == 1
+    """
 
     def __init__(self, value: dict = None) -> None:
         if value is None:
@@ -48,7 +54,8 @@ class JsonDB:
     default: no global scan of the filesystem is performed at the beginning
     (although it is possible to override this behavior by calling
     :meth:`scan`). Once a file is queried, it is also saved in and internal
-    store for faster access.
+    store for faster access. Dictionaries are represented as :class:`AttrsDict`
+    objects.
 
     Note
     ----
@@ -64,6 +71,7 @@ class JsonDB:
     >>> jdb["dir1"]  # JsonDB instance
     >>> jdb["dir1"]["file1"]  # nested JSON file
     >>> jdb["dir1/file1"]  # also works
+    >>> jdb.dir1.file # keys can be accessed as attributes
     """
 
     def __init__(self, path: str | Path) -> None:
