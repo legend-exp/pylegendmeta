@@ -15,16 +15,29 @@ log = logging.getLogger(__name__)
 
 
 class AttrsDict(dict):
-    """ """
+    """Access dictionary items as attributes."""
+
+    def __init__(self, value: dict = None) -> None:
+        if value is None:
+            super().__init__()
+        elif isinstance(value, dict):
+            for key in value:
+                self.__setitem__(key, value[key])
+        else:
+            raise TypeError("expected dict")
+
+    def __setitem__(self, key: str, value: Any) -> Any:
+        if isinstance(value, dict) and not isinstance(value, AttrsDict):
+            value = AttrsDict(value)
+        super().__setitem__(key, value)
+
+    __setattr__ = __setitem__
 
     def __getattr__(self, name: str) -> Any:
         try:
-            return self[name]
+            return self.__getitem__(name)
         except KeyError as e:
             raise AttributeError(e)
-
-    def __setattr__(self, name: str, value: Any):
-        self[name] = value
 
 
 class JsonDB:
@@ -68,7 +81,7 @@ class JsonDB:
             except (json.JSONDecodeError, ValueError):
                 log.warning(f"could not scan file {j}")
 
-    def at(
+    def on(
         self, timestamp: str | datetime, pattern: str = None, system: str = "all"
     ) -> AttrsDict:
         """Query database in `time[, file pattern, system]`.

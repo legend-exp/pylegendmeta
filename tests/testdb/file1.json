@@ -1,3 +1,6 @@
 {
-  "data": null
+  "data": null,
+  "group": {
+    "data1": 1
+  }
 }
