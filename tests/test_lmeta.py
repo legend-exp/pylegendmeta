@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import pytest
 from git import GitCommandError
 
@@ -9,7 +11,7 @@ pytestmark = pytest.mark.xfail(run=True, reason="requires access to legend-metad
 @pytest.fixture(scope="module")
 def metadb():
     mdata = LegendMetadata()
-    mdata.checkout("3866a0b")
+    # mdata.checkout("3866a0b")
     return mdata
 
 
@@ -35,3 +37,9 @@ def test_git_ref_not_found(metadb):
 def test_nested_get(metadb):
     assert metadb["hardware"]["detectors"]["B00000A"]["det_name"] == "B00000A"
     assert metadb.hardware.detectors.B00000A.det_name == "B00000A"
+
+
+def test_chmap_remapping(metadb):
+    metadb.hardware.configuration.channelmaps.on(datetime.now()).map("daq.fc_channel")[
+        7
+    ]

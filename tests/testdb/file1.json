@@ -1,3 +1,14 @@
 {
-  "data": null
+  "data": 1,
+  "label": 2,
+  "key": {
+    "label": 2
+  },
+  "group": {
+    "data1": 1,
+    "key1": { "label": "a", "data": 1 },
+    "key2": { "label": "b", "data": 2 },
+    "key3": { "label": "c", "data": 3 },
+    "key4": { "label": "d", "data": 4 }
+  }
 }
