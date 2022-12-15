@@ -86,7 +86,7 @@ class AttrsDict(dict):
             # label, add an item to the new dict with key equal to the value of
             # the label
             if isinstance(v, dict) and label in v:
-                if not isinstance(v[label], int | float | str):
+                if not isinstance(v[label], (int, float, str)):
                     raise RuntimeError(
                         f"'{label}' values are not all numbers or strings"
                     )
