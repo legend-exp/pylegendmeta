@@ -20,16 +20,26 @@ def test_access():
     assert isinstance(jdb["dir1"]["dir2"], JsonDB)
     assert isinstance(jdb["dir1"]["dir2"]["file4.json"], AttrsDict)
     assert isinstance(jdb["dir1/dir2/file4.json"], AttrsDict)
-    assert jdb["file1.json"]["data"] is None
+    assert jdb["file1.json"]["data"] == 1
     assert isinstance(jdb["file1"]["group"], AttrsDict)
 
     assert isinstance(jdb.file1, AttrsDict)
     assert isinstance(jdb.file1.group, AttrsDict)
     assert isinstance(jdb.dir1, JsonDB)
     assert isinstance(jdb.dir1.file3, AttrsDict)
-    assert jdb.file1.data is None
+    assert jdb.file1.data == 1
+    assert jdb.file2.data == 2
     assert jdb.dir1.file3.data == 1
     assert jdb.file1.group.data1 == 1
+
+    assert isinstance(jdb.arrays, list)
+    assert jdb.arrays[0] == 0
+    assert isinstance(jdb.arrays[1], AttrsDict)
+    assert jdb.arrays[1].data == 1
+    assert isinstance(jdb.arrays[1].array, list)
+    assert isinstance(jdb.arrays[1].array[1], AttrsDict)
+    assert jdb.arrays[1].array[0] == 1
+    assert jdb.arrays[1].array[1].data == 2
 
     with pytest.raises(ValueError):
         JsonDB("non-existent-db")
@@ -73,3 +83,21 @@ def test_time_validity():
     tstamp = datetime(2022, 6, 28, 23, 35, 00, tzinfo=timezone.utc)
     assert jdb.dir1.on(tstamp).data == 1
     assert jdb.dir1.on(tstamp, r"^file3.*", "all").data == 1
+
+
+def test_mapping():
+    jdb = JsonDB(testdb)
+    assert isinstance(jdb.map("label"), AttrsDict)
+    assert jdb.map("label")[3].data == 2
+    assert isinstance(jdb.file1.group.map("label"), AttrsDict)
+    assert jdb.file1.group.map("label")["a"].data == 1
+    assert jdb.file1.group.map("label")["b"].data == 2
+
+
+def test_modification():
+    d = AttrsDict()
+    d["a"] = 1
+    assert d.a == 1
+
+    d.b = 2
+    assert d["b"] == 2
