@@ -1,6 +1,9 @@
 {
   "data": 1,
   "label": 2,
+  "key": {
+    "label": 2
+  },
   "group": {
     "data1": 1,
     "key1": { "label": "a", "data": 1 },

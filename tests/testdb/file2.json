@@ -1,4 +1,7 @@
 {
   "data": 2,
-  "label": 3
+  "label": 3,
+  "key": {
+    "label": 3
+  }
 }

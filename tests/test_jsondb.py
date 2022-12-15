@@ -99,6 +99,7 @@ def test_mapping():
     jdb = JsonDB(testdb)
     assert isinstance(jdb.map("label"), AttrsDict)
     assert jdb.map("label")[3].data == 2
+    assert jdb.map("key.label")[3].data == 2
     assert isinstance(jdb.file1.group.map("label"), AttrsDict)
     assert jdb.file1.group.map("label")["a"].data == 1
     assert jdb.file1.group.map("label")["b"].data == 2

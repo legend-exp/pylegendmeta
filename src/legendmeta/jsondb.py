@@ -39,7 +39,7 @@ class AttrsDict(dict):
         # attribute that holds cached remappings -- see map()
         super().__setattr__("_cached_remaps", {})
 
-    def __setitem__(self, key: str, value: Any) -> Any:
+    def __setitem__(self, key: str | int | float, value: Any) -> Any:
         # convert dicts to AttrsDicts
         if not isinstance(value, AttrsDict):
             if isinstance(value, dict):
@@ -62,7 +62,43 @@ class AttrsDict(dict):
     __setattr__ = __setitem__
 
     def map(self, label: str) -> AttrsDict:
-        """Remap dictionary according to a second unique `key`.
+        """Remap dictionary according to an alternative unique label.
+
+        Loop over keys in the first level and search for key named `label` in
+        their values. If `label` is found and its value `newid` is unique,
+        create a mapping between `newid` and the first-level dictionary `obj`.
+        If `label` is of the form ``key.label``, ``label`` will be searched in
+        a dictionary keyed by ``key``.
+
+        Parameters
+        ----------
+        label
+            name (key) at which the new label can be found. If nested in
+            dictionaries, use ``.`` to separate levels, e.g.
+            ``level1.level2.label``.
+
+        Examples
+        --------
+        >>> d = AttrsDict({
+        ...   "a": {
+        ...     "id": 1,
+        ...     "group": {
+        ...       "id": 3,
+        ...     },
+        ...     "data": "x"
+        ...   },
+        ...   "b": {
+        ...     "id": 2,
+        ...     "group": {
+        ...       "id": 4,
+        ...     },
+        ...     "data": "y"
+        ...   }
+        ... })
+        >>> d.map("id")[1].data == "x"
+        True
+        >>> d.map("group.id")[4].data == "y"
+        True
 
         Note
         ----
@@ -78,24 +114,30 @@ class AttrsDict(dict):
         if label in self._cached_remaps:
             return self._cached_remaps[label]
 
+        splitk = label.split(".")
         newmap = AttrsDict()
 
-        # loop over items (first level)
+        # loop over values in the first level
         for v in self.values():
-            # if value (second level) is a dictionary that contains a key named
-            # label, add an item to the new dict with key equal to the value of
-            # the label
-            if isinstance(v, dict) and label in v:
-                if not isinstance(v[label], (int, float, str)):
-                    raise RuntimeError(
-                        f"'{label}' values are not all numbers or strings"
-                    )
-                if v[label] in newmap:
-                    raise RuntimeError(f"'{label}' values are not unique")
-                else:
-                    newmap[v[label]] = v
+            # find the (nested) label value
+            newid = v
+            try:
+                for k in splitk:
+                    newid = newid[k]
+            # just skip if the label is not there
+            except (KeyError, TypeError, FileNotFoundError):
+                continue
 
-        # store it
+            if not isinstance(newid, (int, float, str)):
+                raise RuntimeError(f"'{label}' values are not all numbers or strings")
+            # complain if a label with the same value was already found
+            if newid in newmap:
+                raise RuntimeError(f"'{label}' values are not unique")
+            else:
+                # add an item to the new dict with key equal to the value of the label
+                newmap[newid] = v
+
+        # cache it
         self._cached_remaps[label] = newmap
         return newmap
 
