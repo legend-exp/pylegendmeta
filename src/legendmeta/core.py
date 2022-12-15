@@ -54,10 +54,11 @@ class LegendMetadata(JsonDB):
                 f"Cloning git@github.com:legend-exp/legend-metadata in {self._repo_path}..."
             )
             repo = Repo.clone_from(
-                "git@github.com:legend-exp/legend-metadata", self._repo_path
+                "git@github.com:legend-exp/legend-metadata",
+                self._repo_path,
+                multi_options=["--recurse-submodules"],
             )
-
-        repo.git.checkout(self._default_git_ref)
+            repo.git.checkout(self._default_git_ref)
 
         return repo
 
