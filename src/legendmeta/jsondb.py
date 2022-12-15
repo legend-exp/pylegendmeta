@@ -261,6 +261,10 @@ class JsonDB:
     def map(self, label: str) -> AttrsDict:
         """Remap dictionary according to a second unique `key`.
 
+        See Also
+        --------
+        AttrsDict.map
+
         Warning
         -------
         If the database is lazy, call :meth:`.scan` in advance to populate it

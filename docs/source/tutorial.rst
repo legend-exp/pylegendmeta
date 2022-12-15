@@ -23,7 +23,6 @@ temporary (i.e. not preserved across system reboots) directory.
 :class:`~.core.LegendMetadata` is a :class:`~.jsondb.JsonDB` object, which
 implements an interface to a database of JSON files arbitrary scattered in a
 filesystem. ``JsonDB`` does not assume any directory structure or file naming.
-The existence of a certain database entry is verified at runtime (lazy).
 
 Access
 ------
@@ -55,7 +54,7 @@ and similarly ``file2.json`` and ``file3.json``.
 Internally, the database is represented as a :class:`dict`, and can be
 therefore accessed with the same syntax:
 
-.. code::
+.. code:: python
 
    >>> lmeta["dir1"] # a dict
    >>> lmeta["file2.json"] # a dict
@@ -64,9 +63,10 @@ therefore accessed with the same syntax:
    >>> lmeta["dir1/file1"] # can use a filesystem path
    >>> lmeta["dir1"]["file1"]["value"] # == 1
 
-To allow you having to type a lot, a fancy attribute-style access mode is available:
+To allow you having to type a lot, a fancy attribute-style access mode is
+available (try tab-completion in IPython!):
 
-.. code::
+.. code:: python
 
    >>> lmeta.dir1
    >>> lmeta.dir1.file1
@@ -83,7 +83,7 @@ Metadata validity
 
 Mappings of metadata to time periods, data taking systems etc. are specified
 through JSONL files. If a ``.jsonl`` file is present in a directory, ``JsonDB``
-exposes the :meth:`~.jsondb.JsonDB.at` interface to perform a query.
+exposes the :meth:`~.jsondb.JsonDB.on` interface to perform a query.
 
 Let's assume the ``legend-metadata`` directory from the example above contains
 the following file:
@@ -97,10 +97,45 @@ the following file:
 
 From code, it's possible to obtain the metadata valid for a certain time point:
 
-.. code::
+.. code:: python
 
    >>> from datetime import datetime, timezone
-   >>> lmeta.at(datetime(2022, 6, 28, 14, 35, 00, tzinfo=timezone.utc))
+   >>> lmeta.on(datetime(2022, 6, 28, 14, 35, 00, tzinfo=timezone.utc))
    {'value': 2}
-   >>> lmeta.at("20220629T095300Z")
+   >>> lmeta.on("20220629T095300Z")
    {'value': 3}
+
+For example, the following function call returns the current LEGEND hardware
+channel map:
+
+.. code:: python
+
+   >>> lmeta.hardware.configuration.channelmaps.on(datetime.now())
+   {'B00089B': {'detname': 'B00089B',
+     'location': {'string': 10, 'position': 8},
+     'daq': {'crate': 1,
+      'card': {'id': 5, 'serialno': None, 'address': '0x350'},
+      'channel': 2,
+      'fc_channel': 102},
+      ...
+
+Remapping metadata
+------------------
+
+A second important method of ``JsonDB`` is :meth:`.JsonDB.map`, which allows to
+query ``(key, value)`` dictionaries with an alternative unique key defined in
+``value``. A typical application is querying parameters in a channel map
+corresponding to a certain DAQ channel:
+
+.. code:: python
+
+   >>> chmap = lmeta.hardware.configuration.channelmaps.on(datetime.now())
+   >>> chmap.map("daq.fc_channel")[7]
+   {'detname': 'V05266A',
+    'location': {'string': 1, 'position': 4},
+    'daq': {'crate': 0,
+     'card': {'id': 1, 'serialno': None, 'address': '0x410'},
+     'channel': 3,
+     ...
+
+For further details, have a look at the documentation of :meth:`.AttrsDict.map`.
