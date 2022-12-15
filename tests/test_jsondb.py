@@ -56,6 +56,16 @@ def test_scan():
     jdb = JsonDB(testdb)
     jdb.scan()
 
+    assert sorted(jdb.__dict__.keys()) == [
+        "_store",
+        "arrays",
+        "dir1",
+        "file1",
+        "file2",
+        "file3",
+        "path",
+    ]
+
 
 def test_time_validity():
     jdb = JsonDB(testdb)

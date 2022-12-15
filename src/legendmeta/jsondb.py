@@ -236,11 +236,13 @@ class JsonDB:
         for d in item.parts[0:-1]:
             db_ptr = db_ptr[d]
 
+        # item_id should not contain any / at this point
         # store JSON file names without extension
-        item_id = item.name.rstrip(".json")
+        item_id = item.stem
         # skip if object is already in the store
         if item_id not in db_ptr._store:
             obj = db_ptr.path / item.name
+            # if directory, construct another JsonDB object
             if obj.is_dir():
                 db_ptr._store[item_id] = JsonDB(obj)
             else:
@@ -248,26 +250,26 @@ class JsonDB:
                 if not obj.is_file():
                     obj = Path(str(obj) + ".json")
 
+                # if it's a valid JSON file, construct an AttrsDict object
                 if obj.is_file():
                     with obj.open() as f:
                         loaded = json.load(f)
                         if isinstance(loaded, dict):
-                            db_ptr._store[item_id] = AttrsDict(loaded)
+                            loaded = AttrsDict(loaded)
                         else:  # must be a list, check if there are dicts inside to convert
-                            db_ptr._store[item_id] = []
-                            for el in loaded:
+                            for i, el in enumerate(loaded):
                                 if isinstance(el, dict):
-                                    db_ptr._store[item_id].append(AttrsDict(el))
-                                else:
-                                    db_ptr._store[item_id].append(el)
+                                    loaded[i] = AttrsDict(el)
+
+                        db_ptr._store[item_id] = loaded
                 else:
                     raise FileNotFoundError(
                         f"{str(obj).replace('.json.json', '.json')} is not a valid file or directory"
                     )
 
-        # set also an attribute, if possible
-        if item_id.isidentifier():
-            self.__setattr__(item_id, db_ptr._store[item_id])
+            # set also an attribute, if possible
+            if item_id.isidentifier():
+                self.__setattr__(item_id, db_ptr._store[item_id])
 
         return db_ptr._store[item_id]
 
