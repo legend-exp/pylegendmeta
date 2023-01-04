@@ -81,9 +81,11 @@ class LegendMetadata(JsonDB):
         """Select legend-metadata version."""
         try:
             self._repo.git.checkout(git_ref)
+            self._repo.git.submodule("update", "--init")
         except GitCommandError:
             self._repo.remote().pull()
             self._repo.git.checkout(git_ref)
+            self._repo.git.submodule("update", "--init")
 
     def reset(self) -> None:
         """Checkout legend-metadata to default Git ref."""
