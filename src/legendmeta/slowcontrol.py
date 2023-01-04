@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import os
+from dataclasses import dataclass
 
 import pandas
-from sqlalchemy import create_engine
+import sqlalchemy as db
+from sqlalchemy.ext.declarative import declarative_base
 
 
 class LegendSlowControlDB:
@@ -16,10 +18,10 @@ class LegendSlowControlDB:
     """
 
     def __init__(self) -> None:
-        self.connection = None
+        self.connection: db.engine.base.Connection = None
 
     def connect(
-        self, host: str = "localhost", port: int = 5432, password: str = None
+        self, host: str = "localhost", port: int = 5432, password: str | None = None
     ) -> None:
         """Establish a connection to the database.
 
@@ -35,7 +37,28 @@ class LegendSlowControlDB:
             port through which the database should be contacted.
         password
             password for user ``scuser`` of the ``scdb`` database. May be found
-            on LEGEND's internal documentation (e.g. the Wiki web pages).
+            on LEGEND's internal documentation (e.g. the Wiki web pages). If
+            ``None``, uses the value of the ``$LEGEND_SCDB_PW`` shell variable.
+
+        Examples
+        --------
+        If the Slow Control database connection is forwarded to a local machine
+        (port 6942) (through e.g. an SSH tunnel), use:
+
+        >>> scdb = LegendSlowControlDB()
+        >>> scdb.connect("localhost", port=6942, password="···")
+
+        Alternatively to giving the password to ``connect()``, it can be stored
+        in the ``$LEGEND_SCDB_PW`` shell variable (in e.g. ``.bashrc``):
+
+        .. code-block:: bash
+           :caption: ``~/.bashrc``
+
+           export LEGEND_SCDB_PW="···"
+
+        Then:
+
+        >>> scdb.connect("localhost", port=6942)
         """
         if password is None:
             password = os.getenv("LEGEND_SCDB_PW")
@@ -43,7 +66,7 @@ class LegendSlowControlDB:
         if password is None:
             raise ValueError("must supply the database password")
 
-        self.connection = create_engine(
+        self.connection = db.create_engine(
             f"postgresql://scuser:{password}@{host}:{port}/scdb"
         ).connect()
 
@@ -51,11 +74,130 @@ class LegendSlowControlDB:
         """Disconnect from the database."""
         self.connection.close()
 
-    def get_dataframe(self, expr: str) -> pandas.DataFrame:
+    def make_session(self) -> db.orm.Session:
+        """Open and return a new  :class:`~sqlalchemy.orm.Session` object for executing database operations.
+
+        Examples
+        --------
+        >>> import sqlalchemy as sql
+        >>> from legendmeta.slowcontrol import DiodeSnap
+        >>> session = scdb.make_session()
+        >>> result = session.execute(sql.select(DiodeSnap.channel, DiodeSnap.imon).limit(3))
+        >>> result.all()
+        [(2, 0.0007), (1, 0.0001), (5, 5e-05)]
+
+        See Also
+        --------
+        `SQLAlchemy documentation <https://www.sqlalchemy.org/>`_
+        """
+        return db.orm.Session(self.connection)
+
+    def dataframe(self, expr: str | db.sql.Select) -> pandas.DataFrame:
         """Query the database and return a dataframe holding the result.
+
+        Examples
+        --------
+        SQL select syntax or table name:
+
+        >>> scdb.dataframe("SELECT channel, vmon FROM diode_snap LIMIT 3")
+           channel    vmon
+        0        2  2250.0
+        1        1  3899.4
+        2        5  1120.2
+
+        >>> scdb.dataframe("diode_conf")
+              confid  crate  slot  channel    vset  iset  rup  rdown  trip  vmax pwkill pwon                    tstamp
+        0         15      0     0        0  4000.0   6.0   10      5  10.0  6000   KILL  Dis 2022-10-07 13:49:56+00:00
+        1         15      0     0        1  4300.0   6.0   10      5  10.0  6000   KILL  Dis 2022-10-07 13:49:56+00:00
+        2         15      0     0        2  4200.0   6.0   10      5  10.0  6000   KILL  Dis 2022-10-07 13:49:56+00:00
+        ...
+
+        :class:`sqlalchemy.sql.Select` object:
+
+        >>> import sqlalchemy as sql
+        >>> from legendmeta.slowcontrol import DiodeSnap
+        >>> scdb.dataframe(sql.select(DiodeSnap.channel, DiodeSnap.vmon).limit(3))
+           channel    vmon
+        0        2  2250.0
+        1        1  3899.4
+        2        5  1120.2
 
         See Also
         --------
         pandas.read_sql
         """
         return pandas.read_sql(expr, self.connection)
+
+
+Base = declarative_base()
+
+
+# NOTE: not setting other constraints like "nullable" or "checks" because
+# it should not matter when only reading a database
+@dataclass
+class DiodeSnap(Base):
+    """Monitored parameters of HPGe detectors."""
+
+    __tablename__ = "diode_snap"
+
+    crate: db.Column = db.Column(db.Integer, primary_key=True)
+    slot: db.Column = db.Column(db.Integer, primary_key=True)
+    channel: db.Column = db.Column(db.Integer, primary_key=True)
+    vmon: db.Column = db.Column(db.Float)
+    imon: db.Column = db.Column(db.Float)
+    status: db.Column = db.Column(db.Integer)
+    almask: db.Column = db.Column(db.Integer)
+    tstamp: db.Column = db.Column(db.DateTime, primary_key=True)
+    """Timestamp"""
+
+
+@dataclass
+class DiodeConf(Base):
+    """Configuration parameters of HPGe detectors."""
+
+    __tablename__ = "diode_conf"
+
+    confid: db.Column = db.Column(db.Integer, primary_key=True)
+    crate: db.Column = db.Column(db.Integer, primary_key=True)
+    slot: db.Column = db.Column(db.Integer, primary_key=True)
+    channel: db.Column = db.Column(db.Integer, primary_key=True)
+    vset: db.Column = db.Column(db.Float)
+    iset: db.Column = db.Column(db.Float)
+    rup: db.Column = db.Column(db.Integer)
+    rdown: db.Column = db.Column(db.Integer)
+    trip: db.Column = db.Column(db.Float)
+    vmax: db.Column = db.Column(db.Integer)
+    pwkill: db.Column = db.Column(db.String(4))
+    pwon: db.Column = db.Column(db.String(4))
+    tstamp: db.Column = db.Column(db.DateTime, primary_key=True)
+    """Timestamp"""
+
+
+@dataclass
+class SiPMSnap(Base):
+    """Monitored parameters of SiPMs."""
+
+    __tablename__ = "sipm_snap"
+
+    board: db.Column = db.Column(db.Integer, primary_key=True)
+    channel: db.Column = db.Column(db.Integer, primary_key=True)
+    vmon: db.Column = db.Column(db.Float)
+    imon: db.Column = db.Column(db.Float)
+    status: db.Column = db.Column(db.Integer)
+    almask: db.Column = db.Column(db.Integer)
+    tstamp: db.Column = db.Column(db.DateTime, primary_key=True)
+    """Timestamp"""
+
+
+class SiPMConf(Base):
+    """Configuration parameters of SiPMs."""
+
+    __tablename__ = "sipm_conf"
+
+    confid: db.Column = db.Column(db.Integer, primary_key=True)
+    board: db.Column = db.Column(db.Integer, primary_key=True)
+    channel: db.Column = db.Column(db.Integer, primary_key=True)
+    vset: db.Column = db.Column(db.Float)
+    iset: db.Column = db.Column(db.Float)
+    tstamp: db.Column = db.Column(db.DateTime, primary_key=True)
+    """Timestamp"""
