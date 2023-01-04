@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from datetime import datetime
 
 import pandas
 import sqlalchemy as db
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import DeclarativeBase, Mapped
 
 
 class LegendSlowControlDB:
@@ -126,29 +127,30 @@ class LegendSlowControlDB:
         --------
         pandas.read_sql
         """
-        return pandas.read_sql(expr, self.connection)
+        try:
+            return pandas.read_sql(expr, self.connection)
+        except db.exc.ObjectNotExecutableError:
+            return pandas.read_sql(db.text(expr), self.connection)
 
 
-Base = declarative_base()
+class Base(DeclarativeBase):
+    pass
 
 
-# NOTE: not setting other constraints like "nullable" or "checks" because
-# it should not matter when only reading a database
 @dataclass
 class DiodeSnap(Base):
     """Monitored parameters of HPGe detectors."""
 
     __tablename__ = "diode_snap"
 
-    crate: db.Column = db.Column(db.Integer, primary_key=True)
-    slot: db.Column = db.Column(db.Integer, primary_key=True)
-    channel: db.Column = db.Column(db.Integer, primary_key=True)
-    vmon: db.Column = db.Column(db.Float)
-    imon: db.Column = db.Column(db.Float)
-    status: db.Column = db.Column(db.Integer)
-    almask: db.Column = db.Column(db.Integer)
-    tstamp: db.Column = db.Column(db.DateTime, primary_key=True)
-    """Timestamp"""
+    crate: Mapped[int]
+    slot: Mapped[int]
+    channel: Mapped[int]
+    vmon: Mapped[float]
+    imon: Mapped[float]
+    status: Mapped[int]
+    almask: Mapped[int]
+    tstamp: Mapped[datetime] = db.orm.mapped_column(primary_key=True)
 
 
 @dataclass
@@ -157,20 +159,19 @@ class DiodeConf(Base):
 
     __tablename__ = "diode_conf"
 
-    confid: db.Column = db.Column(db.Integer, primary_key=True)
-    crate: db.Column = db.Column(db.Integer, primary_key=True)
-    slot: db.Column = db.Column(db.Integer, primary_key=True)
-    channel: db.Column = db.Column(db.Integer, primary_key=True)
-    vset: db.Column = db.Column(db.Float)
-    iset: db.Column = db.Column(db.Float)
-    rup: db.Column = db.Column(db.Integer)
-    rdown: db.Column = db.Column(db.Integer)
-    trip: db.Column = db.Column(db.Float)
-    vmax: db.Column = db.Column(db.Integer)
-    pwkill: db.Column = db.Column(db.String(4))
-    pwon: db.Column = db.Column(db.String(4))
-    tstamp: db.Column = db.Column(db.DateTime, primary_key=True)
-    """Timestamp"""
+    confid: Mapped[int]
+    crate: Mapped[int]
+    slot: Mapped[int]
+    channel: Mapped[int]
+    vset: Mapped[float]
+    iset: Mapped[float]
+    rup: Mapped[int]
+    rdown: Mapped[int]
+    trip: Mapped[float]
+    vmax: Mapped[int]
+    pwkill: Mapped[str]
+    pwon: Mapped[str]
+    tstamp: Mapped[datetime] = db.orm.mapped_column(primary_key=True)
 
 
 @dataclass
@@ -179,14 +180,13 @@ class SiPMSnap(Base):
 
     __tablename__ = "sipm_snap"
 
-    board: db.Column = db.Column(db.Integer, primary_key=True)
-    channel: db.Column = db.Column(db.Integer, primary_key=True)
-    vmon: db.Column = db.Column(db.Float)
-    imon: db.Column = db.Column(db.Float)
-    status: db.Column = db.Column(db.Integer)
-    almask: db.Column = db.Column(db.Integer)
-    tstamp: db.Column = db.Column(db.DateTime, primary_key=True)
-    """Timestamp"""
+    board: Mapped[int]
+    channel: Mapped[int]
+    vmon: Mapped[float]
+    imon: Mapped[float]
+    status: Mapped[int]
+    almask: Mapped[int]
+    tstamp: Mapped[datetime] = db.orm.mapped_column(primary_key=True)
 
 
 class SiPMConf(Base):
@@ -194,10 +194,9 @@ class SiPMConf(Base):
 
     __tablename__ = "sipm_conf"
 
-    confid: db.Column = db.Column(db.Integer, primary_key=True)
-    board: db.Column = db.Column(db.Integer, primary_key=True)
-    channel: db.Column = db.Column(db.Integer, primary_key=True)
-    vset: db.Column = db.Column(db.Float)
-    iset: db.Column = db.Column(db.Float)
-    tstamp: db.Column = db.Column(db.DateTime, primary_key=True)
-    """Timestamp"""
+    confid: Mapped[int]
+    board: Mapped[int]
+    channel: Mapped[int]
+    vset: Mapped[float]
+    iset: Mapped[float]
+    tstamp: Mapped[datetime] = db.orm.mapped_column(primary_key=True)
