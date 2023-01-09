@@ -67,6 +67,9 @@ class LegendSlowControlDB:
         if password is None:
             raise ValueError("must supply the database password")
 
+        if not self.connection.closed:
+            self.disconnect()
+
         self.connection = db.create_engine(
             f"postgresql://scuser:{password}@{host}:{port}/scdb"
         ).connect()
@@ -96,9 +99,15 @@ class LegendSlowControlDB:
     def dataframe(self, expr: str | db.sql.Select) -> pandas.DataFrame:
         """Query the database and return a dataframe holding the result.
 
+        Parameters
+        ----------
+        expr
+            SQL table name, select SQL command text or SQLAlchemy selectable
+            object.
+
         Examples
         --------
-        SQL select syntax or table name:
+        SQL select syntax text or table name:
 
         >>> scdb.dataframe("SELECT channel, vmon FROM diode_snap LIMIT 3")
            channel    vmon
@@ -131,6 +140,16 @@ class LegendSlowControlDB:
             return pandas.read_sql(expr, self.connection)
         except db.exc.ObjectNotExecutableError:
             return pandas.read_sql(db.text(expr), self.connection)
+
+    def status(self, channel: dict, at: str | datetime, system: str = "ged") -> dict:
+        """Query information about a channel.
+
+        >>> channel = lmeta.hardware.configuration.channelmaps.on(ts).B00089B
+        >>> scdb.status(channel, at=ts)
+        """
+        raise NotImplementedError
+        # df = self.dataframe(...tables...).sort_values(by=["tstamp"])
+        # return df.loc(df.tstamp <= at).iloc(-1)
 
 
 class Base(DeclarativeBase):
