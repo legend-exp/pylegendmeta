@@ -67,7 +67,7 @@ class LegendSlowControlDB:
         if password is None:
             raise ValueError("must supply the database password")
 
-        if not self.connection.closed:
+        if self.connection is not None and not self.connection.closed:
             self.disconnect()
 
         self.connection = db.create_engine(
@@ -140,6 +140,10 @@ class LegendSlowControlDB:
             return pandas.read_sql(expr, self.connection)
         except db.exc.ObjectNotExecutableError:
             return pandas.read_sql(db.text(expr), self.connection)
+        # TODO: automatically rollback if failed transaction
+        # except db.exc.ProgrammingError as e:
+        #     self.connection.rollback()
+        #     raise e
 
     def status(self, channel: dict, at: str | datetime, system: str = "ged") -> dict:
         """Query information about a channel.
