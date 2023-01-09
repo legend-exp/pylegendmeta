@@ -38,7 +38,7 @@ class LegendMetadata(JsonDB):
     path
         path to legend-metadata repository. If not existing, will attempt a
         git-clone through SSH. If ``None``, legend-metadata will be cloned
-        in a temporary directory (see :func:`gettempdir`).
+        in a temporary directory (see :func:`tempfile.gettempdir`).
     """
 
     def __init__(self, path: str = None) -> None:
@@ -81,9 +81,11 @@ class LegendMetadata(JsonDB):
         """Select legend-metadata version."""
         try:
             self._repo.git.checkout(git_ref)
+            self._repo.git.submodule("update", "--init")
         except GitCommandError:
             self._repo.remote().pull()
             self._repo.git.checkout(git_ref)
+            self._repo.git.submodule("update", "--init")
 
     def reset(self) -> None:
         """Checkout legend-metadata to default Git ref."""

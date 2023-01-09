@@ -162,7 +162,7 @@ class JsonDB:
 
     The database is represented on disk by a collection of JSON files
     arbitrarily scattered in a filesystem. Subdirectories are also
-    :class:`JsonDB` objects. In memory, the database is represented as an
+    :class:`.JsonDB` objects. In memory, the database is represented as an
     :class:`AttrsDict`.
 
     Note
@@ -185,7 +185,7 @@ class JsonDB:
     """
 
     def __init__(self, path: str | Path, lazy: bool = False) -> None:
-        """Construct a :class:`JsonDB` object.
+        """Construct a :class:`.JsonDB` object.
 
         Parameters
         ----------
@@ -230,11 +230,11 @@ class JsonDB:
         Parameters
         ----------
         timestamp
-            a :class:`datetime` object or a string matching the pattern
-            ``YYYYmmddTHHMMSSZ``.
+            a :class:`~datetime.datetime` object or a string matching the
+            pattern ``YYYYmmddTHHMMSSZ``.
         pattern
             query by filename pattern.
-        system: {'all', 'phy', 'cal', 'lar', ...}
+        system: 'all', 'phy', 'cal', 'lar', ...
             query only a data taking "system".
         """
         # get the files from the jsonl

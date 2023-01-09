@@ -18,5 +18,6 @@
 from legendmeta._version import version as __version__
 from legendmeta.core import LegendMetadata
 from legendmeta.jsondb import JsonDB
+from legendmeta.slowcontrol import LegendSlowControlDB
 
-__all__ = ["__version__", "LegendMetadata", "JsonDB"]
+__all__ = ["__version__", "LegendMetadata", "LegendSlowControlDB", "JsonDB"]

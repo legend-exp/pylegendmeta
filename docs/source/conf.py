@@ -50,9 +50,9 @@ napoleon_use_ivar = True
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
     "numpy": ("http://docs.scipy.org/doc/numpy", None),
-    "scipy": ("http://docs.scipy.org/doc/scipy/reference", None),
     "pandas": ("https://pandas.pydata.org/docs", None),
-    "matplotlib": ("http://matplotlib.org/stable", None),
+    "matplotlib": ("https://matplotlib.org/stable", None),
+    "sqlalchemy": ("https://docs.sqlalchemy.org", None),
 }  # add new intersphinx mappings here
 
 # sphinx-autodoc

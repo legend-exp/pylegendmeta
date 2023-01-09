@@ -11,12 +11,12 @@ pytestmark = pytest.mark.xfail(run=True, reason="requires access to legend-metad
 @pytest.fixture(scope="module")
 def metadb():
     mdata = LegendMetadata()
-    # mdata.checkout("3866a0b")
+    mdata.checkout("a2223b1")
     return mdata
 
 
 def test_get_file(metadb):
-    metadb["hardware/detectors/B00000A.json"]
+    metadb["hardware/detectors/germanium/detectors/B00000A.json"]
 
 
 def test_get_directory(metadb):
@@ -35,8 +35,11 @@ def test_git_ref_not_found(metadb):
 
 
 def test_nested_get(metadb):
-    assert metadb["hardware"]["detectors"]["B00000A"]["det_name"] == "B00000A"
-    assert metadb.hardware.detectors.B00000A.det_name == "B00000A"
+    assert (
+        metadb["hardware"]["detectors"]["germanium"]["detectors"]["B00000A"]["det_name"]
+        == "B00000A"
+    )
+    assert metadb.hardware.detectors.germanium.detectors.B00000A.det_name == "B00000A"
 
 
 def test_chmap_remapping(metadb):
