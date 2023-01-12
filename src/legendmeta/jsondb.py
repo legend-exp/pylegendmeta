@@ -156,6 +156,9 @@ class AttrsDict(dict):
         self._cached_remaps[label] = newmap
         return newmap
 
+    def __or__(self, other):
+        return AttrsDict(super().__or__(other))
+
 
 class JsonDB:
     """Bare-bones JSON database.

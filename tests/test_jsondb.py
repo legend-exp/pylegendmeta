@@ -112,3 +112,13 @@ def test_modification():
 
     d.b = 2
     assert d["b"] == 2
+
+
+def test_merging():
+    d = AttrsDict({"a": 1})
+    d |= {"b": 2}
+    assert d == {"a": 1, "b": 2}
+    assert isinstance(d, AttrsDict)
+    d2 = d | {"c": 3}
+    assert isinstance(d2, AttrsDict)
+    assert d2 == {"a": 1, "b": 2, "c": 3}
