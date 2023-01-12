@@ -17,12 +17,13 @@ from __future__ import annotations
 
 import logging
 import os
+from datetime import datetime
 from getpass import getuser
 from tempfile import gettempdir
 
 from git import GitCommandError, InvalidGitRepositoryError, Repo
 
-from legendmeta.jsondb import JsonDB
+from .jsondb import AttrsDict, JsonDB
 
 log = logging.getLogger(__name__)
 
@@ -41,7 +42,7 @@ class LegendMetadata(JsonDB):
         in a temporary directory (see :func:`tempfile.gettempdir`).
     """
 
-    def __init__(self, path: str = None) -> None:
+    def __init__(self, path: str | None = None) -> None:
         self._default_git_ref = "main"
 
         if isinstance(path, str):
@@ -78,7 +79,7 @@ class LegendMetadata(JsonDB):
         return repo
 
     def checkout(self, git_ref: str) -> None:
-        """Select legend-metadata version."""
+        """Select a legend-metadata version."""
         try:
             self._repo.git.checkout(git_ref)
             self._repo.git.submodule("update", "--init")
@@ -88,5 +89,50 @@ class LegendMetadata(JsonDB):
             self._repo.git.submodule("update", "--init")
 
     def reset(self) -> None:
-        """Checkout legend-metadata to default Git ref."""
+        """Checkout legend-metadata to the default Git ref."""
         self._repo.git.checkout(self._default_git_ref)
+
+    def channelmap(
+        self, on: str | datetime, pattern: str = None, system: str = "all"
+    ) -> AttrsDict:
+        """Get a LEGEND channel map.
+
+        Aliases ``legend-metadata.hardware.configuration.channelmaps.on()`` and
+        tries to merge the returned channel map with the detector database
+        `legend-metadata.hardware.detectors`.
+
+        Warning
+        -------
+        This method assumes ``legend-exp/legend-metadata`` has a certain
+        layout. Might stop working if changes are made to the structure of the
+        repository.
+
+        Examples
+        --------
+        >>> from legendmeta import LegendMetadata
+        >>> from datetime import datetime
+        >>> channel = lmeta.channelmap(on=datetime.now()).V05267B
+        >>> channel.geometry.mass_in_g
+        2362.0
+
+        See Also
+        --------
+        .jsondb.JsonDB.on
+        """
+        chmap = self.hardware.configuration.channelmaps.on(on, pattern, system)
+
+        # get full detector db
+        detdb = self.hardware.detectors
+        fulldb = detdb.germanium.detectors | detdb.lar.sipms
+
+        for det, v in chmap.items():
+            # find channel info in detector database and merge it into
+            # channelmap item, if possible
+            if det in fulldb:
+                v |= fulldb[det]
+            else:
+                log.warning(
+                    f"Could not find detector '{det}' in hardware.detectors database"
+                )
+
+        return chmap

@@ -43,6 +43,13 @@ def test_nested_get(metadb):
 
 
 def test_chmap_remapping(metadb):
-    metadb.hardware.configuration.channelmaps.on(datetime.now()).map("daq.fc_channel")[
-        7
-    ]
+    assert (
+        "daq"
+        in metadb.hardware.configuration.channelmaps.on(datetime.now()).map(
+            "daq.fc_channel"
+        )[7]
+    )
+
+
+def test_channelmap(metadb):
+    assert "geometry" in metadb.channelmap(on=datetime.now()).V02162B
