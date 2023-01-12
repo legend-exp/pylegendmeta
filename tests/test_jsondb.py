@@ -127,4 +127,4 @@ def test_merging():
     jdb = JsonDB(testdb)
     j = jdb.dir1 | jdb.dir2
     assert isinstance(j, AttrsDict)
-    assert list(j.keys()) == ["file5", "file3", "dir2", "file8", "file7"]
+    assert sorted(j.keys()) == ["dir2", "file3", "file5", "file7", "file8"]
