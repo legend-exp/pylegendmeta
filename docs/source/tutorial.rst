@@ -119,6 +119,12 @@ channel map:
       'fc_channel': 102},
       ...
 
+.. tip::
+
+   :meth:`.core.LegendMetadata.channelmap` offers a shortcut for the function
+   call above and, in addition, augments the channel map with the information
+   from the detector database. Check it out!
+
 Remapping metadata
 ------------------
 
