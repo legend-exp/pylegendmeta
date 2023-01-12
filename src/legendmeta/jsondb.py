@@ -343,6 +343,9 @@ class JsonDB:
         except KeyError as e:
             raise AttributeError(e)
 
+    def __or__(self, other: JsonDB) -> AttrsDict:
+        return self._store | other._store
+
     def __len__(self) -> int:
         return len(self._store)
 

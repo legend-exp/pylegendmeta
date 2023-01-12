@@ -60,6 +60,7 @@ def test_scan():
         "_store",
         "arrays",
         "dir1",
+        "dir2",
         "file1",
         "file2",
         "file3",
@@ -122,3 +123,8 @@ def test_merging():
     d2 = d | {"c": 3}
     assert isinstance(d2, AttrsDict)
     assert d2 == {"a": 1, "b": 2, "c": 3}
+
+    jdb = JsonDB(testdb)
+    j = jdb.dir1 | jdb.dir2
+    assert isinstance(j, AttrsDict)
+    assert list(j.keys()) == ["file5", "file3", "dir2", "file8", "file7"]
