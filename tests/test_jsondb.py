@@ -128,3 +128,4 @@ def test_merging():
     j = jdb.dir1 | jdb.dir2
     assert isinstance(j, AttrsDict)
     assert sorted(j.keys()) == ["dir2", "file3", "file5", "file7", "file8"]
+    assert hasattr(j, "dir2")

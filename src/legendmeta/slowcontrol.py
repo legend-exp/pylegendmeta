@@ -249,6 +249,7 @@ class LegendSlowControlDB:
                 else:
                     dtype = fulldb[channel.detname].det_type
 
+            # assign system based on detector type
             if dtype in ["bege", "icpc", "coax", "ppc"]:
                 system = "geds"
             elif dtype == "sipm":
@@ -258,16 +259,17 @@ class LegendSlowControlDB:
                     f"Detector type = {dtype}: cannot deduce system"
                 )
 
+        # prepare environment to perform query
         if not self.session:
             self.session = self.make_session()
 
         output = AttrsDict()
         if system == "geds":
-            for tbl in [DiodeSnap, DiodeConfMon]:
+            for tbl in [DiodeInfo, DiodeSnap, DiodeConfMon]:
                 stmt = (
                     db.select(tbl)
-                    .where(tbl.slot == channel.daq.card.id)
-                    .where(tbl.channel == channel.daq.channel)
+                    .where(tbl.slot == channel.voltage.card.id)
+                    .where(tbl.channel == channel.voltage.channel)
                     .order_by(tbl.tstamp.desc())
                     .where(tbl.tstamp <= on)
                     .limit(1)
@@ -276,17 +278,41 @@ class LegendSlowControlDB:
                 result = self.session.execute(stmt).first()
 
                 if not result:
-                    log.warning(f"Query on table '{tbl}' did not produce any result")
+                    log.warning(
+                        f"Query on table '{tbl.__tablename__}' did not produce any result"
+                    )
                     continue
 
                 output |= result[0].asdict()
 
         elif system == "spms":
-            pass
+            for tbl in [SiPMInfo, SiPMSnap, SiPMConfMon]:
+                stmt = (
+                    db.select(tbl)
+                    .where(tbl.board == channel.electronics.card.id)
+                    .where(tbl.channel == channel.electronics.channel)
+                    .order_by(tbl.tstamp.desc())
+                    .where(tbl.tstamp <= on)
+                    .limit(1)
+                )
+
+                result = self.session.execute(stmt).first()
+
+                if not result:
+                    log.warning(
+                        f"Query on table '{tbl.__tablename__}' did not produce any result"
+                    )
+                    continue
+
+                output |= result[0].asdict()
+
         elif system == "muon":
             pass
         else:
             raise NotImplementedError(f"System '{system}' not supported")
+
+        if not output:
+            raise RuntimeError("Could not obtain any information about the channel")
 
         return output
 
@@ -350,6 +376,28 @@ class DiodeConfMon(Base):
 
 
 @dataclass
+class DiodeInfo(Base):
+    """Static information about HPGe detectors."""
+
+    __tablename__ = "diode_info"
+
+    crate: Mapped[int]
+    slot: Mapped[int]
+    channel: Mapped[int]
+    group: Mapped[str]
+    label: Mapped[str]
+    status: Mapped[int]
+    itol: Mapped[float]
+    vtol: Mapped[float]
+    iupd: Mapped[float]
+    vupd: Mapped[float]
+    tstamp: Mapped[datetime] = db.orm.mapped_column(primary_key=True)
+
+    def asdict(self) -> AttrsDict:
+        return AttrsDict({"group": self.group, "label": self.label})
+
+
+@dataclass
 class SiPMSnap(Base):
     """Monitored parameters of SiPMs."""
 
@@ -363,11 +411,14 @@ class SiPMSnap(Base):
     almask: Mapped[int]
     tstamp: Mapped[datetime] = db.orm.mapped_column(primary_key=True)
 
+    def asdict(self) -> AttrsDict:
+        return AttrsDict({"vmon": self.vmon, "imon": self.imon, "status": self.status})
 
-class SiPMConf(Base):
+
+class SiPMConfMon(Base):
     """Configuration parameters of SiPMs."""
 
-    __tablename__ = "sipm_conf"
+    __tablename__ = "sipm_conf_mon"
 
     confid: Mapped[int]
     board: Mapped[int]
@@ -375,3 +426,32 @@ class SiPMConf(Base):
     vset: Mapped[float]
     iset: Mapped[float]
     tstamp: Mapped[datetime] = db.orm.mapped_column(primary_key=True)
+
+    def asdict(self) -> AttrsDict:
+        return AttrsDict(
+            {
+                "vset": self.vset,
+                "iset": self.iset,
+            }
+        )
+
+
+@dataclass
+class SiPMInfo(Base):
+    """Static information about SiPMs."""
+
+    __tablename__ = "sipm_info"
+
+    board: Mapped[int]
+    channel: Mapped[int]
+    group: Mapped[str]
+    label: Mapped[str]
+    status: Mapped[int]
+    itol: Mapped[float]
+    vtol: Mapped[float]
+    iupd: Mapped[float]
+    vupd: Mapped[float]
+    tstamp: Mapped[datetime] = db.orm.mapped_column(primary_key=True)
+
+    def asdict(self) -> AttrsDict:
+        return AttrsDict({"group": self.group, "label": self.label})

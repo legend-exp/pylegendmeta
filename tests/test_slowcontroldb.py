@@ -48,6 +48,13 @@ def test_select_pandas(scdb):
 
 def test_status(scdb):
     lmeta = LegendMetadata()
-    channel = lmeta.channelmap(on=datetime.now()).V02162B
+    chmap = lmeta.channelmap(on=datetime.now())
+    channel = chmap.V02162B
     status = scdb.status(channel=channel, on=datetime.now(), system="geds")
     assert isinstance(status, AttrsDict)
+    assert "vmon" and "vset" in status
+
+    channel = chmap.V02162B
+    status = scdb.status(channel=channel, on=datetime.now(), system="spms")
+    assert isinstance(status, AttrsDict)
+    assert "vmon" and "vset" in status
