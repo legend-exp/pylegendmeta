@@ -12,6 +12,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+from __future__ import annotations
 
 import argparse
 import json
@@ -35,8 +36,9 @@ def validate_legend_channel_map() -> bool:
 
     args = parser.parse_args()
 
-    spm_temp = json.load(open(str(templates / "sipm-channel.json")))
-    ged_temp = json.load(open(str(templates / "hpge-channel.json")))
+    auxs_temp = json.load(open(str(templates / "auxs-channel.json")))
+    geds_temp = json.load(open(str(templates / "geds-channel.json")))
+    spms_temp = json.load(open(str(templates / "spms-channel.json")))
 
     valid = True
 
@@ -44,9 +46,23 @@ def validate_legend_channel_map() -> bool:
         with open(file) as f:
             chmap = json.load(f)
             for k, v in chmap.items():
+                if "system" not in v:
+                    print(  # noqa: T201
+                        f"ERROR: '{k}' entry does not contain 'system' key"
+                    )
+                    valid *= False
+                    continue
+
+                if v["system"] == "geds":
+                    temp = geds_temp
+                elif v["system"] == "spms":
+                    temp = spms_temp
+                elif v["system"] == "auxs":
+                    temp = auxs_temp
+
                 valid *= validate_dict_schema(
                     v,
-                    spm_temp if k[0] == "S" else ged_temp,
+                    temp,
                     typecheck=False,
                     root_obj=k,
                 )
