@@ -1,7 +1,8 @@
 {
-  "detname": "^S\\d{3}$",
+  "name": "^[VPBC]\\w{6}$",
+  "system": "geds",
   "location": {
-    "fiber": 0,
+    "string": 0,
     "position": 0
   },
   "daq": {
@@ -12,19 +13,23 @@
       "address": ""
     },
     "channel": 0,
-    "fc_channel": 0
+    "fcid": 0
   },
-  "electronics": {
+  "voltage": {
     "card": {
       "id": 0,
-      "serialno": null
+      "serialno": 0
     },
     "channel": 0,
-    "cable": "",
-    "flange": "",
-    "dsub": {
+    "filter": {
+      "id": 0,
+      "channel": 0
+    }
+  },
+  "electronics": {
+    "cc4": {
       "id": "",
-      "pinpair": 0
+      "channel": 0
     }
   }
 }

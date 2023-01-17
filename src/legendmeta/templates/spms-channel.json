@@ -1,7 +1,8 @@
 {
-  "detname": "^[VPBC]\\w{6}$",
+  "name": "^S\\d{3}$",
+  "system": "spms",
   "location": {
-    "string": 0,
+    "fiber": 0,
     "position": 0
   },
   "daq": {
@@ -12,23 +13,19 @@
       "address": ""
     },
     "channel": 0,
-    "fc_channel": 0
+    "fcid": 0
   },
-  "voltage": {
+  "electronics": {
     "card": {
       "id": 0,
       "serialno": null
     },
     "channel": 0,
-    "filter": {
-      "id": 0,
-      "channel": 0
-    }
-  },
-  "electronics": {
-    "cc4": {
+    "cable": "",
+    "flange": "",
+    "dsub": {
       "id": "",
-      "channel": 0
+      "pinpair": 0
     }
   }
 }

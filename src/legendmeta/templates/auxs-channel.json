@@ -1,0 +1,14 @@
+{
+  "name": "",
+  "system": "auxs",
+  "daq": {
+    "crate": 0,
+    "card": {
+      "id": 0,
+      "serialno": 0,
+      "address": ""
+    },
+    "channel": 0,
+    "fcid": 0
+  }
+}
