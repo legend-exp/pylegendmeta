@@ -1,7 +1,10 @@
+from datetime import datetime
+
 import pytest
 import sqlalchemy as sql
 
-from legendmeta import LegendSlowControlDB
+from legendmeta import LegendMetadata, LegendSlowControlDB
+from legendmeta.jsondb import AttrsDict
 from legendmeta.slowcontrol import DiodeSnap
 
 pytestmark = pytest.mark.xfail(
@@ -41,3 +44,10 @@ def test_str_select_pandas(scdb):
 def test_select_pandas(scdb):
     df = scdb.dataframe(sql.select(DiodeSnap.channel, DiodeSnap.vmon).limit(10))
     assert len(df) == 10
+
+
+def test_status(scdb):
+    lmeta = LegendMetadata()
+    channel = lmeta.channelmap(on=datetime.now()).V02162B
+    status = scdb.status(channel=channel, on=datetime.now(), system="geds")
+    assert isinstance(status, AttrsDict)

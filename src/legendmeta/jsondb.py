@@ -28,6 +28,8 @@ from legendmeta.catalog import Catalog, Props
 
 log = logging.getLogger(__name__)
 
+# FIXME: merging AttrsDicts does not add attributes
+
 
 class AttrsDict(dict):
     """Access dictionary items as attributes.
