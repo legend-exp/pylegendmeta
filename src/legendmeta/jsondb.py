@@ -158,6 +158,9 @@ class AttrsDict(dict):
                 # add an item to the new dict with key equal to the value of the label
                 newmap[newid] = v
 
+        if not newmap:
+            raise ValueError(f"could not find '{label}' anywhere in the dictionary")
+
         # cache it
         self._cached_remaps[label] = newmap
         return newmap

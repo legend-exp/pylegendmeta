@@ -105,6 +105,9 @@ def test_mapping():
     assert jdb.file1.group.map("label")["a"].data == 1
     assert jdb.file1.group.map("label")["b"].data == 2
 
+    with pytest.raises(ValueError):
+        jdb.map("non-existent-label")
+
 
 def test_modification():
     d = AttrsDict()

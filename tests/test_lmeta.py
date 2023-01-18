@@ -50,6 +50,8 @@ def test_chmap_remapping(metadb):
         ]
     )
 
+    assert "daq" in metadb.channelmap().map("daq.fcid")[7]
+
 
 def test_channelmap(metadb):
     assert "geometry" in metadb.channelmap(on=datetime.now()).V02162B
