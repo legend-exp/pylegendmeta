@@ -28,8 +28,6 @@ from legendmeta.catalog import Catalog, Props
 
 log = logging.getLogger(__name__)
 
-# FIXME: merging AttrsDicts does not add attributes
-
 
 class AttrsDict(dict):
     """Access dictionary items as attributes.
@@ -158,7 +156,12 @@ class AttrsDict(dict):
         self._cached_remaps[label] = newmap
         return newmap
 
-    def __or__(self, other):
+    # d |= other_d should still produce a valid AttrsDict
+    def __ior__(self, other: dict | AttrsDict) -> AttrsDict:
+        return AttrsDict(super().__ior__(other))
+
+    # d1 | d2 should still produce a valid AttrsDict
+    def __or__(self, other: dict | AttrsDict) -> AttrsDict:
         return AttrsDict(super().__or__(other))
 
 
@@ -345,8 +348,18 @@ class JsonDB:
         except KeyError as e:
             raise AttributeError(e)
 
+    # NOTE: self cannot stay a JsonDB, since the class is characterized by a
+    # (unique) root directory. What would be the root directory of the merged
+    # JsonDB?
+    def __ior__(self, other: JsonDB) -> AttrsDict:
+        raise TypeError("Cannot merge JsonDB in-place")
+
+    # NOTE: returning a JsonDB does not make much sense, see above
     def __or__(self, other: JsonDB) -> AttrsDict:
-        return self._store | other._store
+        if isinstance(other, JsonDB):
+            return self._store | other._store
+        else:
+            return self._store | other
 
     def __len__(self) -> int:
         return len(self._store)
