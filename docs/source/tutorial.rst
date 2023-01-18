@@ -116,7 +116,7 @@ channel map:
      'daq': {'crate': 1,
       'card': {'id': 5, 'serialno': None, 'address': '0x350'},
       'channel': 2,
-      'fc_channel': 102},
+      'fcid': 102},
       ...
 
 .. tip::
@@ -136,7 +136,7 @@ corresponding to a certain DAQ channel:
 .. code:: python
 
    >>> chmap = lmeta.hardware.configuration.channelmaps.on(datetime.now())
-   >>> chmap.map("daq.fc_channel")[7]
+   >>> chmap.map("daq.fcid")[7]
    {'detname': 'V05266A',
     'location': {'string': 1, 'position': 4},
     'daq': {'crate': 0,
@@ -197,7 +197,7 @@ It's even possible to get an entire table as a dataframe:
 
 .. code:: python
 
-   >>> scdb.dataframe("diode_conf")
+   >>> scdb.dataframe("diode_conf_mon")
          confid  crate  slot  channel    vset  iset  rup  rdown  trip  vmax pwkill pwon                    tstamp
    0         15      0     0        0  4000.0   6.0   10      5  10.0  6000   KILL  Dis 2022-10-07 13:49:56+00:00
    1         15      0     0        1  4300.0   6.0   10      5  10.0  6000   KILL  Dis 2022-10-07 13:49:56+00:00

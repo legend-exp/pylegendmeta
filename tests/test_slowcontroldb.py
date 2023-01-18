@@ -1,5 +1,3 @@
-from datetime import datetime
-
 import pytest
 import sqlalchemy as sql
 
@@ -48,13 +46,13 @@ def test_select_pandas(scdb):
 
 def test_status(scdb):
     lmeta = LegendMetadata()
-    chmap = lmeta.channelmap(on=datetime.now())
+    chmap = lmeta.channelmap()
     channel = chmap.V02162B
-    status = scdb.status(channel=channel, on=datetime.now(), system="geds")
+    status = scdb.status(channel)
     assert isinstance(status, AttrsDict)
     assert "vmon" and "vset" in status
 
-    channel = chmap.V02162B
-    status = scdb.status(channel=channel, on=datetime.now(), system="spms")
+    channel = chmap.S002
+    status = scdb.status(channel)
     assert isinstance(status, AttrsDict)
     assert "vmon" and "vset" in status

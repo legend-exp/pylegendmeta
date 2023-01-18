@@ -93,7 +93,10 @@ class LegendMetadata(JsonDB):
         self._repo.git.checkout(self._default_git_ref)
 
     def channelmap(
-        self, on: str | datetime, pattern: str = None, system: str = "all"
+        self,
+        on: str | datetime = None,
+        pattern: str = None,
+        system: str = "all",
     ) -> AttrsDict:
         """Get a LEGEND channel map.
 
@@ -119,6 +122,9 @@ class LegendMetadata(JsonDB):
         --------
         .jsondb.JsonDB.on
         """
+        if not on:
+            on = datetime.now()
+
         chmap = self.hardware.configuration.channelmaps.on(on, pattern, system)
 
         # get full detector db
@@ -131,7 +137,7 @@ class LegendMetadata(JsonDB):
             if det in fulldb:
                 v |= fulldb[det]
             else:
-                log.warning(
+                log.debug(
                     f"Could not find detector '{det}' in hardware.detectors database"
                 )
 

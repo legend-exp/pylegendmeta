@@ -17,14 +17,23 @@ from __future__ import annotations
 
 import logging
 import os
-from dataclasses import dataclass
 from datetime import datetime
 
 import pandas
 import sqlalchemy as db
-from sqlalchemy.orm import DeclarativeBase, Mapped
 
-from .core import AttrsDict, LegendMetadata
+from .core import AttrsDict
+from .scdb_tables import (
+    DiodeConfMon,
+    DiodeInfo,
+    DiodeSnap,
+    MuonConfMon,
+    MuonInfo,
+    MuonSnap,
+    SiPMConfMon,
+    SiPMInfo,
+    SiPMSnap,
+)
 
 log = logging.getLogger(__name__)
 
@@ -177,7 +186,9 @@ class LegendSlowControlDB:
             self.connection.rollback()
             raise
 
-    def status(self, channel: dict, on: str | datetime, system: str = None) -> dict:
+    def status(
+        self, channel: dict, on: str | datetime = None, system: str = None
+    ) -> dict:
         """Query status of a LEGEND DAQ channel.
 
         Collect all the relevant information about the status of a channel at a
@@ -192,7 +203,7 @@ class LegendSlowControlDB:
             example, with :meth:`.core.LegendMetadata.channelmap`).
         on
             time at which the status is requested.
-        system: "geds", "spms", "muon"
+        system: "geds", "spms", "pmts", ...
             system the channel belong to. this information is used to ask the
             Slow Control database the right questions. If ``None`` will try to
             determine it from the available metadata.
@@ -214,6 +225,9 @@ class LegendSlowControlDB:
         This class method assumes a certain structure for legend-metadata.
         Might stop working if that structure is altered.
         """
+        if not on:
+            on = datetime.now()
+
         # sanity checks
         if isinstance(on, str):
             on = datetime.strptime(on, "%Y%m%dT%H%M%SZ")
@@ -224,40 +238,7 @@ class LegendSlowControlDB:
             raise ValueError("Bad channel format: dict expected")
 
         if not system:
-            # now try to guess system
-            if (
-                "det_type" in channel
-                and isinstance(channel.det_type, str)
-                and channel.det_type
-            ):
-                dtype = channel.det_type
-            else:
-                lmeta = LegendMetadata()
-
-                # find channel info in detector database
-                detdb = lmeta.hardware.detectors
-                fulldb = detdb.germanium.detectors | detdb.lar.sipms
-
-                if "detname" not in channel:
-                    raise ValueError(
-                        "No 'detname' key in channel info: cannot deduce detector type"
-                    )
-                elif channel.detname not in fulldb:
-                    raise RuntimeError(
-                        f"Could not find '{channel.detname}' in detector database: cannot deduce detector type"
-                    )
-                else:
-                    dtype = fulldb[channel.detname].det_type
-
-            # assign system based on detector type
-            if dtype in ["bege", "icpc", "coax", "ppc"]:
-                system = "geds"
-            elif dtype == "sipm":
-                system = "spms"
-            else:
-                raise NotImplementedError(
-                    f"Detector type = {dtype}: cannot deduce system"
-                )
+            system = channel.system
 
         # prepare environment to perform query
         if not self.session:
@@ -306,152 +287,31 @@ class LegendSlowControlDB:
 
                 output |= result[0].asdict()
 
-        elif system == "muon":
-            pass
+        # NOTE: untested
+        elif system == "pmts":
+            for tbl in [MuonInfo, MuonSnap, MuonConfMon]:
+                stmt = (
+                    db.select(tbl)
+                    .where(tbl.slot == channel.voltage.card.id)
+                    .where(tbl.channel == channel.voltage.channel)
+                    .order_by(tbl.tstamp.desc())
+                    .where(tbl.tstamp <= on)
+                    .limit(1)
+                )
+
+                result = self.session.execute(stmt).first()
+
+                if not result:
+                    log.warning(
+                        f"Query on table '{tbl.__tablename__}' did not produce any result"
+                    )
+                    continue
+
+                output |= result[0].asdict()
         else:
-            raise NotImplementedError(f"System '{system}' not supported")
+            raise NotImplementedError(f"System '{system}' not (yet) supported")
 
         if not output:
             raise RuntimeError("Could not obtain any information about the channel")
 
         return output
-
-
-class Base(DeclarativeBase):
-    pass
-
-
-@dataclass
-class DiodeSnap(Base):
-    """Monitored parameters of HPGe detectors."""
-
-    __tablename__ = "diode_snap"
-
-    crate: Mapped[int]
-    slot: Mapped[int]
-    channel: Mapped[int]
-    vmon: Mapped[float]
-    imon: Mapped[float]
-    status: Mapped[int]
-    almask: Mapped[int]
-    tstamp: Mapped[datetime] = db.orm.mapped_column(primary_key=True)
-
-    def asdict(self) -> AttrsDict:
-        return AttrsDict({"vmon": self.vmon, "imon": self.imon, "status": self.status})
-
-
-@dataclass
-class DiodeConfMon(Base):
-    """Configuration parameters of HPGe detectors."""
-
-    __tablename__ = "diode_conf_mon"
-
-    confid: Mapped[int]
-    crate: Mapped[int]
-    slot: Mapped[int]
-    channel: Mapped[int]
-    vset: Mapped[float]
-    iset: Mapped[float]
-    rup: Mapped[int]
-    rdown: Mapped[int]
-    trip: Mapped[float]
-    vmax: Mapped[int]
-    pwkill: Mapped[str]
-    pwon: Mapped[str]
-    tstamp: Mapped[datetime] = db.orm.mapped_column(primary_key=True)
-
-    def asdict(self) -> AttrsDict:
-        return AttrsDict(
-            {
-                "vset": self.vset,
-                "iset": self.iset,
-                "rup": self.rup,
-                "rdown": self.rdown,
-                "trip": self.trip,
-                "vmax": self.vmax,
-                "pwkill": self.pwkill,
-                "pwon": self.pwon,
-            }
-        )
-
-
-@dataclass
-class DiodeInfo(Base):
-    """Static information about HPGe detectors."""
-
-    __tablename__ = "diode_info"
-
-    crate: Mapped[int]
-    slot: Mapped[int]
-    channel: Mapped[int]
-    group: Mapped[str]
-    label: Mapped[str]
-    status: Mapped[int]
-    itol: Mapped[float]
-    vtol: Mapped[float]
-    iupd: Mapped[float]
-    vupd: Mapped[float]
-    tstamp: Mapped[datetime] = db.orm.mapped_column(primary_key=True)
-
-    def asdict(self) -> AttrsDict:
-        return AttrsDict({"group": self.group, "label": self.label})
-
-
-@dataclass
-class SiPMSnap(Base):
-    """Monitored parameters of SiPMs."""
-
-    __tablename__ = "sipm_snap"
-
-    board: Mapped[int]
-    channel: Mapped[int]
-    vmon: Mapped[float]
-    imon: Mapped[float]
-    status: Mapped[int]
-    almask: Mapped[int]
-    tstamp: Mapped[datetime] = db.orm.mapped_column(primary_key=True)
-
-    def asdict(self) -> AttrsDict:
-        return AttrsDict({"vmon": self.vmon, "imon": self.imon, "status": self.status})
-
-
-class SiPMConfMon(Base):
-    """Configuration parameters of SiPMs."""
-
-    __tablename__ = "sipm_conf_mon"
-
-    confid: Mapped[int]
-    board: Mapped[int]
-    channel: Mapped[int]
-    vset: Mapped[float]
-    iset: Mapped[float]
-    tstamp: Mapped[datetime] = db.orm.mapped_column(primary_key=True)
-
-    def asdict(self) -> AttrsDict:
-        return AttrsDict(
-            {
-                "vset": self.vset,
-                "iset": self.iset,
-            }
-        )
-
-
-@dataclass
-class SiPMInfo(Base):
-    """Static information about SiPMs."""
-
-    __tablename__ = "sipm_info"
-
-    board: Mapped[int]
-    channel: Mapped[int]
-    group: Mapped[str]
-    label: Mapped[str]
-    status: Mapped[int]
-    itol: Mapped[float]
-    vtol: Mapped[float]
-    iupd: Mapped[float]
-    vupd: Mapped[float]
-    tstamp: Mapped[datetime] = db.orm.mapped_column(primary_key=True)
-
-    def asdict(self) -> AttrsDict:
-        return AttrsDict({"group": self.group, "label": self.label})

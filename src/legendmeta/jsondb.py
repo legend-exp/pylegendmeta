@@ -76,6 +76,12 @@ class AttrsDict(dict):
 
     __setattr__ = __setitem__
 
+    def __getattr__(self, name: str) -> AttrsDict:
+        try:
+            super().__getattr__(name)
+        except AttributeError:
+            raise AttributeError(f"dictionary does not contain a '{name}' key")
+
     def map(self, label: str) -> AttrsDict:
         """Remap dictionary according to an alternative unique label.
 
@@ -345,14 +351,14 @@ class JsonDB:
     def __getattr__(self, name: str) -> JsonDB | AttrsDict:
         try:
             return self[name]
-        except KeyError as e:
-            raise AttributeError(e)
+        except KeyError:
+            raise AttributeError(f"database does not contain '{name}'")
 
     # NOTE: self cannot stay a JsonDB, since the class is characterized by a
     # (unique) root directory. What would be the root directory of the merged
     # JsonDB?
     def __ior__(self, other: JsonDB) -> AttrsDict:
-        raise TypeError("Cannot merge JsonDB in-place")
+        raise TypeError("cannot merge JsonDB in-place")
 
     # NOTE: returning a JsonDB does not make much sense, see above
     def __or__(self, other: JsonDB) -> AttrsDict:
