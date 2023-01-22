@@ -8,7 +8,7 @@ from pkg_resources import get_distribution
 sys.path.insert(0, Path(__file__).parents[2].resolve().as_posix())
 
 project = "pylegendmeta"
-copyright = "Copyright Holder"
+copyright = "The LEGEND Collaboration"
 version = get_distribution("pylegendmeta").version
 
 extensions = [
@@ -38,18 +38,6 @@ html_theme_options = {
 }
 html_title = f"{project} {version}"
 
-# list here legend-optics dependencies that are not required for building docs and
-# could be unmet at build time
-autodoc_mock_imports = [
-    "pandas",
-    # 'numpy',
-    "matplotlib",
-    "mplhep",
-    "scipy",
-    "scimath",
-    "pytest",
-    "pint",
-]  # add new packages here
 autodoc_default_options = {"ignore-module-all": True}
 
 # sphinx-napoleon
@@ -62,9 +50,9 @@ napoleon_use_ivar = True
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
     "numpy": ("http://docs.scipy.org/doc/numpy", None),
-    "scipy": ("http://docs.scipy.org/doc/scipy/reference", None),
     "pandas": ("https://pandas.pydata.org/docs", None),
-    "matplotlib": ("http://matplotlib.org/stable", None),
+    "matplotlib": ("https://matplotlib.org/stable", None),
+    "sqlalchemy": ("https://docs.sqlalchemy.org", None),
 }  # add new intersphinx mappings here
 
 # sphinx-autodoc

@@ -116,8 +116,14 @@ channel map:
      'daq': {'crate': 1,
       'card': {'id': 5, 'serialno': None, 'address': '0x350'},
       'channel': 2,
-      'fc_channel': 102},
+      'fcid': 102},
       ...
+
+.. tip::
+
+   :meth:`.core.LegendMetadata.channelmap` offers a shortcut for the function
+   call above and, in addition, augments the channel map with the information
+   from the detector database. Check it out!
 
 Remapping metadata
 ------------------
@@ -130,7 +136,7 @@ corresponding to a certain DAQ channel:
 .. code:: python
 
    >>> chmap = lmeta.hardware.configuration.channelmaps.on(datetime.now())
-   >>> chmap.map("daq.fc_channel")[7]
+   >>> chmap.map("daq.fcid")[7]
    {'detname': 'V05266A',
     'location': {'string': 1, 'position': 4},
     'daq': {'crate': 0,
@@ -138,4 +144,75 @@ corresponding to a certain DAQ channel:
      'channel': 3,
      ...
 
-For further details, have a look at the documentation of :meth:`.AttrsDict.map`.
+For further details, have a look at the documentation for :meth:`.AttrsDict.map`.
+
+Slow Control interface
+----------------------
+
+A number of parameters related to the LEGEND hardware configuration and status
+are recorded in the Slow Control database. The latter, PostgreSQL database
+resides on the ``legend-sc.lngs.infn.it`` host, part of the LNGS network.
+
+Connecting to the database from within the LEGEND LNGS environment does not
+require any special configuration:
+
+.. code:: python
+
+   >>> from legendmeta import LegendSlowControlDB
+   >>> scdb = LegendSlowControlDB()
+   >>> scdb.connect(password="···")
+
+.. note::
+
+   The database password (for the ``scuser`` user) is confidential and may be
+   found on the LEGEND internal wiki pages.
+
+.. tip::
+
+   Alternatively to giving the password to ``connect()``, it can be stored
+   in the ``$LEGEND_SCDB_PW`` shell variable (in e.g. ``.bashrc``):
+
+   .. code-block:: bash
+      :caption: ``~/.bashrc``
+
+      export LEGEND_SCDB_PW="···"
+
+More :meth:`.LegendSlowControlDB.connect` keyword-arguments are available to
+customize hostname and port through which the database can be contacted (in
+case of e.g. custom port forwarding).
+
+:meth:`.LegendSlowControlDB.dataframe` can be used to execute an SQL query and
+return a :class:`pandas.DataFrame`. The following selects three rows from the
+``slot``, ``channel`` and ``vmon`` columns in the ``diode_snap`` table:
+
+.. code:: python
+
+   >>> scdb.dataframe("SELECT slot, channel, vmon FROM diode_snap LIMIT 3")
+      slot  channel    vmon
+   0     3        6  4300.0
+   1     9        2  2250.0
+   2    10        3  3699.9
+
+It's even possible to get an entire table as a dataframe:
+
+.. code:: python
+
+   >>> scdb.dataframe("diode_conf_mon")
+         confid  crate  slot  channel    vset  iset  rup  rdown  trip  vmax pwkill pwon                    tstamp
+   0         15      0     0        0  4000.0   6.0   10      5  10.0  6000   KILL  Dis 2022-10-07 13:49:56+00:00
+   1         15      0     0        1  4300.0   6.0   10      5  10.0  6000   KILL  Dis 2022-10-07 13:49:56+00:00
+   2         15      0     0        2  4200.0   6.0   10      5  10.0  6000   KILL  Dis 2022-10-07 13:49:56+00:00
+   ...
+
+Executing queries natively through an `SQLAlchemy
+<ihttps://www.sqlalchemy.org>`_ :class:`~sqlalchemy.orm.Session` is also
+possible:
+
+.. code:: python
+
+   >>> import sqlalchemy as sql
+   >>> from legendmeta.slowcontrol import DiodeSnap
+   >>> session = scdb.make_session()
+   >>> result = session.execute(sql.select(DiodeSnap.channel, DiodeSnap.imon).limit(3))
+   >>> result.all()
+   [(2, 0.0007), (1, 0.0001), (5, 5e-05)]

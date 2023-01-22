@@ -1,3 +1,18 @@
+# Copyright (C) 2022 Luigi Pertoldi <gipert@pm.me>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 from __future__ import annotations
 
 import json
@@ -60,6 +75,12 @@ class AttrsDict(dict):
         super().__setattr__("_cached_remaps", {})
 
     __setattr__ = __setitem__
+
+    def __getattr__(self, name: str) -> AttrsDict:
+        try:
+            super().__getattr__(name)
+        except AttributeError:
+            raise AttributeError(f"dictionary does not contain a '{name}' key")
 
     def map(self, label: str) -> AttrsDict:
         """Remap dictionary according to an alternative unique label.
@@ -137,9 +158,20 @@ class AttrsDict(dict):
                 # add an item to the new dict with key equal to the value of the label
                 newmap[newid] = v
 
+        if not newmap:
+            raise ValueError(f"could not find '{label}' anywhere in the dictionary")
+
         # cache it
         self._cached_remaps[label] = newmap
         return newmap
+
+    # d |= other_d should still produce a valid AttrsDict
+    def __ior__(self, other: dict | AttrsDict) -> AttrsDict:
+        return AttrsDict(super().__ior__(other))
+
+    # d1 | d2 should still produce a valid AttrsDict
+    def __or__(self, other: dict | AttrsDict) -> AttrsDict:
+        return AttrsDict(super().__or__(other))
 
 
 class JsonDB:
@@ -147,7 +179,7 @@ class JsonDB:
 
     The database is represented on disk by a collection of JSON files
     arbitrarily scattered in a filesystem. Subdirectories are also
-    :class:`JsonDB` objects. In memory, the database is represented as an
+    :class:`.JsonDB` objects. In memory, the database is represented as an
     :class:`AttrsDict`.
 
     Note
@@ -170,7 +202,7 @@ class JsonDB:
     """
 
     def __init__(self, path: str | Path, lazy: bool = False) -> None:
-        """Construct a :class:`JsonDB` object.
+        """Construct a :class:`.JsonDB` object.
 
         Parameters
         ----------
@@ -215,11 +247,11 @@ class JsonDB:
         Parameters
         ----------
         timestamp
-            a :class:`datetime` object or a string matching the pattern
-            ``YYYYmmddTHHMMSSZ``.
+            a :class:`~datetime.datetime` object or a string matching the
+            pattern ``YYYYmmddTHHMMSSZ``.
         pattern
             query by filename pattern.
-        system: {'all', 'phy', 'cal', 'lar', ...}
+        system: 'all', 'phy', 'cal', 'lar', ...
             query only a data taking "system".
         """
         # get the files from the jsonl
@@ -325,8 +357,21 @@ class JsonDB:
     def __getattr__(self, name: str) -> JsonDB | AttrsDict:
         try:
             return self[name]
-        except KeyError as e:
-            raise AttributeError(e)
+        except KeyError:
+            raise AttributeError(f"database does not contain '{name}'")
+
+    # NOTE: self cannot stay a JsonDB, since the class is characterized by a
+    # (unique) root directory. What would be the root directory of the merged
+    # JsonDB?
+    def __ior__(self, other: JsonDB) -> AttrsDict:
+        raise TypeError("cannot merge JsonDB in-place")
+
+    # NOTE: returning a JsonDB does not make much sense, see above
+    def __or__(self, other: JsonDB) -> AttrsDict:
+        if isinstance(other, JsonDB):
+            return self._store | other._store
+        else:
+            return self._store | other
 
     def __len__(self) -> int:
         return len(self._store)

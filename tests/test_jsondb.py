@@ -60,6 +60,7 @@ def test_scan():
         "_store",
         "arrays",
         "dir1",
+        "dir2",
         "file1",
         "file2",
         "file3",
@@ -104,6 +105,9 @@ def test_mapping():
     assert jdb.file1.group.map("label")["a"].data == 1
     assert jdb.file1.group.map("label")["b"].data == 2
 
+    with pytest.raises(ValueError):
+        jdb.map("non-existent-label")
+
 
 def test_modification():
     d = AttrsDict()
@@ -112,3 +116,29 @@ def test_modification():
 
     d.b = 2
     assert d["b"] == 2
+
+
+def test_merging():
+    d = AttrsDict({"a": 1})
+    d |= {"b": 2}
+    assert d == {"a": 1, "b": 2}
+    assert isinstance(d, AttrsDict)
+    assert hasattr(d, "a")
+    assert hasattr(d, "b")
+
+    d2 = d | {"c": 3}
+    assert isinstance(d2, AttrsDict)
+    assert d2 == {"a": 1, "b": 2, "c": 3}
+    assert hasattr(d2, "a")
+    assert hasattr(d2, "b")
+    assert hasattr(d2, "c")
+
+    jdb = JsonDB(testdb)
+    j = jdb.dir1 | jdb.dir2
+    assert isinstance(j, AttrsDict)
+    assert sorted(j.keys()) == ["dir2", "file3", "file5", "file7", "file8"]
+    assert hasattr(j, "dir2")
+    assert hasattr(j, "file8")
+
+    with pytest.raises(TypeError):
+        jdb |= jdb.dir1
