@@ -22,6 +22,7 @@ import os
 import types
 from collections import namedtuple
 from datetime import datetime
+from string import Template
 
 
 def unix_time(value):
@@ -178,3 +179,19 @@ class Props:
                 Props.trim_null(a[key])
             elif a[key] is None:
                 del a[key]
+
+    @staticmethod
+    def subst_vars(props, var_values = {}, ignore_missing = False):
+        for key in props:
+            value = props[key]
+            if isinstance(value, str) and '$' in value:
+                new_value = None
+                if ignore_missing:
+                    new_value = Template(value).safe_substitute(var_values)
+                else:
+                    new_value = Template(value).substitute(var_values)
+
+                if (new_value != value):
+                    props[key] = new_value
+            elif isinstance(value, dict):
+                Props.subst_vars(value, var_values, ignore_missing)

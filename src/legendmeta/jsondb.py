@@ -255,7 +255,10 @@ class JsonDB:
             fp = self.path.rglob(file)
             fp = [i for i in fp][0]
             db_ptr = db_ptr[fp]
-
+        Props.subst_vars(
+            db_ptr,
+                    var_values={"_": self.path}
+                )
         return db_ptr
 
     def map(self, label: str) -> AttrsDict:
