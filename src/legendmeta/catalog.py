@@ -179,17 +179,17 @@ class Props:
                 del a[key]
 
     @staticmethod
-    def subst_vars(props, var_values = {}, ignore_missing = False):
+    def subst_vars(props, var_values={}, ignore_missing=False):
         for key in props:
             value = props[key]
-            if isinstance(value, str) and '$' in value:
+            if isinstance(value, str) and "$" in value:
                 new_value = None
                 if ignore_missing:
                     new_value = Template(value).safe_substitute(var_values)
                 else:
                     new_value = Template(value).substitute(var_values)
 
-                if (new_value != value):
+                if new_value != value:
                     props[key] = new_value
             elif isinstance(value, dict):
                 Props.subst_vars(value, var_values, ignore_missing)
