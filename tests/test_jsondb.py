@@ -41,6 +41,8 @@ def test_access():
     assert jdb.arrays[1].array[0] == 1
     assert jdb.arrays[1].array[1].data == 2
 
+    assert jdb.file2.filepath == Path(__file__).parent / "testdb/dir1/file3.json"
+
     with pytest.raises(ValueError):
         JsonDB("non-existent-db")
     with pytest.raises(FileNotFoundError):

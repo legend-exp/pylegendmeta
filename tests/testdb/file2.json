@@ -4,5 +4,6 @@
   "system":1,
   "key": {
     "label": 3
-  }
+  },
+  "filepath":"$_/dir1/file3.json"
 }
