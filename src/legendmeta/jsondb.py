@@ -164,7 +164,7 @@ class AttrsDict(dict):
             raise RuntimeError(f"'{label}' values are not unique")
             
         if unique_tracker==True:
-            newmap = {entry:newmap[entry][0] for entry in newmap}
+            newmap = AttrsDict({entry:newmap[entry][0] for entry in newmap})
 
         if not newmap:
             raise ValueError(f"could not find '{label}' anywhere in the dictionary")
@@ -301,7 +301,7 @@ class JsonDB:
                 )
         return db_ptr
 
-    def map(self, label: str) -> AttrsDict:
+    def map(self, label: str, unique:bool=True) -> AttrsDict:
         """Remap dictionary according to a second unique `key`.
 
         See Also
@@ -313,7 +313,7 @@ class JsonDB:
         If the database is lazy, call :meth:`.scan` in advance to populate it
         (or a subdirectory).
         """
-        return self._store.map(label)
+        return self._store.map(label, unique=unique)
 
     def __getitem__(self, item: str | Path) -> JsonDB | AttrsDict:
         """Access files or directories in the database."""
