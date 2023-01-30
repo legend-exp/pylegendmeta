@@ -104,9 +104,14 @@ def test_mapping():
     assert isinstance(jdb.file1.group.map("label"), AttrsDict)
     assert jdb.file1.group.map("label")["a"].data == 1
     assert jdb.file1.group.map("label")["b"].data == 2
+    assert jdb.map("system", unique=False)[2].map("label")[1].data==3
+    assert jdb.map("system", unique=False)[1].map("label")[2].data==1
 
     with pytest.raises(ValueError):
         jdb.map("non-existent-label")
+        
+    with pytest.raises(RuntimeError):
+        jdb.map("system", unique=True)
 
 
 def test_modification():
