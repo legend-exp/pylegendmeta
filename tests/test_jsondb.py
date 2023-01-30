@@ -111,13 +111,11 @@ def test_mapping():
     with pytest.raises(RuntimeError):
         jdb.map("system", unique=True)
 
-    assert jdb.map("system", unique=False)[2].map("label")[1].data==3
-    assert jdb.map("system", unique=False)[1].map("label")[2].data==1
+    assert jdb.map("system", unique=False)[2].map("label")[1].data == 3
+    assert jdb.map("system", unique=False)[1].map("label")[2].data == 1
 
     with pytest.raises(ValueError):
         jdb.map("non-existent-label")
-        
-    
 
 
 def test_modification():

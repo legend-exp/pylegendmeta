@@ -162,9 +162,9 @@ class AttrsDict(dict):
 
         if unique == True and unique_tracker == False:
             raise RuntimeError(f"'{label}' values are not unique")
-            
-        if unique_tracker==True:
-            newmap = AttrsDict({entry:newmap[entry][0] for entry in newmap})
+
+        if unique_tracker == True:
+            newmap = AttrsDict({entry: newmap[entry][0] for entry in newmap})
 
         if not newmap:
             raise ValueError(f"could not find '{label}' anywhere in the dictionary")
@@ -298,7 +298,7 @@ class JsonDB:
         Props.subst_vars(db_ptr, var_values={"_": self.path})
         return db_ptr
 
-    def map(self, label: str, unique:bool=True) -> AttrsDict:
+    def map(self, label: str, unique: bool = True) -> AttrsDict:
         """Remap dictionary according to a second unique `key`.
 
         See Also
