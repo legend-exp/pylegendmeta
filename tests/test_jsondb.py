@@ -41,7 +41,7 @@ def test_access():
     assert jdb.arrays[1].array[0] == 1
     assert jdb.arrays[1].array[1].data == 2
 
-    assert jdb.file2.filepath == Path(__file__).parent / "testdb/dir1/file3.json"
+    assert jdb.file2.filepath == str(Path(__file__).parent / "testdb/dir1/file3.json")
 
     with pytest.raises(ValueError):
         JsonDB("non-existent-db")
@@ -100,20 +100,24 @@ def test_time_validity():
 
 def test_mapping():
     jdb = JsonDB(testdb)
+
     assert isinstance(jdb.map("label"), AttrsDict)
     assert jdb.map("label")[3].data == 2
     assert jdb.map("key.label")[3].data == 2
     assert isinstance(jdb.file1.group.map("label"), AttrsDict)
     assert jdb.file1.group.map("label")["a"].data == 1
     assert jdb.file1.group.map("label")["b"].data == 2
+
+    with pytest.raises(RuntimeError):
+        jdb.map("system", unique=True)
+
     assert jdb.map("system", unique=False)[2].map("label")[1].data==3
     assert jdb.map("system", unique=False)[1].map("label")[2].data==1
 
     with pytest.raises(ValueError):
         jdb.map("non-existent-label")
         
-    with pytest.raises(RuntimeError):
-        jdb.map("system", unique=True)
+    
 
 
 def test_modification():
