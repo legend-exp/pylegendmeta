@@ -82,14 +82,16 @@ class AttrsDict(dict):
         except AttributeError:
             raise AttributeError(f"dictionary does not contain a '{name}' key")
 
-    def map(self, label: str) -> AttrsDict:
+    def map(self, label: str, unique: bool = True) -> AttrsDict:
         """Remap dictionary according to an alternative unique label.
 
         Loop over keys in the first level and search for key named `label` in
         their values. If `label` is found and its value `newid` is unique,
         create a mapping between `newid` and the first-level dictionary `obj`.
         If `label` is of the form ``key.label``, ``label`` will be searched in
-        a dictionary keyed by ``key``.
+        a dictionary keyed by ``key``. If the label is unique a dictionary of
+        dictionaries will be returned, if not unique a dictionary will be
+        returned where each entry is a list of dictionaries.
 
         Parameters
         ----------
@@ -97,6 +99,9 @@ class AttrsDict(dict):
             name (key) at which the new label can be found. If nested in
             dictionaries, use ``.`` to separate levels, e.g.
             ``level1.level2.label``.
+        unique
+            bool specifying whether only unique keys are allowed. If true
+            will raise an error if the specified key is not unique.
 
         Examples
         --------
@@ -114,18 +119,16 @@ class AttrsDict(dict):
         ...       "id": 4,
         ...     },
         ...     "data": "y"
-        ...   }
+        ...   },
         ... })
         >>> d.map("id")[1].data == "x"
         True
         >>> d.map("group.id")[4].data == "y"
         True
-
         Note
         ----
         No copy is performed, the returned dictionary is made of references to
         the original objects.
-
         Warning
         -------
         The result is cached internally for fast access after the first call.
@@ -137,7 +140,7 @@ class AttrsDict(dict):
 
         splitk = label.split(".")
         newmap = AttrsDict()
-
+        unique_tracker = True
         # loop over values in the first level
         for v in self.values():
             # find the (nested) label value
@@ -153,10 +156,18 @@ class AttrsDict(dict):
                 raise RuntimeError(f"'{label}' values are not all numbers or strings")
             # complain if a label with the same value was already found
             if newid in newmap:
-                raise RuntimeError(f"'{label}' values are not unique")
+                newkey = sorted(newmap[newid].keys())[-1] + 1
+                newmap[newid].update({newkey: v})
+                unique_tracker = False
             else:
                 # add an item to the new dict with key equal to the value of the label
-                newmap[newid] = v
+                newmap[newid] = {0: v}
+
+        if unique is True and unique_tracker is False:
+            raise RuntimeError(f"'{label}' values are not unique")
+
+        if unique_tracker is True:
+            newmap = AttrsDict({entry: newmap[entry][0] for entry in newmap})
 
         if not newmap:
             raise ValueError(f"could not find '{label}' anywhere in the dictionary")
@@ -287,10 +298,10 @@ class JsonDB:
             fp = self.path.rglob(file)
             fp = [i for i in fp][0]
             db_ptr = db_ptr[fp]
-
+        Props.subst_vars(db_ptr, var_values={"_": self.path})
         return db_ptr
 
-    def map(self, label: str) -> AttrsDict:
+    def map(self, label: str, unique: bool = True) -> AttrsDict:
         """Remap dictionary according to a second unique `key`.
 
         See Also
@@ -302,7 +313,7 @@ class JsonDB:
         If the database is lazy, call :meth:`.scan` in advance to populate it
         (or a subdirectory).
         """
-        return self._store.map(label)
+        return self._store.map(label, unique=unique)
 
     def __getitem__(self, item: str | Path) -> JsonDB | AttrsDict:
         """Access files or directories in the database."""
@@ -334,10 +345,14 @@ class JsonDB:
                         loaded = json.load(f)
                         if isinstance(loaded, dict):
                             loaded = AttrsDict(loaded)
+                            Props.subst_vars(loaded, var_values={"_": self.path})
                         else:  # must be a list, check if there are dicts inside to convert
                             for i, el in enumerate(loaded):
                                 if isinstance(el, dict):
                                     loaded[i] = AttrsDict(el)
+                                    Props.subst_vars(
+                                        loaded[i], var_values={"_": self.path}
+                                    )
 
                         db_ptr._store[item_id] = loaded
                 else:
