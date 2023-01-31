@@ -84,6 +84,7 @@ class AttrsDict(dict):
 
     def map(self, label: str, unique: bool = True) -> AttrsDict:
         """Remap dictionary according to an alternative unique label.
+
         Loop over keys in the first level and search for key named `label` in
         their values. If `label` is found and its value `newid` is unique,
         create a mapping between `newid` and the first-level dictionary `obj`.
@@ -91,6 +92,7 @@ class AttrsDict(dict):
         a dictionary keyed by ``key``. If the label is unique a dictionary of
         dictionaries will be returned, if not unique a dictionary will be
         returned where each entry is a list of dictionaries.
+
         Parameters
         ----------
         label
@@ -100,6 +102,7 @@ class AttrsDict(dict):
         unique
             bool specifying whether only unique keys are allowed. If true
             will raise an error if the specified key is not unique.
+
         Examples
         --------
         >>> d = AttrsDict({
@@ -160,10 +163,10 @@ class AttrsDict(dict):
                 # add an item to the new dict with key equal to the value of the label
                 newmap[newid] = {0: v}
 
-        if unique == True and unique_tracker == False:
+        if unique is True and unique_tracker is False:
             raise RuntimeError(f"'{label}' values are not unique")
 
-        if unique_tracker == True:
+        if unique_tracker is True:
             newmap = AttrsDict({entry: newmap[entry][0] for entry in newmap})
 
         if not newmap:

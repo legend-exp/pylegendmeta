@@ -179,7 +179,10 @@ class Props:
                 del a[key]
 
     @staticmethod
-    def subst_vars(props, var_values={}, ignore_missing=False):
+    def subst_vars(props, var_values=None, ignore_missing=False):
+        if not var_values:
+            var_values = {}
+
         for key in props:
             value = props[key]
             if isinstance(value, str) and "$" in value:
