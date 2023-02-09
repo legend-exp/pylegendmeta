@@ -129,7 +129,7 @@ class LegendMetadata(JsonDB):
 
         # get full detector db
         detdb = self.hardware.detectors
-        fulldb = detdb.germanium.detectors | detdb.lar.sipms
+        fulldb = detdb.germanium.diodes | detdb.lar.sipms
 
         for det, v in chmap.items():
             # find channel info in detector database and merge it into
