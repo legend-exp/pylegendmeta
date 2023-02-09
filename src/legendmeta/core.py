@@ -131,11 +131,11 @@ class LegendMetadata(JsonDB):
         detdb = self.hardware.detectors
         fulldb = detdb.germanium.diodes | detdb.lar.sipms
 
-        for det, v in chmap.items():
+        for det in chmap.keys():
             # find channel info in detector database and merge it into
             # channelmap item, if possible
             if det in fulldb:
-                v |= fulldb[det]
+                chmap[det] |= fulldb[det]
             else:
                 log.debug(
                     f"Could not find detector '{det}' in hardware.detectors database"

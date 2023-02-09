@@ -4,6 +4,7 @@ import pytest
 from git import GitCommandError
 
 from legendmeta import LegendMetadata
+from legendmeta.jsondb import AttrsDict
 
 pytestmark = pytest.mark.xfail(run=True, reason="requires access to legend-metadata")
 
@@ -54,4 +55,7 @@ def test_chmap_remapping(metadb):
 
 
 def test_channelmap(metadb):
-    assert "geometry" in metadb.channelmap(on=datetime.now()).V02162B
+    channel = metadb.channelmap(on=datetime.now()).V02162B
+    assert isinstance(channel, AttrsDict)
+    assert "geometry" in channel
+    assert hasattr(channel, "geometry")
