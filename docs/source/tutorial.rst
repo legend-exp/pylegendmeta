@@ -9,16 +9,15 @@ an object of the main class:
    >>> from legendmeta import LegendMetadata
    >>> lmeta = LegendMetadata()
 
-This will automatically clone the `legend-metadata
-<https://github.com/legend-exp/legend-metadata>`_ GitHub repository in a
+This will automatically clone the legend-metadata_ GitHub repository in a
 temporary (i.e. not preserved across system reboots) directory.
 
 .. tip::
 
-   It's possible to specify a custom location for the legend-metadata
+   It's possible to specify a custom location for the legend-metadata_
    repository at runtime by pointing the ``$LEGEND_METADATA`` shell variable to
    it or, alternatively, as an argument to the :class:`~.core.LegendMetadata`
-   constructor. Recommended if a custom legend-metadata is needed.
+   constructor. Recommended if a custom legend-metadata_ is needed.
 
 :class:`~.core.LegendMetadata` is a :class:`~.jsondb.JsonDB` object, which
 implements an interface to a database of JSON files arbitrary scattered in a
@@ -258,3 +257,5 @@ Slow Control via :meth:`.LegendSlowControlDB.status`.
     'vmax': 6000,
     'pwkill': 'KILL',
     'pwon': 'Dis'}
+
+.. _legend-metadata: https://github.com/legend-exp/legend-metadata
