@@ -90,8 +90,9 @@ class AttrsDict(dict):
         create a mapping between `newid` and the first-level dictionary `obj`.
         If `label` is of the form ``key.label``, ``label`` will be searched in
         a dictionary keyed by ``key``. If the label is unique a dictionary of
-        dictionaries will be returned, if not unique a dictionary will be
-        returned where each entry is a list of dictionaries.
+        dictionaries will be returned, if not unique and `unique` is false, a
+        dictionary will be returned where each entry is a dictionary of
+        dictionaries keyed by an arbitrary integer.
 
         Parameters
         ----------
@@ -125,10 +126,12 @@ class AttrsDict(dict):
         True
         >>> d.map("group.id")[4].data == "y"
         True
+
         Note
         ----
         No copy is performed, the returned dictionary is made of references to
         the original objects.
+
         Warning
         -------
         The result is cached internally for fast access after the first call.

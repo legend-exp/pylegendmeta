@@ -1,7 +1,7 @@
 Tutorial
 ========
 
-After the ``pylegendmeta`` package is installed, let's import and instantiate
+After the *pylegendmeta* package is installed, let's import and instantiate
 an object of the main class:
 
 .. code::
@@ -18,7 +18,7 @@ temporary (i.e. not preserved across system reboots) directory.
    It's possible to specify a custom location for the legend-metadata
    repository at runtime by pointing the ``$LEGEND_METADATA`` shell variable to
    it or, alternatively, as an argument to the :class:`~.core.LegendMetadata`
-   constructor.
+   constructor. Recommended if a custom legend-metadata is needed.
 
 :class:`~.core.LegendMetadata` is a :class:`~.jsondb.JsonDB` object, which
 implements an interface to a database of JSON files arbitrary scattered in a
@@ -144,6 +144,24 @@ corresponding to a certain DAQ channel:
      'channel': 3,
      ...
 
+If the requested key is not unique, an exception will be raised.
+:meth:`.JsonDB.map` can, however, handle non-unique keys too and return a
+dictionary of matching entries instead, keyed by an arbitrary integer to allow
+further :meth:`.JsonDB.map` calls. The behavior is achieved by setting the
+``unique`` argument flag. A typical application is retrieving all channels
+attached to the same CC4:
+
+.. code:: python
+
+   >>> chmap = lmeta.hardware.configuration.channelmaps.on(datetime.now())
+   >>> chmap.map("electronics.cc4.id", unique=False)["C3"]
+   {0: {'name': 'V02160A',
+     'system': 'geds',
+     'location': {'string': 1, 'position': 1},
+     'daq': {'crate': 0,
+      'card': {'id': 1, 'address': '0x410', 'serialno': None},
+      'channel': 0,
+
 For further details, have a look at the documentation for :meth:`.AttrsDict.map`.
 
 Slow Control interface
@@ -216,3 +234,27 @@ possible:
    >>> result = session.execute(sql.select(DiodeSnap.channel, DiodeSnap.imon).limit(3))
    >>> result.all()
    [(2, 0.0007), (1, 0.0001), (5, 5e-05)]
+
+Channel status [experimental]
+`````````````````````````````
+
+*pylegendmeta* offers a shortcut to retrieve the status of a channel from the
+Slow Control via :meth:`.LegendSlowControlDB.status`.
+
+.. code:: python
+
+   >>> channel = lmeta.channelmap().V02162B
+   >>> scdb.status(channel)
+   {'group': 'String 7',
+    'label': 'V02162B',
+    'vmon': 4299.9,
+    'imon': 5e-05,
+    'status': 1,
+    'vset': 4300.0,
+    'iset': 6.0,
+    'rup': 5,
+    'rdown': 5,
+    'trip': 10.0,
+    'vmax': 6000,
+    'pwkill': 'KILL',
+    'pwon': 'Dis'}
