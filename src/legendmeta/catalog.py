@@ -140,7 +140,7 @@ class Props:
 
         result = read_impl(sources)
         if subst_env:
-            Props.subst_vars(result, var_values={}, use_env=True, ignore_missing=False)
+            Props.subst_vars(result, var_values={}, ignore_missing=False)
         if trim_null:
             Props.trim_null(result)
         return result
