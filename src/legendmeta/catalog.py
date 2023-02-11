@@ -114,7 +114,7 @@ class Catalog(namedtuple("Catalog", ["entries"])):
 
 class Props:
     @staticmethod
-    def read_from(sources, subst_pathvar=False, subst_env=False, trim_null=False):
+    def read_from(sources, subst_pathvar=False, trim_null=False):
         def read_impl(sources):
             if isinstance(sources, str):
                 file_name = sources
@@ -124,7 +124,6 @@ class Props:
                         Props.subst_vars(
                             result,
                             var_values={"_": os.path.dirname(file_name)},
-                            use_env=False,
                             ignore_missing=True,
                         )
                     return result
@@ -172,7 +171,7 @@ class Props:
     def trim_null(props_a):
         a = props_a
 
-        for key in a.keys():
+        for key in list(a.keys()):
             if isinstance(a[key], dict):
                 Props.trim_null(a[key])
             elif a[key] is None:
