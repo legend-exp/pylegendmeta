@@ -3,9 +3,48 @@ from pathlib import Path
 
 import pytest
 
-from legendmeta.jsondb import AttrsDict, JsonDB
+from legendmeta.jsondb import AttrsDict, JsonDB, Props
 
 testdb = Path(__file__).parent / "testdb"
+
+
+def test_props():
+
+    # test read_from
+    test_dict = Props.read_from(str(Path(__file__).parent / "testdb/file2.json"))
+    assert test_dict["data"] == 2
+
+    # test subst_vars
+    Props.subst_vars(test_dict, var_values={"_": str(Path(__file__).parent / "testdb")})
+    assert test_dict["filepath"] == str(
+        Path(__file__).parent / "testdb/dir1/file3.json"
+    )
+
+    test_dict2 = Props.read_from(str(Path(__file__).parent / "testdb/file3.json"))
+
+    # test add_to
+    Props.add_to(test_dict, test_dict2)
+    assert test_dict["data"] == 3
+
+    # test trim null
+    Props.trim_null(test_dict)
+    with pytest.raises(KeyError):
+        test_dict["null_key"]
+
+    test_dict = Props.read_from(
+        [
+            str(Path(__file__).parent / "testdb/file2.json"),
+            str(Path(__file__).parent / "testdb/file3.json"),
+        ],
+        subst_pathvar=True,
+        trim_null=True,
+    )
+    assert test_dict["data"] == 3
+    assert test_dict["filepath"] == str(
+        Path(__file__).parent / "testdb/dir1/file3.json"
+    )
+    with pytest.raises(KeyError):
+        test_dict["null_key"]
 
 
 def test_access():
