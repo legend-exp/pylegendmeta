@@ -16,9 +16,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from importlib import resources
+
+from .jsondb import JsonDB
 
 templates = resources.files("legendmeta") / "templates"
 
@@ -26,13 +29,13 @@ templates = resources.files("legendmeta") / "templates"
 def validate_legend_channel_map() -> bool:
     """Validate list of LEGEND channel map files.
 
-    Called in CLI.
+    Invoked in CLI.
     """
     parser = argparse.ArgumentParser(
         prog="validate-legend-chmaps", description="Validate LEGEND channel map files"
     )
 
-    parser.add_argument("file", nargs="+", help="JSON files containing channel maps")
+    parser.add_argument("files", nargs="+", help="JSON channel maps files")
 
     args = parser.parse_args()
 
@@ -40,35 +43,40 @@ def validate_legend_channel_map() -> bool:
     geds_temp = json.load(open(str(templates / "geds-channel.json")))
     spms_temp = json.load(open(str(templates / "spms-channel.json")))
 
-    valid = True
+    for d in {os.path.dirname(f) for f in args.files}:
+        db = JsonDB(d)
+        valid = True
 
-    for file in args.file:
-        with open(file) as f:
-            chmap = json.load(f)
-            for k, v in chmap.items():
-                if "system" not in v:
-                    print(  # noqa: T201
-                        f"ERROR: '{k}' entry does not contain 'system' key"
+        with open(f"{d}/validity.jsonl") as f:
+            for line in f.readlines():
+                ts = json.loads(line)["valid_from"]
+                sy = json.loads(line)["select"]
+                chmap = db.on(ts, system=sy)
+
+                for k, v in chmap.items():
+                    if "system" not in v:
+                        print(  # noqa: T201
+                            f"ERROR: '{k}' entry does not contain 'system' key"
+                        )
+                        valid *= False
+                        continue
+
+                    if v["system"] == "geds":
+                        temp = geds_temp
+                    elif v["system"] == "spms":
+                        temp = spms_temp
+                    elif v["system"] == "auxs":
+                        temp = auxs_temp
+
+                    valid *= validate_dict_schema(
+                        v,
+                        temp,
+                        typecheck=False,
+                        root_obj=k,
                     )
-                    valid *= False
-                    continue
 
-                if v["system"] == "geds":
-                    temp = geds_temp
-                elif v["system"] == "spms":
-                    temp = spms_temp
-                elif v["system"] == "auxs":
-                    temp = auxs_temp
-
-                valid *= validate_dict_schema(
-                    v,
-                    temp,
-                    typecheck=False,
-                    root_obj=k,
-                )
-
-    if not valid:
-        sys.exit(1)
+        if not valid:
+            sys.exit(1)
 
 
 def validate_dict_schema(
