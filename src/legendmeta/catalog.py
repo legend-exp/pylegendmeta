@@ -72,10 +72,10 @@ class Catalog(namedtuple("Catalog", ["entries"])):
 
         for props in PropsStream.get(file_name):
             timestamp = props["valid_from"]
-            if props.get("select") is None:
+            if props.get("category") is None:
                 system = "all"
             else:
-                system = props["select"]
+                system = props["category"]
             file_key = props["apply"]
             if system not in entries:
                 entries[system] = []
