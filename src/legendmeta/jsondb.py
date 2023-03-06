@@ -20,7 +20,6 @@ import logging
 import os
 import re
 from datetime import datetime
-from glob import glob
 from pathlib import Path
 from typing import Any, Iterator
 
@@ -254,8 +253,8 @@ class JsonDB:
     ) -> AttrsDict:
         """Query database in `time[, file pattern, system]`.
 
-        A (only one) valid ``.jsonl`` file must exist in the directory to
-        specify a validity mapping. This functionality relies on the
+        A (only one) valid ``validity.jsonl`` file must exist in the directory
+        to specify a validity mapping. This functionality relies on the
         :mod:`.catalog` module.
 
         Parameters
@@ -268,14 +267,11 @@ class JsonDB:
         system: 'all', 'phy', 'cal', 'lar', ...
             query only a data taking "system".
         """
-        # get the files from the jsonl
-        files = glob(os.path.join(self.path, "*.jsonl"))
-        if len(files) == 0:
-            raise RuntimeError("no .jsonl file found")
-        if len(files) > 1:
-            raise RuntimeError("unsupported: multiple .jsonl files found")
+        jsonl = os.path.join(self.path, "validity.jsonl")
+        if not os.path.isfile(jsonl):
+            raise RuntimeError(f"no validity.jsonl file found in {self.path}")
 
-        file_list = Catalog.get_files(files[0], timestamp, system)
+        file_list = Catalog.get_files(jsonl, timestamp, system)
         # select only files matching pattern if specified
         if pattern is not None:
             c = re.compile(pattern)
