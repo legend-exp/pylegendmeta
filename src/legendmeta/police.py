@@ -12,6 +12,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 from __future__ import annotations
 
 import argparse
@@ -61,6 +62,7 @@ def validate_legend_channel_map() -> bool:
                         valid *= False
                         continue
 
+                    temp = None
                     if v["system"] == "geds":
                         temp = geds_temp
                     elif v["system"] == "spms":
