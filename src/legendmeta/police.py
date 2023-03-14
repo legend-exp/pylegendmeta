@@ -40,9 +40,10 @@ def validate_legend_channel_map() -> bool:
 
     args = parser.parse_args()
 
-    auxs_temp = json.load(open(str(templates / "auxs-channel.json")))
-    geds_temp = json.load(open(str(templates / "geds-channel.json")))
-    spms_temp = json.load(open(str(templates / "spms-channel.json")))
+    dict_temp = {
+        "geds": json.load(open(str(templates / "geds-channel.json"))),
+        "spms": json.load(open(str(templates / "spms-channel.json"))),
+    }
 
     for d in {os.path.dirname(f) for f in args.files}:
         db = JsonDB(d)
@@ -62,17 +63,15 @@ def validate_legend_channel_map() -> bool:
                         valid *= False
                         continue
 
-                    temp = None
-                    if v["system"] == "geds":
-                        temp = geds_temp
-                    elif v["system"] == "spms":
-                        temp = spms_temp
-                    elif v["system"] == "auxs":
-                        temp = auxs_temp
+                    if v["system"] not in dict_temp:
+                        print(  # noqa: T201
+                            f"WARNING: '{k}': no template for system '{v['system']}' entry"
+                        )
+                        continue
 
                     valid *= validate_dict_schema(
                         v,
-                        temp,
+                        dict_temp[v["system"]],
                         typecheck=False,
                         root_obj=k,
                     )
