@@ -13,7 +13,7 @@
       "address": ""
     },
     "channel": 0,
-    "fcid": 0
+    "rawid": 0
   },
   "voltage": {
     "card": {

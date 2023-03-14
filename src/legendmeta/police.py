@@ -72,6 +72,7 @@ def validate_legend_channel_map() -> bool:
                     valid *= validate_dict_schema(
                         v,
                         dict_temp[v["system"]],
+                        greedy=False,
                         typecheck=False,
                         root_obj=k,
                     )
