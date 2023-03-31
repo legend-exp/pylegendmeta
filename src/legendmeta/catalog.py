@@ -95,6 +95,8 @@ class Catalog(namedtuple("Catalog", ["entries"])):
             pos = bisect.bisect_right(valid_from, unix_time(timestamp))
             if pos > 0:
                 return self.entries[system][pos - 1].file
+            elif system != "all":
+                return self.valid_for(timestamp, system="all", allow_none=allow_none)
             else:
                 if allow_none:
                     return None
@@ -102,6 +104,8 @@ class Catalog(namedtuple("Catalog", ["entries"])):
                     raise RuntimeError(
                         f"No valid entries found for timestamp: {timestamp}, system: {system}"
                     )
+        elif system != "all":
+            return self.valid_for(timestamp, system="all", allow_none=allow_none)
         else:
             if allow_none:
                 return None

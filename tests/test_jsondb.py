@@ -153,6 +153,9 @@ def test_time_validity():
     assert jdb.dir1.on(tstamp).data == 1
     assert jdb.dir1.on(tstamp, r"^file3.*", "all").data == 1
 
+    assert jdb.dir1.on(tstamp, system="phy").data == 1
+    assert jdb.dir1.on(tstamp, system="cal").data == 1
+
 
 def test_mapping():
     jdb = JsonDB(testdb)
