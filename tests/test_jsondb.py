@@ -93,6 +93,23 @@ def test_access():
         jdb.dir1.file3.non_existent_key
 
 
+def test_keys():
+    jdb = JsonDB(testdb)
+    assert sorted(jdb.keys()) == ["arrays", "dir1", "dir2", "file1", "file2", "file3"]
+    assert sorted(jdb.dir1.keys()) == ["dir2", "file3", "file5"]
+
+
+def test_items():
+    jdb = JsonDB(testdb)
+    items = sorted(jdb.items())
+    assert items[0][0] == "arrays"
+    assert isinstance(items[0][1], list)
+    assert items[1][0] == "dir1"
+    assert isinstance(items[1][1], JsonDB)
+    assert items[3][0] == "file1"
+    assert isinstance(items[3][1], AttrsDict)
+
+
 def test_scan():
     jdb = JsonDB(testdb)
     jdb.scan()

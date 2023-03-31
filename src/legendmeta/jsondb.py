@@ -75,7 +75,7 @@ class AttrsDict(dict):
 
     __setattr__ = __setitem__
 
-    def __getattr__(self, name: str) -> AttrsDict:
+    def __getattr__(self, name: str) -> Any:
         try:
             super().__getattr__(name)
         except AttributeError:
@@ -248,9 +248,15 @@ class JsonDB:
                 log.warning(f"could not scan file {j}")
                 log.warning(f"reason: {e}")
 
+    def keys(self) -> list[str]:
+        return self._store.keys()
+
+    def items(self) -> Iterator[(str, JsonDB | AttrsDict | list)]:
+        return self._store.items()
+
     def on(
         self, timestamp: str | datetime, pattern: str = None, system: str = "all"
-    ) -> AttrsDict:
+    ) -> AttrsDict | list:
         """Query database in `time[, file pattern, system]`.
 
         A (only one) valid ``validity.jsonl`` file must exist in the directory
@@ -314,7 +320,7 @@ class JsonDB:
         """
         return self._store.map(label, unique=unique)
 
-    def __getitem__(self, item: str | Path) -> JsonDB | AttrsDict:
+    def __getitem__(self, item: str | Path) -> JsonDB | AttrsDict | list:
         """Access files or directories in the database."""
         # resolve relative paths / links, but keep it relative to self.path
         item = Path(self.path / item).expanduser().resolve().relative_to(self.path)
@@ -365,7 +371,7 @@ class JsonDB:
 
         return db_ptr._store[item_id]
 
-    def __getattr__(self, name: str) -> JsonDB | AttrsDict:
+    def __getattr__(self, name: str) -> JsonDB | AttrsDict | list:
         try:
             return self[name]
         except KeyError:
