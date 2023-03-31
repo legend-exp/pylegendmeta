@@ -12,7 +12,7 @@ pytestmark = pytest.mark.xfail(run=True, reason="requires access to legend-metad
 @pytest.fixture(scope="module")
 def metadb():
     mdata = LegendMetadata()
-    mdata.checkout("78789f2")
+    mdata.checkout("98c00f0")
     return mdata
 
 
@@ -51,11 +51,11 @@ def test_chmap_remapping(metadb):
         )[1080000]
     )
 
-    assert "daq" in metadb.channelmap(system="phy").map("daq.rawid")[1080000]
+    assert "daq" in metadb.channelmap().map("daq.rawid")[1080000]
 
 
 def test_channelmap(metadb):
-    channel = metadb.channelmap(on=datetime.now(), system="phy").V02162B
+    channel = metadb.channelmap(on=datetime.now()).V02162B
     assert isinstance(channel, AttrsDict)
     assert "geometry" in channel
     assert hasattr(channel, "geometry")

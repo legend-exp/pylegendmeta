@@ -136,6 +136,10 @@ class LegendSlowControlDB:
 
         return db.orm.Session(self.connection)
 
+    def get_tables(self) -> list[str]:
+        """Get tables available in the database."""
+        return db.inspect(self.connection.engine).get_table_names()
+
     def dataframe(self, expr: str | db.sql.Select) -> pandas.DataFrame:
         """Query the database and return a dataframe holding the result.
 

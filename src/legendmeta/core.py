@@ -92,12 +92,7 @@ class LegendMetadata(JsonDB):
         """Checkout legend-metadata to the default Git ref."""
         self._repo.git.checkout(self._default_git_ref)
 
-    def channelmap(
-        self,
-        on: str | datetime = None,
-        pattern: str = None,
-        system: str = "all",
-    ) -> AttrsDict:
+    def channelmap(self, on: str | datetime = None) -> AttrsDict:
         """Get a LEGEND channel map.
 
         Aliases ``legend-metadata.hardware.configuration.channelmaps.on()`` and
@@ -128,10 +123,12 @@ class LegendMetadata(JsonDB):
         if not on:
             on = datetime.now()
 
-        chmap = self.hardware.configuration.channelmaps.on(on, pattern, system)
+        chmap = self.hardware.configuration.channelmaps.on(
+            on, pattern=None, system="all"
+        )
 
         # get analysis metadata
-        anamap = self.dataprod.config.on(on, pattern, system).analysis
+        anamap = self.dataprod.config.on(on, pattern=None, system="all").analysis
 
         # get full detector db
         detdb = self.hardware.detectors
