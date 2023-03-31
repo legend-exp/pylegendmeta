@@ -102,7 +102,8 @@ class LegendMetadata(JsonDB):
 
         Aliases ``legend-metadata.hardware.configuration.channelmaps.on()`` and
         tries to merge the returned channel map with the detector database
-        `legend-metadata.hardware.detectors`.
+        `legend-metadata.hardware.detectors` and the analysis channel map
+        `dataprod.config.on(...).analysis`.
 
         Warning
         -------
@@ -117,6 +118,8 @@ class LegendMetadata(JsonDB):
         >>> channel = lmeta.channelmap(on=datetime.now()).V05267B
         >>> channel.geometry.mass_in_g
         2362.0
+        >>> channel.analysis.usability
+        'on'
 
         See Also
         --------
@@ -126,6 +129,9 @@ class LegendMetadata(JsonDB):
             on = datetime.now()
 
         chmap = self.hardware.configuration.channelmaps.on(on, pattern, system)
+
+        # get analysis metadata
+        anamap = self.dataprod.config.on(on, pattern, system).analysis
 
         # get full detector db
         detdb = self.hardware.detectors
@@ -139,6 +145,15 @@ class LegendMetadata(JsonDB):
             else:
                 log.debug(
                     f"Could not find detector '{det}' in hardware.detectors database"
+                )
+
+            # find channel info in analysis database and add it into channelmap
+            # item under "analysis", if possible
+            if det in anamap:
+                chmap[det]["analysis"] = anamap[det]
+            else:
+                log.debug(
+                    f"Could not find detector '{det}' in dataprod.config database"
                 )
 
         return chmap
