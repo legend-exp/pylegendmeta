@@ -9,7 +9,6 @@ testdb = Path(__file__).parent / "testdb"
 
 
 def test_props():
-
     # test read_from
     test_dict = Props.read_from(str(Path(__file__).parent / "testdb/file2.json"))
     assert test_dict["data"] == 2
