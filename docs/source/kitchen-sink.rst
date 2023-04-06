@@ -39,8 +39,6 @@ or, alternatively:
    >>> numpy.cumsum(masses)[-1]
    [REDACTED]
 
-   print(f"mass = {mass/1000} kg")
-
 How many kilograms of Ge76 are currently deployed in the form of ICPC detectors and are usable for analysis?
 ------------------------------------------------------------------------------------------------------------
 
