@@ -163,6 +163,25 @@ attached to the same CC4:
 
 For further details, have a look at the documentation for :meth:`.AttrsDict.map`.
 
+LEGEND channel maps
+-------------------
+
+The :meth:`.core.LegendMetadata.channelmap` method is a conveniece method to
+obtain channel-relevant metadata (hardware, analysis, etc.) in time:
+
+.. code:: python
+
+   >>> myicpc = lmeta.channelmap(datetime.now()).V00048B
+   >>> myicpc.production.mass_in_g  # static info from the detector database
+   1815.8
+   >>> myicpc.location.string  # hardware channel map info
+   8
+   >>> myicpc.analysis.usability  # analysis info
+   'on'
+
+Since :meth:`~.core.LegendMetadata.channelmap` returns an :class:`~.AttrsDict`,
+other useful operations like :meth:`~.AttrsDict.map` can be applied.
+
 Slow Control interface
 ----------------------
 

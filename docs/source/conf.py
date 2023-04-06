@@ -53,6 +53,7 @@ intersphinx_mapping = {
     "pandas": ("https://pandas.pydata.org/docs", None),
     "matplotlib": ("https://matplotlib.org/stable", None),
     "sqlalchemy": ("https://docs.sqlalchemy.org", None),
+    "pygama": ("https://pygama.readthedocs.io/en/stable", None),
 }  # add new intersphinx mappings here
 
 # sphinx-autodoc
