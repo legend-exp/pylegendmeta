@@ -140,6 +140,10 @@ class LegendSlowControlDB:
         """Get tables available in the database."""
         return db.inspect(self.connection.engine).get_table_names()
 
+    def get_columns(self, table: str) -> list[str]:
+        """Get columns available on `table` in the database."""
+        return db.inspect(self.connection.engine).get_columns(table)
+
     def dataframe(self, expr: str | db.sql.Select) -> pandas.DataFrame:
         """Query the database and return a dataframe holding the result.
 

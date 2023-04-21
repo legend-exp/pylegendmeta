@@ -49,7 +49,7 @@ napoleon_use_ivar = True
 # intersphinx
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
-    "numpy": ("http://docs.scipy.org/doc/numpy", None),
+    "numpy": ("https://numpy.org/doc/stable", None),
     "pandas": ("https://pandas.pydata.org/docs", None),
     "matplotlib": ("https://matplotlib.org/stable", None),
     "sqlalchemy": ("https://docs.sqlalchemy.org", None),

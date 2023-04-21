@@ -4,10 +4,8 @@ Tutorial
 After the *pylegendmeta* package is installed, let's import and instantiate
 an object of the main class:
 
-.. code::
-
-   >>> from legendmeta import LegendMetadata
-   >>> lmeta = LegendMetadata()
+>>> from legendmeta import LegendMetadata
+>>> lmeta = LegendMetadata()
 
 This will automatically clone the legend-metadata_ GitHub repository in a
 temporary (i.e. not preserved across system reboots) directory.
@@ -53,23 +51,19 @@ and similarly ``file2.json`` and ``file3.json``.
 Internally, the database is represented as a :class:`dict`, and can be
 therefore accessed with the same syntax:
 
-.. code:: python
-
-   >>> lmeta["dir1"] # a dict
-   >>> lmeta["file2.json"] # a dict
-   >>> lmeta["dir1"]["file1.json"] # nested file
-   >>> lmeta["dir1"]["file1"] # .json not strictly needed
-   >>> lmeta["dir1/file1"] # can use a filesystem path
-   >>> lmeta["dir1"]["file1"]["value"] # == 1
+>>> lmeta["dir1"] # a dict
+>>> lmeta["file2.json"] # a dict
+>>> lmeta["dir1"]["file1.json"] # nested file
+>>> lmeta["dir1"]["file1"] # .json not strictly needed
+>>> lmeta["dir1/file1"] # can use a filesystem path
+>>> lmeta["dir1"]["file1"]["value"] # == 1
 
 To allow you having to type a lot, a fancy attribute-style access mode is
 available (try tab-completion in IPython!):
 
-.. code:: python
-
-   >>> lmeta.dir1
-   >>> lmeta.dir1.file1
-   >>> lmeta.dir1.file1.value
+>>> lmeta.dir1
+>>> lmeta.dir1.file1
+>>> lmeta.dir1.file1.value
 
 .. warning::
 
@@ -96,27 +90,23 @@ the following file:
 
 From code, it's possible to obtain the metadata valid for a certain time point:
 
-.. code:: python
-
-   >>> from datetime import datetime, timezone
-   >>> lmeta.on(datetime(2022, 6, 28, 14, 35, 00, tzinfo=timezone.utc))
-   {'value': 2}
-   >>> lmeta.on("20220629T095300Z")
-   {'value': 3}
+>>> from datetime import datetime, timezone
+>>> lmeta.on(datetime(2022, 6, 28, 14, 35, 00, tzinfo=timezone.utc))
+{'value': 2}
+>>> lmeta.on("20220629T095300Z")
+{'value': 3}
 
 For example, the following function call returns the current LEGEND hardware
 channel map:
 
-.. code:: python
-
-   >>> lmeta.hardware.configuration.channelmaps.on(datetime.now())
-   {'B00089B': {'detname': 'B00089B',
-     'location': {'string': 10, 'position': 8},
-     'daq': {'crate': 1,
-      'card': {'id': 5, 'serialno': None, 'address': '0x350'},
-      'channel': 2,
-      'fcid': 102},
-      ...
+>>> lmeta.hardware.configuration.channelmaps.on(datetime.now())
+{'B00089B': {'detname': 'B00089B',
+ 'location': {'string': 10, 'position': 8},
+ 'daq': {'crate': 1,
+  'card': {'id': 5, 'serialno': None, 'address': '0x350'},
+  'channel': 2,
+  'fcid': 102},
+  ...
 
 .. tip::
 
@@ -132,16 +122,14 @@ query ``(key, value)`` dictionaries with an alternative unique key defined in
 ``value``. A typical application is querying parameters in a channel map
 corresponding to a certain DAQ channel:
 
-.. code:: python
-
-   >>> chmap = lmeta.hardware.configuration.channelmaps.on(datetime.now())
-   >>> chmap.map("daq.fcid")[7]
-   {'detname': 'V05266A',
-    'location': {'string': 1, 'position': 4},
-    'daq': {'crate': 0,
-     'card': {'id': 1, 'serialno': None, 'address': '0x410'},
-     'channel': 3,
-     ...
+>>> chmap = lmeta.hardware.configuration.channelmaps.on(datetime.now())
+>>> chmap.map("daq.fcid")[7]
+{'detname': 'V05266A',
+'location': {'string': 1, 'position': 4},
+'daq': {'crate': 0,
+ 'card': {'id': 1, 'serialno': None, 'address': '0x410'},
+ 'channel': 3,
+ ...
 
 If the requested key is not unique, an exception will be raised.
 :meth:`.JsonDB.map` can, however, handle non-unique keys too and return a
@@ -150,16 +138,14 @@ further :meth:`.JsonDB.map` calls. The behavior is achieved by setting the
 ``unique`` argument flag. A typical application is retrieving all channels
 attached to the same CC4:
 
-.. code:: python
-
-   >>> chmap = lmeta.hardware.configuration.channelmaps.on(datetime.now())
-   >>> chmap.map("electronics.cc4.id", unique=False)["C3"]
-   {0: {'name': 'V02160A',
-     'system': 'geds',
-     'location': {'string': 1, 'position': 1},
-     'daq': {'crate': 0,
-      'card': {'id': 1, 'address': '0x410', 'serialno': None},
-      'channel': 0,
+>>> chmap = lmeta.hardware.configuration.channelmaps.on(datetime.now())
+>>> chmap.map("electronics.cc4.id", unique=False)["C3"]
+{0: {'name': 'V02160A',
+ 'system': 'geds',
+ 'location': {'string': 1, 'position': 1},
+ 'daq': {'crate': 0,
+  'card': {'id': 1, 'address': '0x410', 'serialno': None},
+  'channel': 0,
 
 For further details, have a look at the documentation for :meth:`.AttrsDict.map`.
 
@@ -169,15 +155,13 @@ LEGEND channel maps
 The :meth:`.core.LegendMetadata.channelmap` method is a conveniece method to
 obtain channel-relevant metadata (hardware, analysis, etc.) in time:
 
-.. code:: python
-
-   >>> myicpc = lmeta.channelmap(datetime.now()).V00048B
-   >>> myicpc.production.mass_in_g  # static info from the detector database
-   1815.8
-   >>> myicpc.location.string  # hardware channel map info
-   8
-   >>> myicpc.analysis.usability  # analysis info
-   'on'
+>>> myicpc = lmeta.channelmap(datetime.now()).V00048B
+>>> myicpc.production.mass_in_g  # static info from the detector database
+1815.8
+>>> myicpc.location.string  # hardware channel map info
+8
+>>> myicpc.analysis.usability  # analysis info
+'on'
 
 Since :meth:`~.core.LegendMetadata.channelmap` returns an :class:`~.AttrsDict`,
 other useful operations like :meth:`~.AttrsDict.map` can be applied.
@@ -192,11 +176,9 @@ resides on the ``legend-sc.lngs.infn.it`` host, part of the LNGS network.
 Connecting to the database from within the LEGEND LNGS environment does not
 require any special configuration:
 
-.. code:: python
-
-   >>> from legendmeta import LegendSlowControlDB
-   >>> scdb = LegendSlowControlDB()
-   >>> scdb.connect(password="···")
+>>> from legendmeta import LegendSlowControlDB
+>>> scdb = LegendSlowControlDB()
+>>> scdb.connect(password="···")
 
 .. note::
 
@@ -217,41 +199,57 @@ More :meth:`.LegendSlowControlDB.connect` keyword-arguments are available to
 customize hostname and port through which the database can be contacted (in
 case of e.g. custom port forwarding).
 
+Two methods can be used to inspect the database:
+:meth:`.LegendSlowControlDB.get_tables` and
+:meth:`.LegendSlowControlDB.get_columns`:
+
+>>> scdb.get_tables()
+['muon_conf',
+ 'diode_info',
+ 'muon_conf_set',
+ 'diode_conf_list',
+ 'muon_info',
+ 'muon_conf_mon',
+ ...
+>>> scdb.get_columns("diode_info")
+[{'name': 'crate',
+  'type': INTEGER(),
+  'nullable': False,
+  'default': None,
+  'autoincrement': False,
+  'comment': None},
+ {'name': 'slot',
+ ...
+
 :meth:`.LegendSlowControlDB.dataframe` can be used to execute an SQL query and
 return a :class:`pandas.DataFrame`. The following selects three rows from the
 ``slot``, ``channel`` and ``vmon`` columns in the ``diode_snap`` table:
 
-.. code:: python
-
-   >>> scdb.dataframe("SELECT slot, channel, vmon FROM diode_snap LIMIT 3")
-      slot  channel    vmon
-   0     3        6  4300.0
-   1     9        2  2250.0
-   2    10        3  3699.9
+>>> scdb.dataframe("SELECT slot, channel, vmon FROM diode_snap LIMIT 3")
+  slot  channel    vmon
+0     3        6  4300.0
+1     9        2  2250.0
+2    10        3  3699.9
 
 It's even possible to get an entire table as a dataframe:
 
-.. code:: python
-
-   >>> scdb.dataframe("diode_conf_mon")
-         confid  crate  slot  channel    vset  iset  rup  rdown  trip  vmax pwkill pwon                    tstamp
-   0         15      0     0        0  4000.0   6.0   10      5  10.0  6000   KILL  Dis 2022-10-07 13:49:56+00:00
-   1         15      0     0        1  4300.0   6.0   10      5  10.0  6000   KILL  Dis 2022-10-07 13:49:56+00:00
-   2         15      0     0        2  4200.0   6.0   10      5  10.0  6000   KILL  Dis 2022-10-07 13:49:56+00:00
-   ...
+>>> scdb.dataframe("diode_conf_mon")
+     confid  crate  slot  channel    vset  iset  rup  rdown  trip  vmax pwkill pwon                    tstamp
+0         15      0     0        0  4000.0   6.0   10      5  10.0  6000   KILL  Dis 2022-10-07 13:49:56+00:00
+1         15      0     0        1  4300.0   6.0   10      5  10.0  6000   KILL  Dis 2022-10-07 13:49:56+00:00
+2         15      0     0        2  4200.0   6.0   10      5  10.0  6000   KILL  Dis 2022-10-07 13:49:56+00:00
+...
 
 Executing queries natively through an `SQLAlchemy
 <ihttps://www.sqlalchemy.org>`_ :class:`~sqlalchemy.orm.Session` is also
 possible:
 
-.. code:: python
-
-   >>> import sqlalchemy as sql
-   >>> from legendmeta.slowcontrol import DiodeSnap
-   >>> session = scdb.make_session()
-   >>> result = session.execute(sql.select(DiodeSnap.channel, DiodeSnap.imon).limit(3))
-   >>> result.all()
-   [(2, 0.0007), (1, 0.0001), (5, 5e-05)]
+>>> import sqlalchemy as sql
+>>> from legendmeta.slowcontrol import DiodeSnap
+>>> session = scdb.make_session()
+>>> result = session.execute(sql.select(DiodeSnap.channel, DiodeSnap.imon).limit(3))
+>>> result.all()
+[(2, 0.0007), (1, 0.0001), (5, 5e-05)]
 
 Channel status [experimental]
 `````````````````````````````
@@ -259,22 +257,20 @@ Channel status [experimental]
 *pylegendmeta* offers a shortcut to retrieve the status of a channel from the
 Slow Control via :meth:`.LegendSlowControlDB.status`.
 
-.. code:: python
-
-   >>> channel = lmeta.channelmap().V02162B
-   >>> scdb.status(channel)
-   {'group': 'String 7',
-    'label': 'V02162B',
-    'vmon': 4299.9,
-    'imon': 5e-05,
-    'status': 1,
-    'vset': 4300.0,
-    'iset': 6.0,
-    'rup': 5,
-    'rdown': 5,
-    'trip': 10.0,
-    'vmax': 6000,
-    'pwkill': 'KILL',
-    'pwon': 'Dis'}
+>>> channel = lmeta.channelmap().V02162B
+>>> scdb.status(channel)
+{'group': 'String 7',
+'label': 'V02162B',
+'vmon': 4299.9,
+'imon': 5e-05,
+'status': 1,
+'vset': 4300.0,
+'iset': 6.0,
+'rup': 5,
+'rdown': 5,
+'trip': 10.0,
+'vmax': 6000,
+'pwkill': 'KILL',
+'pwon': 'Dis'}
 
 .. _legend-metadata: https://github.com/legend-exp/legend-metadata
