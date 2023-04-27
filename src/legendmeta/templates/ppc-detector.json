@@ -14,7 +14,7 @@
   "geometry": {
     "height_in_mm": 0.0,
     "radius_in_mm": 0.0,
-    "pp-contact": {
+    "pp_contact": {
       "radius_in_mm": 0.0,
       "depth_in_mm": 0.0
     },
