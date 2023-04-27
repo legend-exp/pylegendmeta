@@ -179,6 +179,9 @@ def validate_dict_schema(
                 # do not complain if float is requested but int is given
                 if isinstance(v, float) and isinstance(adict[k], int):
                     continue
+                # make an exception for null (missing) fields
+                if adict[k] is None:
+                    continue
                 print(  # noqa: T201
                     f"ERROR: value of '{root_obj}/{k}' must be {type(v)}"
                 )  # noqa: T201

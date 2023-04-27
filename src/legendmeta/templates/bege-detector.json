@@ -31,7 +31,7 @@
         "height_in_mm": 0.0
       },
       "bottom": {
-        "angle_in_mm": 0.0,
+        "angle_in_deg": 0.0,
         "height_in_mm": 0.0
       }
     }
