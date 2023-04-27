@@ -3,3 +3,9 @@
   entry: validate-legend-chmaps
   language: python
   types: [json]
+
+- id: validate-legend-detdb
+  name: check LEGEND detector database format
+  entry: validate-legend-detdb
+  language: python
+  types: [json]

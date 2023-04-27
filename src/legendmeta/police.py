@@ -27,6 +27,57 @@ from .jsondb import JsonDB
 templates = resources.files("legendmeta") / "templates"
 
 
+def validate_legend_detector_db() -> bool:
+    """Validate LEGEND detector database.
+
+    Invoked in CLI.
+    """
+    parser = argparse.ArgumentParser(
+        prog="validate-legend-detdb", description="Validate LEGEND detector database"
+    )
+
+    parser.add_argument("files", nargs="+", help="JSON files")
+
+    args = parser.parse_args()
+
+    dict_temp = {
+        "bege": json.load(open(str(templates / "bege-detector.json"))),
+        "ppc": json.load(open(str(templates / "ppc-detector.json"))),
+        "coax": json.load(open(str(templates / "coax-detector.json"))),
+        "icpc": json.load(open(str(templates / "icpc-detector.json"))),
+    }
+
+    for file in args.files:
+        valid = True
+
+        with open(file) as f:
+            entry = json.load(f)
+
+            if "type" not in entry:
+                print(  # noqa: T201
+                    f"ERROR: '{file}' entry does not contain 'type' key"
+                )
+                valid *= False
+                continue
+
+            if entry["type"] not in dict_temp:
+                print(  # noqa: T201
+                    f"WARNING: '{file}': no template for type '{entry['type']}' detector"
+                )
+                continue
+
+            valid *= validate_dict_schema(
+                entry,
+                dict_temp[entry["type"]],
+                greedy=False,
+                typecheck=True,
+                root_obj=file,
+            )
+
+        if not valid:
+            sys.exit(1)
+
+
 def validate_legend_channel_map() -> bool:
     """Validate list of LEGEND channel map files.
 
@@ -125,6 +176,9 @@ def validate_dict_schema(
                 )
         else:
             if typecheck and not isinstance(adict[k], type(v)):
+                # do not complain if float is requested but int is given
+                if isinstance(v, float) and isinstance(adict[k], int):
+                    continue
                 print(  # noqa: T201
                     f"ERROR: value of '{root_obj}/{k}' must be {type(v)}"
                 )  # noqa: T201
