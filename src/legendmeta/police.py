@@ -103,7 +103,7 @@ def validate_legend_channel_map() -> bool:
         with open(f"{d}/validity.jsonl") as f:
             for line in f.readlines():
                 ts = json.loads(line)["valid_from"]
-                sy = json.loads(line)["select"]
+                sy = json.loads(line)["category"]
                 chmap = db.on(ts, system=sy)
 
                 for k, v in chmap.items():
