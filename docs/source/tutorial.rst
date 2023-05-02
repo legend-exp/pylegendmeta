@@ -75,7 +75,9 @@ Metadata validity
 -----------------
 
 Mappings of metadata to time periods, data taking systems etc. are specified
-through JSONL files. If a ``.jsonl`` file is present in a directory, ``JsonDB``
+through JSONL files (`specification
+<https://legend-exp.github.io/legend-data-format-specs/dev/metadata>`_).
+If a ``.jsonl`` file is present in a directory, ``JsonDB``
 exposes the :meth:`~.jsondb.JsonDB.on` interface to perform a query.
 
 Let's assume the ``legend-metadata`` directory from the example above contains

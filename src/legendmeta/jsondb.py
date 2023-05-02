@@ -261,7 +261,13 @@ class JsonDB:
 
         A (only one) valid ``validity.jsonl`` file must exist in the directory
         to specify a validity mapping. This functionality relies on the
-        :mod:`.catalog` module.
+        :class:`.catalog.Catalog` class.
+
+        The JSONL specification is documented at `this link
+        <https://legend-exp.github.io/legend-data-format-specs/dev/metadata/#Specifying-metadata-validity-in-time-(and-system)>`_.
+
+        The special ``$_`` string is expanded to the directory containing the
+        JSON files.
 
         Parameters
         ----------

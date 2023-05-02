@@ -2,7 +2,8 @@ Welcome to pylegendmeta's documentation!
 ========================================
 
 *pylegendmeta* is a Python package to access arbitrary JSON file databases,
-specialized to the legend-metadata_ repository.
+specialized to the legend-metadata_ repository, which stores `LEGEND metadata
+<https://legend-exp.github.io/legend-data-format-specs/dev/metadata>`_.
 
 Getting started
 ---------------

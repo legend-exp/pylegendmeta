@@ -54,6 +54,8 @@ class PropsStream:
 
 
 class Catalog(namedtuple("Catalog", ["entries"])):
+    """Implementation of the `JSONL metadata validity specification <https://legend-exp.github.io/legend-data-format-specs/dev/metadata/#Specifying-metadata-validity-in-time-(and-system)>`_."""
+
     __slots__ = ()
 
     class Entry(namedtuple("Entry", ["valid_from", "file"])):
