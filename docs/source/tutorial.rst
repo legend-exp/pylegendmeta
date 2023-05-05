@@ -102,13 +102,13 @@ For example, the following function call returns the current LEGEND hardware
 channel map:
 
 >>> lmeta.hardware.configuration.channelmaps.on(datetime.now())
-{'B00089B': {'detname': 'B00089B',
- 'location': {'string': 10, 'position': 8},
- 'daq': {'crate': 1,
-  'card': {'id': 5, 'serialno': None, 'address': '0x350'},
-  'channel': 2,
-  'fcid': 102},
-  ...
+{'V02160A': {'name': 'V02160A',
+  'system': 'geds',
+  'location': {'string': 1, 'position': 1},
+  'daq': {'crate': 0,
+   'card': {'id': 1, 'address': '0x410', 'serialno': None},
+   'channel': 0,
+   'rawid': 1104000},
 
 .. tip::
 
@@ -125,12 +125,13 @@ query ``(key, value)`` dictionaries with an alternative unique key defined in
 corresponding to a certain DAQ channel:
 
 >>> chmap = lmeta.hardware.configuration.channelmaps.on(datetime.now())
->>> chmap.map("daq.fcid")[7]
+>>> chmap.map("daq.rawid")[1104003]
 {'detname': 'V05266A',
-'location': {'string': 1, 'position': 4},
-'daq': {'crate': 0,
- 'card': {'id': 1, 'serialno': None, 'address': '0x410'},
- 'channel': 3,
+ 'system': 'geds',
+ 'location': {'string': 1, 'position': 4},
+ 'daq': {'crate': 0,
+  'card': {'id': 1, 'serialno': None, 'address': '0x410'},
+  'channel': 3,
  ...
 
 If the requested key is not unique, an exception will be raised.
@@ -143,11 +144,11 @@ attached to the same CC4:
 >>> chmap = lmeta.hardware.configuration.channelmaps.on(datetime.now())
 >>> chmap.map("electronics.cc4.id", unique=False)["C3"]
 {0: {'name': 'V02160A',
- 'system': 'geds',
- 'location': {'string': 1, 'position': 1},
- 'daq': {'crate': 0,
-  'card': {'id': 1, 'address': '0x410', 'serialno': None},
-  'channel': 0,
+  'system': 'geds',
+  'location': {'string': 1, 'position': 1},
+  'daq': {'crate': 0,
+   'card': {'id': 1, 'address': '0x410', 'serialno': None},
+   'channel': 0,
 
 For further details, have a look at the documentation for :meth:`.AttrsDict.map`.
 
