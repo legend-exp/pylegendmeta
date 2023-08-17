@@ -34,6 +34,15 @@ or, alternatively:
 
    >>> # get only HPGe channels by mapping for "system"
    >>> geds = lmeta.channelmap(datetime.now()).map("system", unique=False).geds
+                exposures[gedet.name] += (
+                    gedet.production.mass_in_g
+                    * runinfo.livetime_in_s
+                    / 1000
+                    / 60
+                    / 60
+                    / 24
+                    / 365
+                )
    >>> # collect and sum up masses
    >>> masses = [v.production.mass_in_g for v in geds.values()]
    >>> numpy.cumsum(masses)[-1]
@@ -71,3 +80,49 @@ Which channel IDs correspond to detectors in string 1?
     ``ids`` can be directly given to
     :meth:`pygama.flow.data_loader.DataLoader.set_datastreams` to load LEGEND
     data from the channel.
+
+When did physics run 3 of LEGEND-200 period 4 start?
+----------------------------------------------------
+
+.. code-block:: python
+
+   >>> from legendmeta import to_datetime
+   >>> to_datetime(lmeta.dataprod.runinfo.p04.r003.phy.start_key)
+   datetime.datetime(2023, 5, 1, 20, 59, 51)
+
+What is the exposure of each single HPGe usable for analysis over a selection of runs?
+--------------------------------------------------------------------------------------
+
+.. code-block:: python
+   :linenos:
+
+   runs = {
+       "p03": ["r000", "r001", "r002", "r003", "r004", "r005"],
+       "p04": ["r000", "r001", "r002", "r003"],
+   }
+
+   exposures = {}
+
+   for period, v in runs.items():
+       for run in v:
+           runinfo = lmeta.dataprod.runinfo[period][run].phy
+           chmap = lmeta.channelmap(runinfo.start_key)
+
+           chmap = (
+               chmap.map("system", unique=False).geds
+               .map("analysis.usability", unique=False).on
+           )
+
+           for _, gedet in chmap.items():
+               exposures.setdefault(gedet.name, 0)
+               exposures[gedet.name] += (
+                   gedet.production.mass_in_g
+                   / 1000
+                   * runinfo.livetime_in_s
+                   / 60
+                   / 60
+                   / 24
+                   / 365
+               )
+
+   print(exposures)
