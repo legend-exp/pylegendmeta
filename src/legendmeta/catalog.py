@@ -25,6 +25,11 @@ from datetime import datetime
 from string import Template
 
 
+def to_datetime(value):
+    """Convert a LEGEND timestamp (or key) to :class:`datetime.datetime`."""
+    return datetime.strptime(value, "%Y%m%dT%H%M%SZ")
+
+
 def unix_time(value):
     if isinstance(value, str):
         return datetime.timestamp(datetime.strptime(value, "%Y%m%dT%H%M%SZ"))

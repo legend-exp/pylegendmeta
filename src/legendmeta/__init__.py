@@ -16,8 +16,15 @@
 """A package to access `legend-metadata <https://github.com/legend-exp/legend-metadata>`_ in Python."""
 
 from legendmeta._version import version as __version__
+from legendmeta.catalog import to_datetime
 from legendmeta.core import LegendMetadata
 from legendmeta.jsondb import JsonDB
 from legendmeta.slowcontrol import LegendSlowControlDB
 
-__all__ = ["__version__", "LegendMetadata", "LegendSlowControlDB", "JsonDB"]
+__all__ = [
+    "__version__",
+    "LegendMetadata",
+    "LegendSlowControlDB",
+    "JsonDB",
+    "to_datetime",
+]
