@@ -34,45 +34,58 @@ or, alternatively:
 
    >>> # get only HPGe channels by mapping for "system"
    >>> geds = lmeta.channelmap(datetime.now()).map("system", unique=False).geds
-                exposures[gedet.name] += (
-                    gedet.production.mass_in_g
-                    * runinfo.livetime_in_s
-                    / 1000
-                    / 60
-                    / 60
-                    / 24
-                    / 365
-                )
    >>> # collect and sum up masses
    >>> masses = [v.production.mass_in_g for v in geds.values()]
    >>> numpy.cumsum(masses)[-1]
    [REDACTED]
 
-How many kilograms of Ge76 are currently deployed in the form of ICPC detectors and are usable for analysis?
-------------------------------------------------------------------------------------------------------------
+How many kilograms of Ge76 are currently deployed in the form of "ON" ICPC detectors?
+-------------------------------------------------------------------------------------
 
 Calls to :meth:`.AttrsDict.map` can be chained together to build complex queries:
 
 .. code-block:: python
 
    >>> # get HPGes, only ICPCs and only if their analysis status is ON
-   >>> dets = lmeta.channelmap(datetime.now()) \
-   >>>             .map("system", unique=False).geds \
-   >>>             .map("type", unique=False).icpc \
-   >>>             .map("analysis.usability", unique=False).on
+   >>> dets = (
+   ...     lmeta.channelmap(datetime.now())
+   ...     .map("system", unique=False).geds
+   ...     .map("type", unique=False).icpc
+   ...     .map("analysis.usability", unique=False).on
+   ...)
    >>> # collect and sum up mass * enrichment (assuming that the enrichment fraction is also in mass)
    >>> data = [v.production.mass_in_g * v.production.enrichment for v in dets.values()]
    >>> numpy.cumsum(data)[-1]
    [REDACTED]
+
+How many kilograms of germanium were not "OFF" on 23 Aug 2023?
+--------------------------------------------------------------
+
+.. code-block:: python
+
+   >>> geds = (
+   ...     lmeta.channelmap().map("system", unique=False).geds
+   ...     .map("analysis.usability", unique=False)
+   ...)
+   >>> mass = 0
+   >>>
+   >>> for status in ("on", "ac", "no_psd"):
+   >>>     for info in geds[status].values():
+   >>>         mass += info.production.mass_in_g
+   >>> mass
+   [REDACTED]
+
 
 Which channel IDs correspond to detectors in string 1?
 ------------------------------------------------------
 
 .. code-block:: python
 
-   >>> ids = lmeta.channelmap() \
-   >>>            .map("location.string", unique=False)[1] \
-   >>>            .map("daq.rawid").keys()
+   >>> ids = (
+   ...    lmeta.channelmap()
+   ...    .map("location.string", unique=False)[1]
+   ...    .map("daq.rawid")
+   ...).keys()
    dict_keys([1104000, 1104001, 1104002, 1104003, 1104004, 1104005, 1105600, 1105602, 1105603])
 
 .. tip::
