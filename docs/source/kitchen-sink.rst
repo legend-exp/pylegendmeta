@@ -64,7 +64,8 @@ How many kilograms of germanium were not "OFF" on 23 Aug 2023?
 .. code-block:: python
 
    >>> geds = (
-   ...     lmeta.channelmap().map("system", unique=False).geds
+   ...     lmeta.channelmap(datetime(2023, 8, 23))
+   ...     .map("system", unique=False).geds
    ...     .map("analysis.usability", unique=False)
    ...)
    >>> mass = 0
