@@ -12,5 +12,3 @@
 [![Read the Docs](https://img.shields.io/readthedocs/pylegendmeta?logo=readthedocs)](https://pylegendmeta.readthedocs.io)
 
 Access [legend-metadata](https://github.com/legend-exp/legend-metadata) in Python.
-
-<sub>*This Python package layout is based on [pyproject-template](https://github.com/gipert/pyproject-template).*</sub>
