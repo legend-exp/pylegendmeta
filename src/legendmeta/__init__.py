@@ -18,7 +18,7 @@
 from legendmeta._version import version as __version__
 from legendmeta.catalog import to_datetime
 from legendmeta.core import LegendMetadata
-from legendmeta.jsondb import JsonDB
+from legendmeta.jsondb import AttrsDict, JsonDB
 from legendmeta.slowcontrol import LegendSlowControlDB
 
 __all__ = [
@@ -26,5 +26,6 @@ __all__ = [
     "LegendMetadata",
     "LegendSlowControlDB",
     "JsonDB",
+    "AttrsDict",
     "to_datetime",
 ]

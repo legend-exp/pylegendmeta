@@ -3,7 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from legendmeta.jsondb import AttrsDict, JsonDB, Props
+from legendmeta import AttrsDict, JsonDB
+from legendmeta.catalog import Props
 
 testdb = Path(__file__).parent / "testdb"
 
