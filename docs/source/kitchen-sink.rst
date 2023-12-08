@@ -104,6 +104,36 @@ When did physics run 3 of LEGEND-200 period 4 start?
    >>> to_datetime(lmeta.dataprod.runinfo.p04.r003.phy.start_key)
    datetime.datetime(2023, 5, 1, 20, 59, 51)
 
+What is the current amount of exposure of HPGes usable for analysis?
+--------------------------------------------------------------------------------------
+
+.. code-block:: python
+   :linenos:
+
+   exposure = 0
+
+   for period, runs in lmeta.dataprod.config.analysis_runs.items():
+       for run in runs:
+           if "phy" not in lmeta.dataprod.runinfo[period][run]:
+               continue
+
+           runinfo = lmeta.dataprod.runinfo[period][run].phy
+           chmap = lmeta.channelmap(runinfo.start_key).map("system", unique=False).geds
+
+           for _, gedet in chmap.items():
+               if gedet.analysis.usability not in ("off", "ac"):
+                   exposure += (
+                       gedet.production.mass_in_g
+                       / 1000
+                       * runinfo.livetime_in_s
+                       / 60
+                       / 60
+                       / 24
+                       / 365
+                   )
+
+   print(exposure, "kg yr")
+
 What is the exposure of each single HPGe usable for analysis over a selection of runs?
 --------------------------------------------------------------------------------------
 
