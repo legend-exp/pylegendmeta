@@ -40,9 +40,11 @@ class LegendMetadata(JsonDB):
         path to legend-metadata repository. If not existing, will attempt a
         git-clone through SSH. If ``None``, legend-metadata will be cloned
         in a temporary directory (see :func:`tempfile.gettempdir`).
+    **kwargs
+        further keyword arguments forwarded to :math:`JsonDB.__init__`.
     """
 
-    def __init__(self, path: str | None = None) -> None:
+    def __init__(self, path: str | None = None, **kwargs) -> None:
         self._default_git_ref = "main"
 
         if isinstance(path, str):
@@ -55,7 +57,7 @@ class LegendMetadata(JsonDB):
 
         self._repo: Repo = self._init_metadata_repo()
 
-        super().__init__(self._repo_path)
+        super().__init__(self._repo_path, **kwargs)
 
     def _init_metadata_repo(self):
         """Clone legend-metadata, if not existing, and checkout default Git ref."""

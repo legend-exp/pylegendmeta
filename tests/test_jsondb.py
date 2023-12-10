@@ -115,7 +115,8 @@ def test_scan():
     jdb.scan()
 
     assert sorted(jdb.__dict__.keys()) == [
-        "_store",
+        "__lazy__",
+        "__store__",
         "arrays",
         "dir1",
         "dir2",

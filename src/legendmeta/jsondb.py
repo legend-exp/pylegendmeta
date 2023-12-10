@@ -41,6 +41,17 @@ class AttrsDict(dict):
     """
 
     def __init__(self, value: dict = None) -> None:
+        """Construct an :class:`.AttrsDict` object.
+
+        Note
+        ----
+        The input dictionary is copied.
+
+        Parameters
+        ----------
+        value
+            a :class:`dict` object to initialize the instance with.
+        """
         if value is None:
             super().__init__()
         # can only be initialized with a dict
@@ -51,7 +62,7 @@ class AttrsDict(dict):
             raise TypeError("expected dict")
 
         # attribute that holds cached remappings -- see map()
-        super().__setattr__("_cached_remaps", {})
+        super().__setattr__("__cached_remaps__", {})
 
     def __setitem__(self, key: str | int | float, value: Any) -> Any:
         # convert dicts to AttrsDicts
@@ -70,8 +81,8 @@ class AttrsDict(dict):
         if isinstance(key, str) and key.isidentifier():
             super().__setattr__(key, value)
 
-        # reset special _cached_remaps private attribute -- see map()
-        super().__setattr__("_cached_remaps", {})
+        # reset special __cached_remaps__ private attribute -- see map()
+        super().__setattr__("__cached_remaps__", {})
 
     __setattr__ = __setitem__
 
@@ -137,8 +148,8 @@ class AttrsDict(dict):
         If the dictionary is modified, the cache gets cleared.
         """
         # if this is a second call, return the cached result
-        if label in self._cached_remaps:
-            return self._cached_remaps[label]
+        if label in self.__cached_remaps__:
+            return self.__cached_remaps__[label]
 
         splitk = label.split(".")
         newmap = AttrsDict()
@@ -175,7 +186,7 @@ class AttrsDict(dict):
             raise ValueError(f"could not find '{label}' anywhere in the dictionary")
 
         # cache it
-        self._cached_remaps[label] = newmap
+        self.__cached_remaps__[label] = newmap
         return newmap
 
     # d |= other_d should still produce a valid AttrsDict
@@ -224,11 +235,13 @@ class JsonDB:
         lazy
             whether a database scan should be performed at initialization time.
         """
+        self.__lazy__ = lazy
+
         self.path: Path = Path(path).expanduser().resolve()
         if not self.path.is_dir():
             raise ValueError("input path is not a valid directory")
 
-        self._store = AttrsDict()
+        self.__store__ = AttrsDict()
 
         if not lazy:
             self.scan()
@@ -249,10 +262,10 @@ class JsonDB:
                 log.warning(f"reason: {e}")
 
     def keys(self) -> list[str]:
-        return self._store.keys()
+        return self.__store__.keys()
 
     def items(self) -> Iterator[(str, JsonDB | AttrsDict | list)]:
-        return self._store.items()
+        return self.__store__.items()
 
     def on(
         self, timestamp: str | datetime, pattern: str = None, system: str = "all"
@@ -324,7 +337,7 @@ class JsonDB:
         If the database is lazy, call :meth:`.scan` in advance to populate it
         (or a subdirectory).
         """
-        return self._store.map(label, unique=unique)
+        return self.__store__.map(label, unique=unique)
 
     def __getitem__(self, item: str | Path) -> JsonDB | AttrsDict | list:
         """Access files or directories in the database."""
@@ -340,11 +353,11 @@ class JsonDB:
         # store JSON file names without extension
         item_id = item.stem
         # skip if object is already in the store
-        if item_id not in db_ptr._store:
+        if item_id not in db_ptr.__store__:
             obj = db_ptr.path / item.name
             # if directory, construct another JsonDB object
             if obj.is_dir():
-                db_ptr._store[item_id] = JsonDB(obj)
+                db_ptr.__store__[item_id] = JsonDB(obj, lazy=self.__lazy__)
             else:
                 # try to attach .json extension if file cannot be found
                 if not obj.is_file():
@@ -365,7 +378,7 @@ class JsonDB:
                                         loaded[i], var_values={"_": self.path}
                                     )
 
-                        db_ptr._store[item_id] = loaded
+                        db_ptr.__store__[item_id] = loaded
                 else:
                     raise FileNotFoundError(
                         f"{str(obj).replace('.json.json', '.json')} is not a valid file or directory"
@@ -373,15 +386,18 @@ class JsonDB:
 
             # set also an attribute, if possible
             if item_id.isidentifier():
-                self.__setattr__(item_id, db_ptr._store[item_id])
+                self.__setattr__(item_id, db_ptr.__store__[item_id])
 
-        return db_ptr._store[item_id]
+        return db_ptr.__store__[item_id]
 
     def __getattr__(self, name: str) -> JsonDB | AttrsDict | list:
         try:
-            return self[name]
-        except KeyError:
-            raise AttributeError(f"database does not contain '{name}'")
+            return object.__getattribute__(self, name)
+        except AttributeError:
+            try:
+                return self.__getitem__(name)
+            except AttributeError:
+                raise AttributeError(f"JSON database does not contain '{name}'")
 
     # NOTE: self cannot stay a JsonDB, since the class is characterized by a
     # (unique) root directory. What would be the root directory of the merged
@@ -392,18 +408,18 @@ class JsonDB:
     # NOTE: returning a JsonDB does not make much sense, see above
     def __or__(self, other: JsonDB) -> AttrsDict:
         if isinstance(other, JsonDB):
-            return self._store | other._store
+            return self.__store__ | other.__store__
         else:
-            return self._store | other
+            return self.__store__ | other
 
     def __len__(self) -> int:
-        return len(self._store)
+        return len(self.__store__)
 
     def __iter__(self) -> Iterator:
-        return iter(self._store)
+        return iter(self.__store__)
 
     def __str__(self) -> str:
-        return str(self._store)
+        return str(self.__store__)
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}('{str(self.path)}')"
