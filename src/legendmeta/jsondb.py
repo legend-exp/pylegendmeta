@@ -17,8 +17,8 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import re
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterator
@@ -225,7 +225,7 @@ class JsonDB:
     >>> jdb.dir1.file # keys can be accessed as attributes
     """
 
-    def __init__(self, path: str | Path, lazy: bool = False) -> None:
+    def __init__(self, path: str | Path, lazy: str | bool = "auto") -> None:
         """Construct a :class:`.JsonDB` object.
 
         Parameters
@@ -234,16 +234,24 @@ class JsonDB:
             path to the directory containing the database.
         lazy
             whether a database scan should be performed at initialization time.
+            if ``auto`` (the default), be non-lazy only if working in a python
+            interactive session.
         """
-        self.__lazy__ = lazy
+        if isinstance(lazy, bool):
+            self.__lazy__ = lazy
+        elif lazy == "auto":
+            self.__lazy__ = not hasattr(sys, "ps1")
+        else:
+            raise ValueError(f"unrecognized value lazy={lazy}")
 
-        self.path: Path = Path(path).expanduser().resolve()
-        if not self.path.is_dir():
+        self.__path__ = Path(path).expanduser().resolve()
+
+        if not self.__path__.is_dir():
             raise ValueError("input path is not a valid directory")
 
         self.__store__ = AttrsDict()
 
-        if not lazy:
+        if not self.__lazy__:
             self.scan()
 
     def scan(self, subdir: str = ".") -> None:
@@ -254,7 +262,7 @@ class JsonDB:
         subdir
             restrict scan to path relative to the database location.
         """
-        for j in self.path.rglob(f"{subdir}/*.json"):
+        for j in self.__path__.rglob(f"{subdir}/*.json"):
             try:
                 self[j]
             except (json.JSONDecodeError, ValueError) as e:
@@ -292,11 +300,11 @@ class JsonDB:
         system: 'all', 'phy', 'cal', 'lar', ...
             query only a data taking "system".
         """
-        jsonl = os.path.join(self.path, "validity.jsonl")
-        if not os.path.isfile(jsonl):
-            raise RuntimeError(f"no validity.jsonl file found in {self.path}")
+        jsonl = self.__path__ / "validity.jsonl"
+        if not jsonl.is_file():
+            raise RuntimeError(f"no validity.jsonl file found in {self.__path__}")
 
-        file_list = Catalog.get_files(jsonl, timestamp, system)
+        file_list = Catalog.get_files(str(jsonl), timestamp, system)
         # select only files matching pattern if specified
         if pattern is not None:
             c = re.compile(pattern)
@@ -313,16 +321,16 @@ class JsonDB:
         if isinstance(files, list):
             result = AttrsDict()
             for file in files:
-                fp = self.path.rglob(file)
+                fp = self.__path__.rglob(file)
                 fp = [i for i in fp][0]
                 # TODO: what does this do exactly?
                 Props.add_to(result, db_ptr[fp])
             db_ptr = result
         else:
-            fp = self.path.rglob(file)
+            fp = self.__path__.rglob(file)
             fp = [i for i in fp][0]
             db_ptr = db_ptr[fp]
-        Props.subst_vars(db_ptr, var_values={"_": self.path})
+        Props.subst_vars(db_ptr, var_values={"_": self.__path__})
         return db_ptr
 
     def map(self, label: str, unique: bool = True) -> AttrsDict:
@@ -334,15 +342,20 @@ class JsonDB:
 
         Warning
         -------
-        If the database is lazy, call :meth:`.scan` in advance to populate it
-        (or a subdirectory).
+        If the database is lazy, this method will call :meth:`.scan` in advance
+        to populate it, otherwise mappings cannot be created.
         """
+        if self.__lazy__:
+            self.scan()
+
         return self.__store__.map(label, unique=unique)
 
     def __getitem__(self, item: str | Path) -> JsonDB | AttrsDict | list:
         """Access files or directories in the database."""
-        # resolve relative paths / links, but keep it relative to self.path
-        item = Path(self.path / item).expanduser().resolve().relative_to(self.path)
+        # resolve relative paths / links, but keep it relative to self.__path__
+        item = (
+            Path(self.__path__ / item).expanduser().resolve().relative_to(self.__path__)
+        )
 
         # now call this very function recursively to walk the directories to the file
         db_ptr = self
@@ -354,7 +367,7 @@ class JsonDB:
         item_id = item.stem
         # skip if object is already in the store
         if item_id not in db_ptr.__store__:
-            obj = db_ptr.path / item.name
+            obj = db_ptr.__path__ / item.name
             # if directory, construct another JsonDB object
             if obj.is_dir():
                 db_ptr.__store__[item_id] = JsonDB(obj, lazy=self.__lazy__)
@@ -369,13 +382,13 @@ class JsonDB:
                         loaded = json.load(f)
                         if isinstance(loaded, dict):
                             loaded = AttrsDict(loaded)
-                            Props.subst_vars(loaded, var_values={"_": self.path})
+                            Props.subst_vars(loaded, var_values={"_": self.__path__})
                         else:  # must be a list, check if there are dicts inside to convert
                             for i, el in enumerate(loaded):
                                 if isinstance(el, dict):
                                     loaded[i] = AttrsDict(el)
                                     Props.subst_vars(
-                                        loaded[i], var_values={"_": self.path}
+                                        loaded[i], var_values={"_": self.__path__}
                                     )
 
                         db_ptr.__store__[item_id] = loaded
@@ -422,4 +435,4 @@ class JsonDB:
         return str(self.__store__)
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}('{str(self.path)}')"
+        return f"{self.__class__.__name__}('{str(self.__path__)}')"
