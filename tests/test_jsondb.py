@@ -111,9 +111,8 @@ def test_items():
 
 
 def test_scan():
-    jdb = JsonDB(testdb, lazy=False)
-    # FIXME: this second call breaks it
-    # jdb.scan()
+    jdb = JsonDB(testdb, lazy=True)
+    jdb.scan()
 
     assert sorted(jdb.__dict__.keys()) == [
         "__lazy__",

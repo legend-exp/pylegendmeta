@@ -353,9 +353,18 @@ class JsonDB:
     def __getitem__(self, item: str | Path) -> JsonDB | AttrsDict | list:
         """Access files or directories in the database."""
         # resolve relative paths / links, but keep it relative to self.__path__
-        item = (
-            Path(self.__path__ / item).expanduser().resolve().relative_to(self.__path__)
-        )
+        item = Path(item)
+
+        if item.is_absolute() and item.is_relative_to(self.__path__):
+            item = item.expanduser().resolve().relative_to(self.__path__)
+        elif not item.is_absolute():
+            item = (
+                (self.__path__ / item).expanduser().resolve().relative_to(self.__path__)
+            )
+        else:
+            raise ValueError(
+                f"{item} lies outside the database root path {self.__path__}"
+            )
 
         # now call this very function recursively to walk the directories to the file
         db_ptr = self
@@ -399,7 +408,7 @@ class JsonDB:
 
             # set also an attribute, if possible
             if item_id.isidentifier():
-                self.__setattr__(item_id, db_ptr.__store__[item_id])
+                db_ptr.__setattr__(item_id, db_ptr.__store__[item_id])
 
         return db_ptr.__store__[item_id]
 
