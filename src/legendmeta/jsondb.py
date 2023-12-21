@@ -19,9 +19,10 @@ import json
 import logging
 import re
 import sys
+from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 from legendmeta.catalog import Catalog, Props
 
@@ -40,7 +41,7 @@ class AttrsDict(dict):
     >>> d1.a # == 1
     """
 
-    def __init__(self, value: dict = None) -> None:
+    def __init__(self, value: dict | None = None) -> None:
         """Construct an :class:`.AttrsDict` object.
 
         Note
@@ -59,7 +60,8 @@ class AttrsDict(dict):
             for key in value:
                 self.__setitem__(key, value[key])
         else:
-            raise TypeError("expected dict")
+            msg = "expected dict"
+            raise TypeError(msg)
 
         # attribute that holds cached remappings -- see map()
         super().__setattr__("__cached_remaps__", {})
@@ -89,8 +91,9 @@ class AttrsDict(dict):
     def __getattr__(self, name: str) -> Any:
         try:
             super().__getattr__(name)
-        except AttributeError:
-            raise AttributeError(f"dictionary does not contain a '{name}' key")
+        except AttributeError as exc:
+            msg = f"dictionary does not contain a '{name}' key"
+            raise AttributeError(msg) from exc
 
     def map(self, label: str, unique: bool = True) -> AttrsDict:
         """Remap dictionary according to an alternative unique label.
@@ -166,7 +169,8 @@ class AttrsDict(dict):
                 continue
 
             if not isinstance(newid, (int, float, str)):
-                raise RuntimeError(f"'{label}' values are not all numbers or strings")
+                msg = f"'{label}' values are not all numbers or strings"
+                raise RuntimeError(msg)
             # complain if a label with the same value was already found
             if newid in newmap:
                 newkey = sorted(newmap[newid].keys())[-1] + 1
@@ -177,13 +181,15 @@ class AttrsDict(dict):
                 newmap[newid] = {0: v}
 
         if unique is True and unique_tracker is False:
-            raise RuntimeError(f"'{label}' values are not unique")
+            msg = f"'{label}' values are not unique"
+            raise RuntimeError(msg)
 
         if unique_tracker is True:
             newmap = AttrsDict({entry: newmap[entry][0] for entry in newmap})
 
         if not newmap:
-            raise ValueError(f"could not find '{label}' anywhere in the dictionary")
+            msg = f"could not find '{label}' anywhere in the dictionary"
+            raise ValueError(msg)
 
         # cache it
         self.__cached_remaps__[label] = newmap
@@ -242,12 +248,14 @@ class JsonDB:
         elif lazy == "auto":
             self.__lazy__ = not hasattr(sys, "ps1")
         else:
-            raise ValueError(f"unrecognized value lazy={lazy}")
+            msg = f"unrecognized value lazy={lazy}"
+            raise ValueError(msg)
 
         self.__path__ = Path(path).expanduser().resolve()
 
         if not self.__path__.is_dir():
-            raise ValueError("input path is not a valid directory")
+            msg = "input path is not a valid directory"
+            raise ValueError(msg)
 
         self.__store__ = AttrsDict()
 
@@ -271,8 +279,8 @@ class JsonDB:
             try:
                 self[j]
             except (json.JSONDecodeError, ValueError) as e:
-                log.warning(f"could not scan file {j}")
-                log.warning(f"reason: {e}")
+                msg = f"could not scan file {j}, reason {e}"
+                log.warning(msg)
 
     def keys(self) -> list[str]:
         return self.__store__.keys()
@@ -281,7 +289,7 @@ class JsonDB:
         return self.__store__.items()
 
     def on(
-        self, timestamp: str | datetime, pattern: str = None, system: str = "all"
+        self, timestamp: str | datetime, pattern: str | None = None, system: str = "all"
     ) -> AttrsDict | list:
         """Query database in `time[, file pattern, system]`.
 
@@ -307,7 +315,8 @@ class JsonDB:
         """
         jsonl = self.__path__ / "validity.jsonl"
         if not jsonl.is_file():
-            raise RuntimeError(f"no validity.jsonl file found in {self.__path__}")
+            msg = f"no validity.jsonl file found in {self.__path__}"
+            raise RuntimeError(msg)
 
         file_list = Catalog.get_files(str(jsonl), timestamp, system)
         # select only files matching pattern if specified
@@ -327,14 +336,12 @@ class JsonDB:
             result = AttrsDict()
             for file in files:
                 fp = self.__path__.rglob(file)
-                fp = [i for i in fp][0]
                 # TODO: what does this do exactly?
-                Props.add_to(result, db_ptr[fp])
+                Props.add_to(result, db_ptr[next(iter(fp))])
             db_ptr = result
         else:
             fp = self.__path__.rglob(file)
-            fp = [i for i in fp][0]
-            db_ptr = db_ptr[fp]
+            db_ptr = db_ptr[next(iter(fp))]
         Props.subst_vars(db_ptr, var_values={"_": self.__path__})
         return db_ptr
 
@@ -367,9 +374,8 @@ class JsonDB:
                 (self.__path__ / item).expanduser().resolve().relative_to(self.__path__)
             )
         else:
-            raise ValueError(
-                f"{item} lies outside the database root path {self.__path__}"
-            )
+            msg = f"{item} lies outside the database root path {self.__path__}"
+            raise ValueError(msg)
 
         # now call this very function recursively to walk the directories to the file
         db_ptr = self
@@ -407,9 +413,8 @@ class JsonDB:
 
                         db_ptr.__store__[item_id] = loaded
                 else:
-                    raise FileNotFoundError(
-                        f"{str(obj).replace('.json.json', '.json')} is not a valid file or directory"
-                    )
+                    msg = f"{str(obj).replace('.json.json', '.json')} is not a valid file or directory"
+                    raise FileNotFoundError(msg)
 
             # set also an attribute, if possible
             if item_id.isidentifier():
@@ -423,21 +428,23 @@ class JsonDB:
         except AttributeError:
             try:
                 return self.__getitem__(name)
-            except AttributeError:
-                raise AttributeError(f"JSON database does not contain '{name}'")
+            except AttributeError as exc:
+                msg = f"JSON database does not contain '{name}'"
+                raise AttributeError(msg) from exc
 
     # NOTE: self cannot stay a JsonDB, since the class is characterized by a
     # (unique) root directory. What would be the root directory of the merged
     # JsonDB?
     def __ior__(self, other: JsonDB) -> AttrsDict:
-        raise TypeError("cannot merge JsonDB in-place")
+        msg = "cannot merge JsonDB in-place"
+        raise TypeError(msg)
 
     # NOTE: returning a JsonDB does not make much sense, see above
     def __or__(self, other: JsonDB) -> AttrsDict:
         if isinstance(other, JsonDB):
             return self.__store__ | other.__store__
-        else:
-            return self.__store__ | other
+
+        return self.__store__ | other
 
     def __len__(self) -> int:
         return len(self.__store__)
@@ -449,4 +456,4 @@ class JsonDB:
         return str(self.__store__)
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}('{str(self.__path__)}')"
+        return f"{self.__class__.__name__}('{self.__path__!s}')"
