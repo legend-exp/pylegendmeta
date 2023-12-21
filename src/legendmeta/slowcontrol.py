@@ -19,7 +19,7 @@ import logging
 import os
 from datetime import datetime
 
-import pandas
+import pandas as pd
 import sqlalchemy as db
 
 from .core import AttrsDict
@@ -98,7 +98,8 @@ class LegendSlowControlDB:
             password = os.getenv("LEGEND_SCDB_PW")
 
         if password is None:
-            raise ValueError("must supply the database password")
+            msg = "must supply the database password"
+            raise ValueError(msg)
 
         if self.connection is not None and not self.connection.closed:
             self.disconnect()
@@ -144,7 +145,7 @@ class LegendSlowControlDB:
         """Get columns available on `table` in the database."""
         return db.inspect(self.connection.engine).get_columns(table)
 
-    def dataframe(self, expr: str | db.sql.Select) -> pandas.DataFrame:
+    def dataframe(self, expr: str | db.sql.Select) -> pd.DataFrame:
         """Query the database and return a dataframe holding the result.
 
         Parameters
@@ -186,16 +187,16 @@ class LegendSlowControlDB:
         """
         try:
             try:
-                return pandas.read_sql(expr, self.connection)
+                return pd.read_sql(expr, self.connection)
             except db.exc.ObjectNotExecutableError:
-                return pandas.read_sql(db.text(expr), self.connection)
+                return pd.read_sql(db.text(expr), self.connection)
         # try rolling back transaction if any exception occurs
-        except Exception:
+        except Exception as exc:
             self.connection.rollback()
-            raise
+            raise exc
 
     def status(
-        self, channel: dict, on: str | datetime = None, system: str = None
+        self, channel: dict, on: str | datetime | None = None, system: str | None = None
     ) -> dict:
         """Query status of a LEGEND DAQ channel.
 
@@ -240,10 +241,12 @@ class LegendSlowControlDB:
         if isinstance(on, str):
             on = datetime.strptime(on, "%Y%m%dT%H%M%SZ")
         elif not isinstance(on, datetime):
-            raise ValueError("Bad input timestamp format")
+            msg = "Bad input timestamp format"
+            raise ValueError(msg)
 
         if not isinstance(channel, dict):
-            raise ValueError("Bad channel format: dict expected")
+            msg = "Bad channel format: dict expected"
+            raise ValueError(msg)
 
         if not system:
             system = channel.system
@@ -267,9 +270,8 @@ class LegendSlowControlDB:
                 result = self.session.execute(stmt).first()
 
                 if not result:
-                    log.warning(
-                        f"Query on table '{tbl.__tablename__}' did not produce any result"
-                    )
+                    msg = f"Query on table '{tbl.__tablename__}' did not produce any result"
+                    log.warning(msg)
                     continue
 
                 output |= result[0].asdict()
@@ -288,9 +290,8 @@ class LegendSlowControlDB:
                 result = self.session.execute(stmt).first()
 
                 if not result:
-                    log.warning(
-                        f"Query on table '{tbl.__tablename__}' did not produce any result"
-                    )
+                    msg = f"Query on table '{tbl.__tablename__}' did not produce any result"
+                    log.warning(msg)
                     continue
 
                 output |= result[0].asdict()
@@ -310,16 +311,17 @@ class LegendSlowControlDB:
                 result = self.session.execute(stmt).first()
 
                 if not result:
-                    log.warning(
-                        f"Query on table '{tbl.__tablename__}' did not produce any result"
-                    )
+                    msg = f"Query on table '{tbl.__tablename__}' did not produce any result"
+                    log.warning(msg)
                     continue
 
                 output |= result[0].asdict()
         else:
-            raise NotImplementedError(f"System '{system}' not (yet) supported")
+            msg = f"System '{system}' not (yet) supported"
+            raise NotImplementedError(msg)
 
         if not output:
-            raise RuntimeError("Could not obtain any information about the channel")
+            msg = "Could not obtain any information about the channel"
+            raise RuntimeError()
 
         return output
