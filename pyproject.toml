@@ -95,7 +95,7 @@ namespaces = false
 attr = "legendmeta._version.version"
 
 [tool.codespell]
-ignore-words-list = "crate"
+ignore-words-list = "crate,nd,unparseable,compiletime"
 
 [tool.pytest.ini_options]
 minversion = "6.0"
