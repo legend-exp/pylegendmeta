@@ -112,7 +112,7 @@ def test_items():
 
 def test_scan():
     jdb = JsonDB(testdb, lazy=True)
-    jdb.scan()
+    jdb.scan(recursive=True)
 
     assert sorted(jdb.__dict__.keys()) == [
         "__lazy__",
@@ -124,6 +124,29 @@ def test_scan():
         "file1",
         "file2",
         "file3",
+    ]
+
+    jdb = JsonDB(testdb, lazy=True)
+    jdb.scan(recursive=False)
+
+    assert sorted(jdb.__dict__.keys()) == [
+        "__lazy__",
+        "__path__",
+        "__store__",
+        "arrays",
+        "file1",
+        "file2",
+        "file3",
+    ]
+
+    jdb = JsonDB(testdb, lazy=True)
+    jdb.scan(recursive=False, subdir="dir1")
+
+    assert sorted(jdb.__dict__.keys()) == [
+        "__lazy__",
+        "__path__",
+        "__store__",
+        "dir1",
     ]
 
 

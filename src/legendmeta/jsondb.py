@@ -254,7 +254,7 @@ class JsonDB:
         if not self.__lazy__:
             self.scan()
 
-    def scan(self, subdir: str = ".") -> None:
+    def scan(self, recursive: bool = True, subdir: str = ".") -> None:
         """Populate the database by walking the filesystem.
 
         Parameters
@@ -262,7 +262,12 @@ class JsonDB:
         subdir
             restrict scan to path relative to the database location.
         """
-        for j in self.__path__.rglob(f"{subdir}/*.json"):
+        if recursive:
+            flist = self.__path__.rglob(f"{subdir}/*.json")
+        else:
+            flist = self.__path__.glob(f"{subdir}/*.json")
+
+        for j in flist:
             try:
                 self[j]
             except (json.JSONDecodeError, ValueError) as e:
@@ -346,7 +351,7 @@ class JsonDB:
         to populate it, otherwise mappings cannot be created.
         """
         if self.__lazy__:
-            self.scan()
+            self.scan(recursive=False)
 
         return self.__store__.map(label, unique=unique)
 
