@@ -19,6 +19,7 @@ import logging
 import os
 from datetime import datetime
 from getpass import getuser
+from pathlib import Path
 from tempfile import gettempdir
 
 from git import GitCommandError, InvalidGitRepositoryError, Repo
@@ -52,7 +53,7 @@ class LegendMetadata(JsonDB):
         else:
             self._repo_path = os.getenv(
                 "LEGEND_METADATA",
-                os.path.join(gettempdir(), "legend-metadata-" + getuser()),
+                str(Path(gettempdir()) / ("legend-metadata-" + getuser())),
             )
 
         self._repo: Repo = self._init_metadata_repo()
@@ -61,16 +62,16 @@ class LegendMetadata(JsonDB):
 
     def _init_metadata_repo(self):
         """Clone legend-metadata, if not existing, and checkout default Git ref."""
-        if not os.path.exists(self._repo_path):
-            os.mkdir(self._repo_path)
+        if not Path(self._repo_path).exists():
+            Path(self._repo_path).mkdir()
 
         repo = None
         try:
             repo = Repo(self._repo_path)
         except InvalidGitRepositoryError:
-            log.info(
-                f"Cloning git@github.com:legend-exp/legend-metadata in {self._repo_path}..."
-            )
+            msg = f"Cloning git@github.com:legend-exp/legend-metadata in {self._repo_path}..."
+            log.info(msg)
+
             repo = Repo.clone_from(
                 "git@github.com:legend-exp/legend-metadata",
                 self._repo_path,
@@ -94,7 +95,7 @@ class LegendMetadata(JsonDB):
         """Checkout legend-metadata to the default Git ref."""
         self._repo.git.checkout(self._default_git_ref)
 
-    def channelmap(self, on: str | datetime = None) -> AttrsDict:
+    def channelmap(self, on: str | datetime | None = None) -> AttrsDict:
         """Get a LEGEND channel map.
 
         Aliases ``legend-metadata.hardware.configuration.channelmaps.on()`` and
@@ -122,7 +123,7 @@ class LegendMetadata(JsonDB):
         --------
         .jsondb.JsonDB.on
         """
-        if not on:
+        if on is None:
             on = datetime.now()
 
         chmap = self.hardware.configuration.channelmaps.on(
@@ -136,23 +137,21 @@ class LegendMetadata(JsonDB):
         detdb = self.hardware.detectors
         fulldb = detdb.germanium.diodes | detdb.lar.sipms
 
-        for det in chmap.keys():
+        for det in chmap:
             # find channel info in detector database and merge it into
             # channelmap item, if possible
             if det in fulldb:
                 chmap[det] |= fulldb[det]
             else:
-                log.debug(
-                    f"Could not find detector '{det}' in hardware.detectors database"
-                )
+                msg = f"Could not find detector '{det}' in hardware.detectors database"
+                log.debug(msg)
 
             # find channel info in analysis database and add it into channelmap
             # item under "analysis", if possible
             if det in anamap:
                 chmap[det]["analysis"] = anamap[det]
             else:
-                log.debug(
-                    f"Could not find detector '{det}' in dataprod.config database"
-                )
+                msg = f"Could not find detector '{det}' in dataprod.config database"
+                log.debug(msg)
 
         return chmap
