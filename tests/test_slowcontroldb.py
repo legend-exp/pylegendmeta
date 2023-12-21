@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import pytest
 import sqlalchemy as sql
 
@@ -17,7 +19,7 @@ def scdb():
     return scdb
 
 
-def test_connection(scdb):
+def test_connection(scdb):  # noqa: ARG001
     pass
 
 
@@ -30,18 +32,18 @@ def test_select(scdb):
 
 
 def test_str_table_pandas(scdb):
-    df = scdb.dataframe("diode_snap_last")
-    assert len(df) > 0
+    data = scdb.dataframe("diode_snap_last")
+    assert len(data) > 0
 
 
 def test_str_select_pandas(scdb):
-    df = scdb.dataframe("SELECT channel, vmon FROM diode_snap LIMIT 10")
-    assert len(df) == 10
+    data = scdb.dataframe("SELECT channel, vmon FROM diode_snap LIMIT 10")
+    assert len(data) == 10
 
 
 def test_select_pandas(scdb):
-    df = scdb.dataframe(sql.select(DiodeSnap.channel, DiodeSnap.vmon).limit(10))
-    assert len(df) == 10
+    data = scdb.dataframe(sql.select(DiodeSnap.channel, DiodeSnap.vmon).limit(10))
+    assert len(data) == 10
 
 
 def test_status(scdb):
@@ -50,9 +52,11 @@ def test_status(scdb):
     channel = chmap.V02162B
     status = scdb.status(channel)
     assert isinstance(status, AttrsDict)
-    assert "vmon" and "vset" in status
+    assert "vmon" in status
+    assert "vset" in status
 
     channel = chmap.S002
     status = scdb.status(channel)
     assert isinstance(status, AttrsDict)
-    assert "vmon" and "vset" in status
+    assert "vmon" in status
+    assert "vset" in status

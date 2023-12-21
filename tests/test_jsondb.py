@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -87,10 +89,10 @@ def test_access():
     with pytest.raises(FileNotFoundError):
         jdb["non-existent-file"]
     with pytest.raises(FileNotFoundError):
-        jdb.non_existent_file
+        assert jdb.non_existent_file
 
     with pytest.raises(AttributeError):
-        jdb.dir1.file3.non_existent_key
+        assert jdb.dir1.file3.non_existent_key
 
 
 def test_keys():
