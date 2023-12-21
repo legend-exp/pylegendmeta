@@ -11,4 +11,5 @@
 ![License](https://img.shields.io/github/license/legend-exp/pylegendmeta)
 [![Read the Docs](https://img.shields.io/readthedocs/pylegendmeta?logo=readthedocs)](https://pylegendmeta.readthedocs.io)
 
-Access [legend-metadata](https://github.com/legend-exp/legend-metadata) in Python.
+Access [legend-metadata](https://github.com/legend-exp/legend-metadata) in
+Python.

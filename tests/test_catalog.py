@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import datetime
 
 from legendmeta import to_datetime

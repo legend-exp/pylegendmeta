@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import datetime
 
 import pytest
@@ -17,17 +19,17 @@ def metadb():
 
 
 def test_get_file(metadb):
-    metadb["hardware/detectors/germanium/diodes/B00000A.json"]
+    assert metadb["hardware/detectors/germanium/diodes/B00000A.json"]
 
 
 def test_get_directory(metadb):
-    metadb["hardware"]
-    metadb.hardware
+    assert metadb["hardware"]
+    assert metadb.hardware
 
 
 def test_file_not_found(metadb):
     with pytest.raises(FileNotFoundError):
-        metadb["non-existing-file.ext"]
+        assert metadb["non-existing-file.ext"]
 
 
 def test_git_ref_not_found(metadb):

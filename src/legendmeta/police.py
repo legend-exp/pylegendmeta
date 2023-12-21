@@ -17,10 +17,10 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import sys
 from importlib import resources
+from pathlib import Path
 
 from .jsondb import JsonDB
 
@@ -40,17 +40,15 @@ def validate_legend_detector_db() -> bool:
 
     args = parser.parse_args()
 
-    dict_temp = {
-        "bege": json.load(open(str(templates / "bege-detector.json"))),
-        "ppc": json.load(open(str(templates / "ppc-detector.json"))),
-        "coax": json.load(open(str(templates / "coax-detector.json"))),
-        "icpc": json.load(open(str(templates / "icpc-detector.json"))),
-    }
+    dict_temp = {}
+    for typ in ("bege", "ppc", "coax", "icpc"):
+        with (templates / f"{typ}-detector.json").open() as f:
+            dict_temp[typ] = json.load(f)
 
     for file in args.files:
         valid = True
 
-        with open(file) as f:
+        with Path(file).open() as f:
             entry = json.load(f)
 
             if "type" not in entry:
@@ -91,16 +89,16 @@ def validate_legend_channel_map() -> bool:
 
     args = parser.parse_args()
 
-    dict_temp = {
-        "geds": json.load(open(str(templates / "geds-channel.json"))),
-        "spms": json.load(open(str(templates / "spms-channel.json"))),
-    }
+    dict_temp = {}
+    for typ in ("geds", "spms"):
+        with (templates / f"{typ}-channel.json").open() as f:
+            dict_temp[typ] = json.load(f)
 
-    for d in {os.path.dirname(f) for f in args.files}:
+    for d in {Path(f).parent for f in args.files}:
         db = JsonDB(d)
         valid = True
 
-        with open(f"{d}/validity.jsonl") as f:
+        with Path(f"{d}/validity.jsonl").open() as f:
             for line in f.readlines():
                 ts = json.loads(line)["valid_from"]
                 sy = json.loads(line)["category"]
@@ -153,7 +151,8 @@ def validate_dict_schema(
         key name (or path to) dictionary. Used for error printing.
     """
     if not isinstance(adict, dict) or not isinstance(template, dict):
-        raise ValueError("input objects must be of type dict")
+        msg = "input objects must be of type dict"
+        raise ValueError(msg)
 
     valid: bool = True
 
@@ -174,24 +173,23 @@ def validate_dict_schema(
                     typecheck=typecheck,
                     root_obj=f"{root_obj}/{k}",
                 )
-        else:
-            if typecheck and not isinstance(adict[k], type(v)):
-                # do not complain if float is requested but int is given
-                if isinstance(v, float) and isinstance(adict[k], int):
-                    continue
-                # make an exception for null (missing) fields
-                if adict[k] is None:
-                    continue
+        elif typecheck and not isinstance(adict[k], type(v)):
+            # do not complain if float is requested but int is given
+            if isinstance(v, float) and isinstance(adict[k], int):
+                continue
+            # make an exception for null (missing) fields
+            if adict[k] is None:
+                continue
+            print(  # noqa: T201
+                f"ERROR: value of '{root_obj}/{k}' must be {type(v)}"
+            )
+            valid = False
+        elif isinstance(v, str) and v != "":
+            if re.match(v, adict[k]) is None:
                 print(  # noqa: T201
-                    f"ERROR: value of '{root_obj}/{k}' must be {type(v)}"
-                )  # noqa: T201
+                    f"ERROR: key '{root_obj}/{k}' does not match template regex '{v}'"
+                )
                 valid = False
-            elif isinstance(v, str) and v != "":
-                if re.match(v, adict[k]) is None:
-                    print(  # noqa: T201
-                        f"ERROR: key '{root_obj}/{k}' does not match template regex '{v}'"
-                    )
-                    valid = False
 
     if greedy and len_nested(adict) != len_nested(template):
         print("ERROR: the dictionary contains extra keys")  # noqa: T201

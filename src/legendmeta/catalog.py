@@ -18,10 +18,10 @@ import bisect
 import collections
 import copy
 import json
-import os
 import types
 from collections import namedtuple
 from datetime import datetime
+from pathlib import Path
 from string import Template
 
 
@@ -33,10 +33,12 @@ def to_datetime(value):
 def unix_time(value):
     if isinstance(value, str):
         return datetime.timestamp(datetime.strptime(value, "%Y%m%dT%H%M%SZ"))
-    elif isinstance(value, datetime):
+
+    if isinstance(value, datetime):
         return datetime.timestamp(value)
-    else:
-        raise ValueError(f"Can't convert type {type(value)} to unix time")
+
+    msg = f"Can't convert type {type(value)} to unix time"
+    raise ValueError(msg)
 
 
 class PropsStream:
@@ -44,16 +46,16 @@ class PropsStream:
     def get(value):
         if isinstance(value, str):
             return PropsStream.read_from(value)
-        elif isinstance(value, collections.abc.Sequence) or isinstance(
-            value, types.GeneratorType
-        ):
+
+        if isinstance(value, (collections.abc.Sequence, types.GeneratorType)):
             return value
-        else:
-            raise ValueError(f"Can't get PropsStream from value of type {type(value)}")
+
+        msg = f"Can't get PropsStream from value of type {type(value)}"
+        raise ValueError(msg)
 
     @staticmethod
     def read_from(file_name):
-        with open(file_name) as file:
+        with Path(file_name).open() as file:
             for json_str in file:
                 yield json.loads(json_str)
 
@@ -70,10 +72,12 @@ class Catalog(namedtuple("Catalog", ["entries"])):
     def get(value):
         if isinstance(value, Catalog):
             return value
+
         if isinstance(value, str):
             return Catalog.read_from(value)
-        else:
-            raise ValueError(f"Can't get Catalog from value of type {type(value)}")
+
+        msg = f"Can't get Catalog from value of type {type(value)}"
+        raise ValueError(msg)
 
     @staticmethod
     def read_from(file_name):
@@ -81,10 +85,7 @@ class Catalog(namedtuple("Catalog", ["entries"])):
 
         for props in PropsStream.get(file_name):
             timestamp = props["valid_from"]
-            if props.get("category") is None:
-                system = "all"
-            else:
-                system = props["category"]
+            system = "all" if props.get("category") is None else props["category"]
             file_key = props["apply"]
             if system not in entries:
                 entries[system] = []
@@ -102,22 +103,24 @@ class Catalog(namedtuple("Catalog", ["entries"])):
             pos = bisect.bisect_right(valid_from, unix_time(timestamp))
             if pos > 0:
                 return self.entries[system][pos - 1].file
-            elif system != "all":
+
+            if system != "all":
                 return self.valid_for(timestamp, system="all", allow_none=allow_none)
-            else:
-                if allow_none:
-                    return None
-                else:
-                    raise RuntimeError(
-                        f"No valid entries found for timestamp: {timestamp}, system: {system}"
-                    )
-        elif system != "all":
-            return self.valid_for(timestamp, system="all", allow_none=allow_none)
-        else:
+
             if allow_none:
                 return None
-            else:
-                raise RuntimeError(f"No entries found for system: {system}")
+
+            msg = f"No valid entries found for timestamp: {timestamp}, system: {system}"
+            raise RuntimeError(msg)
+
+        if system != "all":
+            return self.valid_for(timestamp, system="all", allow_none=allow_none)
+
+        if allow_none:
+            return None
+
+        msg = f"No entries found for system: {system}"
+        raise RuntimeError(msg)
 
     @staticmethod
     def get_files(catalog_file, timestamp, category="all"):
@@ -131,12 +134,12 @@ class Props:
         def read_impl(sources):
             if isinstance(sources, str):
                 file_name = sources
-                with open(file_name) as file:
+                with Path(file_name).open() as file:
                     result = json.load(file)
                     if subst_pathvar:
                         Props.subst_vars(
                             result,
-                            var_values={"_": os.path.dirname(file_name)},
+                            var_values={"_": Path(file_name).parent},
                             ignore_missing=True,
                         )
                     return result
@@ -147,9 +150,8 @@ class Props:
                     Props.add_to(result, p)
                 return result
             else:
-                raise ValueError(
-                    f"Can't run Props.read_from on sources-value of type {type(sources)}"
-                )
+                msg = f"Can't run Props.read_from on sources-value of type {type(sources)}"
+                raise ValueError(msg)
 
         result = read_impl(sources)
         if trim_null:
@@ -160,7 +162,7 @@ class Props:
     def write_to(file_name, obj, pretty=False):
         separators = None if pretty else (",", ":")
         indent = 2 if pretty else None
-        with open(file_name, "w") as file:
+        with Path(file_name).open("w") as file:
             json.dump(obj, file, indent=indent, separators=separators)
             file.write("\n")
 

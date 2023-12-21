@@ -10,13 +10,8 @@ build:
   jobs:
     pre_build:
       - rm -rf docs/source/api
-      - sphinx-apidoc
-        --private
-        --module-first
-        --force
-        --output-dir docs/source/api
-        src/legendmeta
-        src/legendmeta/_version.py
+      - sphinx-apidoc --private --module-first --force --output-dir
+        docs/source/api src/legendmeta src/legendmeta/_version.py
 
 python:
   install:

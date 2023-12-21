@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -87,20 +89,22 @@ def test_access():
     with pytest.raises(FileNotFoundError):
         jdb["non-existent-file"]
     with pytest.raises(FileNotFoundError):
-        jdb.non_existent_file
+        assert jdb.non_existent_file
 
     with pytest.raises(AttributeError):
-        jdb.dir1.file3.non_existent_key
+        assert jdb.dir1.file3.non_existent_key
 
 
 def test_keys():
-    jdb = JsonDB(testdb)
+    jdb = JsonDB(testdb, lazy=False)
     assert sorted(jdb.keys()) == ["arrays", "dir1", "dir2", "file1", "file2", "file3"]
     assert sorted(jdb.dir1.keys()) == ["dir2", "file3", "file5"]
 
+    assert "arrays" in jdb
+
 
 def test_items():
-    jdb = JsonDB(testdb)
+    jdb = JsonDB(testdb, lazy=False)
     items = sorted(jdb.items())
     assert items[0][0] == "arrays"
     assert isinstance(items[0][1], list)
@@ -111,18 +115,42 @@ def test_items():
 
 
 def test_scan():
-    jdb = JsonDB(testdb)
-    jdb.scan()
+    jdb = JsonDB(testdb, lazy=True)
+    jdb.scan(recursive=True)
 
     assert sorted(jdb.__dict__.keys()) == [
-        "_store",
+        "__lazy__",
+        "__path__",
+        "__store__",
         "arrays",
         "dir1",
         "dir2",
         "file1",
         "file2",
         "file3",
-        "path",
+    ]
+
+    jdb = JsonDB(testdb, lazy=True)
+    jdb.scan(recursive=False)
+
+    assert sorted(jdb.__dict__.keys()) == [
+        "__lazy__",
+        "__path__",
+        "__store__",
+        "arrays",
+        "file1",
+        "file2",
+        "file3",
+    ]
+
+    jdb = JsonDB(testdb, lazy=True)
+    jdb.scan(recursive=False, subdir="dir1")
+
+    assert sorted(jdb.__dict__.keys()) == [
+        "__lazy__",
+        "__path__",
+        "__store__",
+        "dir1",
     ]
 
 
@@ -201,7 +229,7 @@ def test_merging():
     assert hasattr(d2, "b")
     assert hasattr(d2, "c")
 
-    jdb = JsonDB(testdb)
+    jdb = JsonDB(testdb, lazy=False)
     j = jdb.dir1 | jdb.dir2
     assert isinstance(j, AttrsDict)
     assert sorted(j.keys()) == ["dir2", "file3", "file5", "file7", "file8"]
@@ -210,3 +238,27 @@ def test_merging():
 
     with pytest.raises(TypeError):
         jdb |= jdb.dir1
+
+
+def test_lazyness():
+    jdb = JsonDB(testdb, lazy="auto")
+    assert jdb.__lazy__ is True
+    assert sorted(jdb.__dict__.keys()) == ["__lazy__", "__path__", "__store__"]
+
+    jdb = JsonDB(testdb, lazy=True)
+    assert jdb.__lazy__ is True
+    assert sorted(jdb.__dict__.keys()) == ["__lazy__", "__path__", "__store__"]
+
+    jdb = JsonDB(testdb, lazy=False)
+    assert jdb.__lazy__ is False
+    assert sorted(jdb.__dict__.keys()) == [
+        "__lazy__",
+        "__path__",
+        "__store__",
+        "arrays",
+        "dir1",
+        "dir2",
+        "file1",
+        "file2",
+        "file3",
+    ]
