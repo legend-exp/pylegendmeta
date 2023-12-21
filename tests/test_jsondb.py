@@ -100,6 +100,8 @@ def test_keys():
     assert sorted(jdb.keys()) == ["arrays", "dir1", "dir2", "file1", "file2", "file3"]
     assert sorted(jdb.dir1.keys()) == ["dir2", "file3", "file5"]
 
+    assert "arrays" in jdb
+
 
 def test_items():
     jdb = JsonDB(testdb, lazy=False)

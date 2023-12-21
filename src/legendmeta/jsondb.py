@@ -212,12 +212,17 @@ class JsonDB:
     :class:`.JsonDB` objects. In memory, the database is represented as an
     :class:`AttrsDict`.
 
-    Note
-    ----
+    Tip
+    ---
     For large databases, a basic "lazy" mode is available. In this case, no
     global scan of the filesystem is performed at initialization time. Once a
     file is queried, it is also cached in the internal store for faster access.
-    A call to :meth:`scan` is needed before iterating on the database files.
+    Caution, this option is for advanced use (see warning message below).
+
+    Warning
+    -------
+    A manual call to :meth:`scan` is needed before most class methods (e.g.
+    iterating on the database files) can be properly used.
 
     Examples
     --------
@@ -231,7 +236,7 @@ class JsonDB:
     >>> jdb.dir1.file # keys can be accessed as attributes
     """
 
-    def __init__(self, path: str | Path, lazy: str | bool = "auto") -> None:
+    def __init__(self, path: str | Path, lazy: str | bool = False) -> None:
         """Construct a :class:`.JsonDB` object.
 
         Parameters
@@ -240,8 +245,8 @@ class JsonDB:
             path to the directory containing the database.
         lazy
             whether a database scan should be performed at initialization time.
-            if ``auto`` (the default), be non-lazy only if working in a python
-            interactive session.
+            if ``auto``, be non-lazy only if working in a python interactive
+            session.
         """
         if isinstance(lazy, bool):
             self.__lazy__ = lazy
@@ -267,6 +272,8 @@ class JsonDB:
 
         Parameters
         ----------
+        recursive
+            if ``True``, recurse subdirectories.
         subdir
             restrict scan to path relative to the database location.
         """
@@ -354,12 +361,9 @@ class JsonDB:
 
         Warning
         -------
-        If the database is lazy, this method will call :meth:`.scan` in advance
-        to populate it, otherwise mappings cannot be created.
+        If the database is lazy, you must call :meth:`.scan` in advance to
+        populate it, otherwise mappings cannot be created.
         """
-        if self.__lazy__:
-            self.scan(recursive=False)
-
         return self.__store__.map(label, unique=unique)
 
     def __getitem__(self, item: str | Path) -> JsonDB | AttrsDict | list:
@@ -445,6 +449,9 @@ class JsonDB:
             return self.__store__ | other.__store__
 
         return self.__store__ | other
+
+    def __contains__(self, value: str) -> bool:
+        return self.__store__.__contains__(value)
 
     def __len__(self) -> int:
         return len(self.__store__)
