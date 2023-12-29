@@ -119,6 +119,7 @@ def test_scan():
     jdb.scan(recursive=True)
 
     assert sorted(jdb.__dict__.keys()) == [
+        "__ftypes__",
         "__lazy__",
         "__path__",
         "__store__",
@@ -134,6 +135,7 @@ def test_scan():
     jdb.scan(recursive=False)
 
     assert sorted(jdb.__dict__.keys()) == [
+        "__ftypes__",
         "__lazy__",
         "__path__",
         "__store__",
@@ -147,6 +149,7 @@ def test_scan():
     jdb.scan(recursive=False, subdir="dir1")
 
     assert sorted(jdb.__dict__.keys()) == [
+        "__ftypes__",
         "__lazy__",
         "__path__",
         "__store__",
@@ -246,15 +249,26 @@ def test_merging():
 def test_lazyness():
     jdb = JsonDB(testdb, lazy="auto")
     assert jdb.__lazy__ is True
-    assert sorted(jdb.__dict__.keys()) == ["__lazy__", "__path__", "__store__"]
+    assert sorted(jdb.__dict__.keys()) == [
+        "__ftypes__",
+        "__lazy__",
+        "__path__",
+        "__store__",
+    ]
 
     jdb = JsonDB(testdb, lazy=True)
     assert jdb.__lazy__ is True
-    assert sorted(jdb.__dict__.keys()) == ["__lazy__", "__path__", "__store__"]
+    assert sorted(jdb.__dict__.keys()) == [
+        "__ftypes__",
+        "__lazy__",
+        "__path__",
+        "__store__",
+    ]
 
     jdb = JsonDB(testdb, lazy=False)
     assert jdb.__lazy__ is False
     assert sorted(jdb.__dict__.keys()) == [
+        "__ftypes__",
         "__lazy__",
         "__path__",
         "__store__",

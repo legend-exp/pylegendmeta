@@ -24,6 +24,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 from legendmeta.catalog import Catalog, Props
 
 log = logging.getLogger(__name__)
@@ -35,10 +37,12 @@ class AttrsDict(dict):
     Examples
     --------
     >>> d = AttrsDict({"key1": {"key2": 1}})
-    >>> d.key1.key2 # == 1
+    >>> d.key1.key2
+    1
     >>> d1 = AttrsDict()
     >>> d1["a"] = 1
-    >>> d1.a # == 1
+    >>> d1.a
+    1
     """
 
     def __init__(self, value: dict | None = None) -> None:
@@ -272,6 +276,7 @@ class JsonDB:
     >>> from legendmeta.jsondb import JsonDB
     >>> jdb = JsonDB("path/to/dir")
     >>> jdb["file1.json"]  # is a dict
+    >>> jdb["file1.yaml"]  # is a dict
     >>> jdb["file1"]  # also works
     >>> jdb["dir1"]  # JsonDB instance
     >>> jdb["dir1"]["file1"]  # nested JSON file
@@ -296,7 +301,7 @@ class JsonDB:
         elif lazy == "auto":
             self.__lazy__ = not hasattr(sys, "ps1")
         else:
-            msg = f"unrecognized value lazy={lazy}"
+            msg = f"unrecognized value {lazy=}"
             raise ValueError(msg)
 
         self.__path__ = Path(path).expanduser().resolve()
@@ -306,9 +311,27 @@ class JsonDB:
             raise ValueError(msg)
 
         self.__store__ = AttrsDict()
+        self.__ftypes__ = {"json": [".json"], "yaml": [".yaml", ".yml"]}
 
         if not self.__lazy__:
             self.scan()
+
+    def _fopen(self, name: str) -> dict:
+        name = Path(name)
+
+        ftype = None
+        for _ftype, exts in self.__ftypes__.items():
+            if name.suffix in exts:
+                ftype = _ftype
+
+        with name.open() as f:
+            if ftype == "json":
+                return json.load(f)
+            if ftype == "yaml":
+                return yaml.safe_load(f)
+
+            msg = f"unsupported file format {ftype}"
+            raise NotImplementedError(msg)
 
     def scan(self, recursive: bool = True, subdir: str = ".") -> None:
         """Populate the database by walking the filesystem.
@@ -320,14 +343,13 @@ class JsonDB:
         subdir
             restrict scan to path relative to the database location.
         """
-        if recursive:
-            flist = self.__path__.rglob(f"{subdir}/*.json")
-        else:
-            flist = self.__path__.glob(f"{subdir}/*.json")
+        extensions = sum(self.__ftypes__.values(), [])
+        _fcn = self.__path__.rglob if recursive else self.__path__.glob
+        flist = (p for p in _fcn(f"{subdir}/*") if p.suffix in extensions)
 
         for j in flist:
             try:
-                self[j]
+                self[j.with_suffix("")]
             except (json.JSONDecodeError, ValueError) as e:
                 msg = f"could not scan file {j}, reason {e}"
                 log.warning(msg)
@@ -365,7 +387,7 @@ class JsonDB:
         """
         jsonl = self.__path__ / "validity.jsonl"
         if not jsonl.is_file():
-            msg = f"no validity.jsonl file found in {self.__path__}"
+            msg = f"no validity.jsonl file found in {self.__path__!s}"
             raise RuntimeError(msg)
 
         file_list = Catalog.get_files(str(jsonl), timestamp, system)
@@ -435,7 +457,7 @@ class JsonDB:
                 (self.__path__ / item).expanduser().resolve().relative_to(self.__path__)
             )
         else:
-            msg = f"{item} lies outside the database root path {self.__path__}"
+            msg = f"{item} lies outside the database root path {self.__path__!s}"
             raise ValueError(msg)
 
         # now call this very function recursively to walk the directories to the file
@@ -452,30 +474,38 @@ class JsonDB:
             # if directory, construct another JsonDB object
             if obj.is_dir():
                 db_ptr.__store__[item_id] = JsonDB(obj, lazy=self.__lazy__)
+
             else:
-                # try to attach .json extension if file cannot be found
+                # try to attach an extension if file cannot be found
+                # but check if there are multiple files that only differ in extension (unsupported)
+                found = True
                 if not obj.is_file():
-                    obj = Path(str(obj) + ".json")
+                    found = False
+                    for ext in sum(self.__ftypes__.values(), []):
+                        if obj.with_suffix(ext).is_file():
+                            if found:
+                                msg = "the database cannot contain files that differ only in the extension"
+                                raise RuntimeError(msg)
 
-                # if it's a valid JSON file, construct an AttrsDict object
-                if obj.is_file():
-                    with obj.open() as f:
-                        loaded = json.load(f)
-                        if isinstance(loaded, dict):
-                            loaded = AttrsDict(loaded)
-                            Props.subst_vars(loaded, var_values={"_": self.__path__})
-                        else:  # must be a list, check if there are dicts inside to convert
-                            for i, el in enumerate(loaded):
-                                if isinstance(el, dict):
-                                    loaded[i] = AttrsDict(el)
-                                    Props.subst_vars(
-                                        loaded[i], var_values={"_": self.__path__}
-                                    )
+                            obj = obj.with_suffix(ext)
+                            found = True
 
-                        db_ptr.__store__[item_id] = loaded
-                else:
-                    msg = f"{str(obj).replace('.json.json', '.json')} is not a valid file or directory"
+                if not found:
+                    msg = f"{obj.with_stem('(json|yaml|yml)')} is not a valid file or directory"
                     raise FileNotFoundError(msg)
+
+                # if it's a valid file, construct an AttrsDict object
+                loaded = self._fopen(obj)
+                if isinstance(loaded, dict):
+                    loaded = AttrsDict(loaded)
+                    Props.subst_vars(loaded, var_values={"_": self.__path__})
+                else:  # must be a list, check if there are dicts inside to convert
+                    for i, el in enumerate(loaded):
+                        if isinstance(el, dict):
+                            loaded[i] = AttrsDict(el)
+                            Props.subst_vars(loaded[i], var_values={"_": self.__path__})
+
+                db_ptr.__store__[item_id] = loaded
 
             # set also an attribute, if possible
             if item_id.isidentifier():
