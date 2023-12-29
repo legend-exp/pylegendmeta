@@ -30,7 +30,7 @@ How many kilograms of germanium are currently deployed in the LEGEND cryostat?
 or, alternatively:
 
 >>> # get only HPGe channels by mapping for "system"
->>> geds = lmeta.channelmap(datetime.now()).map("system", unique=False).geds
+>>> geds = lmeta.channelmap(datetime.now()).group("system").geds
 >>> # collect and sum up masses
 >>> masses = [v.production.mass_in_g for v in geds.values()]
 >>> numpy.cumsum(masses)[-1]
@@ -45,9 +45,9 @@ Calls to :meth:`.AttrsDict.map` can be chained together to build complex queries
 >>> # get HPGes, only ICPCs and only if their analysis status is ON
 >>> dets = (
 ...     lmeta.channelmap(datetime.now())
-...     .map("system", unique=False).geds
-...     .map("type", unique=False).icpc
-...     .map("analysis.usability", unique=False).on
+...     .group("system").geds
+...     .group("type").icpc
+...     .group("analysis.usability").on
 ...)
 >>> # collect and sum up mass * enrichment (assuming that the enrichment fraction is also in mass)
 >>> data = [v.production.mass_in_g * v.production.enrichment for v in dets.values()]
@@ -60,8 +60,8 @@ How many kilograms of germanium were not "OFF" on 23 Aug 2023?
 
 >>> geds = (
 ...     lmeta.channelmap(datetime(2023, 8, 23))
-...     .map("system", unique=False).geds
-...     .map("analysis.usability", unique=False)
+...     .group("system").geds
+...     .group("analysis.usability")
 ...)
 >>> mass = 0
 >>>
@@ -77,7 +77,7 @@ Which channel IDs correspond to detectors in string 1?
 
 >>> ids = (
 ...    lmeta.channelmap()
-...    .map("location.string", unique=False)[1]
+...    .group("location.string")[1]
 ...    .map("daq.rawid")
 ...).keys()
 dict_keys([1104000, 1104001, 1104002, 1104003, 1104004, 1104005, 1105600, 1105602, 1105603])
@@ -111,7 +111,7 @@ What is the current amount of exposure of HPGes usable for analysis?
                continue
 
            runinfo = lmeta.dataprod.runinfo[period][run].phy
-           chmap = lmeta.channelmap(runinfo.start_key).map("system", unique=False).geds
+           chmap = lmeta.channelmap(runinfo.start_key).group("system").geds
 
            for _, gedet in chmap.items():
                if gedet.analysis.usability not in ("off", "ac"):
@@ -145,11 +145,7 @@ What is the exposure of each single HPGe usable for analysis over a selection of
            runinfo = lmeta.dataprod.runinfo[period][run].phy
            chmap = lmeta.channelmap(runinfo.start_key)
 
-           chmap = (
-               chmap.map("system", unique=False)
-               .geds.map("analysis.usability", unique=False)
-               .on
-           )
+           chmap = chmap.group("system").geds.group("analysis.usability").on
 
            for _, gedet in chmap.items():
                exposures.setdefault(gedet.name, 0)

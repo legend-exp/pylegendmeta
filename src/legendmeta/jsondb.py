@@ -195,6 +195,49 @@ class AttrsDict(dict):
         self.__cached_remaps__[label] = newmap
         return newmap
 
+    def group(self, label: str) -> AttrsDict:
+        """Group dictionary according to a `label`.
+
+        This is equivalent to :meth:`.map` with `unique` set to ``False``.
+
+        Parameters
+        ----------
+        label
+            name (key) at which the new label can be found. If nested in
+            dictionaries, use ``.`` to separate levels, e.g.
+            ``level1.level2.label``.
+
+        Examples
+        --------
+        >>> d = AttrsDict({
+        ...   "a": {
+        ...     "type": "A",
+        ...     "data": 1
+        ...   },
+        ...   "b": {
+        ...     "type": "A",
+        ...     "data": 2
+        ...   },
+        ...   "c": {
+        ...     "type": "B",
+        ...     "data": 3
+        ...   },
+        ... })
+        >>> d.group("type").keys()
+        dict_keys(['A', 'B'])
+        >>> d.group("type").A.values()
+        dict_values([{'type': 'A', 'data': 1}, {'type': 'A', 'data': 2}])
+        >>> d.group("type").B.values()
+        dict_values([{'type': 'B', 'data': 3}])
+        >>> d.group("type").A.map("data")[1]
+        {'type': 'A', 'data': 1}
+
+        See Also
+        --------
+        map
+        """
+        return self.map(label, unique=False)
+
     # d |= other_d should still produce a valid AttrsDict
     def __ior__(self, other: dict | AttrsDict) -> AttrsDict:
         return AttrsDict(super().__ior__(other))
@@ -353,7 +396,7 @@ class JsonDB:
         return db_ptr
 
     def map(self, label: str, unique: bool = True) -> AttrsDict:
-        """Remap dictionary according to a second unique `key`.
+        """Remap dictionary according to a second unique `label`.
 
         See Also
         --------
@@ -365,6 +408,20 @@ class JsonDB:
         populate it, otherwise mappings cannot be created.
         """
         return self.__store__.map(label, unique=unique)
+
+    def group(self, label: str) -> AttrsDict:
+        """Group dictionary according to a second unique `label`.
+
+        See Also
+        --------
+        AttrsDict.group
+
+        Warning
+        -------
+        If the database is lazy, you must call :meth:`.scan` in advance to
+        populate it, otherwise groupings cannot be created.
+        """
+        return self.__store__.group(label)
 
     def __getitem__(self, item: str | Path) -> JsonDB | AttrsDict | list:
         """Access files or directories in the database."""

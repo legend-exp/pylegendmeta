@@ -116,8 +116,8 @@ channel map:
    call above and, in addition, augments the channel map with the information
    from the detector database. Check it out!
 
-Remapping metadata
-------------------
+Remapping and grouping metadata
+-------------------------------
 
 A second important method of ``JsonDB`` is :meth:`.JsonDB.map`, which allows to
 query ``(key, value)`` dictionaries with an alternative unique key defined in
@@ -137,12 +137,12 @@ corresponding to a certain DAQ channel:
 If the requested key is not unique, an exception will be raised.
 :meth:`.JsonDB.map` can, however, handle non-unique keys too and return a
 dictionary of matching entries instead, keyed by an arbitrary integer to allow
-further :meth:`.JsonDB.map` calls. The behavior is achieved by setting the
-``unique`` argument flag. A typical application is retrieving all channels
-attached to the same CC4:
+further :meth:`.JsonDB.map` calls. The behavior is achieved by using
+:meth:`.JsonDB.group` or by setting the ``unique`` argument flag. A typical
+application is retrieving all channels attached to the same CC4:
 
 >>> chmap = lmeta.hardware.configuration.channelmaps.on(datetime.now())
->>> chmap.map("electronics.cc4.id", unique=False)["C3"]
+>>> chmap.group("electronics.cc4.id")["C3"]
 {0: {'name': 'V02160A',
   'system': 'geds',
   'location': {'string': 1, 'position': 1},
