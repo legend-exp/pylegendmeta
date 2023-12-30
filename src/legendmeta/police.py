@@ -23,7 +23,7 @@ from importlib import resources
 from pathlib import Path
 
 from . import utils
-from .jsondb import JsonDB
+from .jsondb import TextDB
 
 templates = resources.files("legendmeta") / "templates"
 
@@ -93,7 +93,7 @@ def validate_legend_channel_map() -> bool:
         dict_temp[typ] = utils.load_dict(templates / f"{typ}-channel.yaml")
 
     for d in {Path(f).parent for f in args.files}:
-        db = JsonDB(d)
+        db = TextDB(d)
         valid = True
 
         with Path(f"{d}/validity.jsonl").open() as f:

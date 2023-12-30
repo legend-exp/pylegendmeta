@@ -24,12 +24,12 @@ from tempfile import gettempdir
 
 from git import GitCommandError, InvalidGitRepositoryError, Repo
 
-from .jsondb import AttrsDict, JsonDB
+from .jsondb import AttrsDict, TextDB
 
 log = logging.getLogger(__name__)
 
 
-class LegendMetadata(JsonDB):
+class LegendMetadata(TextDB):
     """LEGEND metadata.
 
     Class representing the LEGEND metadata repository with utilities for fast
@@ -42,7 +42,7 @@ class LegendMetadata(JsonDB):
         git-clone through SSH. If ``None``, legend-metadata will be cloned
         in a temporary directory (see :func:`tempfile.gettempdir`).
     **kwargs
-        further keyword arguments forwarded to :math:`JsonDB.__init__`.
+        further keyword arguments forwarded to :math:`TextDB.__init__`.
     """
 
     def __init__(self, path: str | None = None, **kwargs) -> None:
@@ -121,7 +121,7 @@ class LegendMetadata(JsonDB):
 
         See Also
         --------
-        .jsondb.JsonDB.on
+        .jsondb.TextDB.on
         """
         if on is None:
             on = datetime.now()

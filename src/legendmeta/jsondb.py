@@ -252,12 +252,24 @@ class AttrsDict(dict):
         return AttrsDict(super().__or__(other))
 
 
-class JsonDB:
+def JsonDB(*args, **kwargs):
+    import warnings
+
+    warnings.warn(
+        "The JsonDB class has been renamed to TextDB. "
+        "Please update your code, as JsonDB will be removed in a future release.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return TextDB(*args, **kwargs)
+
+
+class TextDB:
     """Bare-bones JSON database.
 
     The database is represented on disk by a collection of JSON files
     arbitrarily scattered in a filesystem. Subdirectories are also
-    :class:`.JsonDB` objects. In memory, the database is represented as an
+    :class:`.TextDB` objects. In memory, the database is represented as an
     :class:`AttrsDict`.
 
     Tip
@@ -274,19 +286,19 @@ class JsonDB:
 
     Examples
     --------
-    >>> from legendmeta.jsondb import JsonDB
-    >>> jdb = JsonDB("path/to/dir")
+    >>> from legendmeta.jsondb import TextDB
+    >>> jdb = TextDB("path/to/dir")
     >>> jdb["file1.json"]  # is a dict
     >>> jdb["file1.yaml"]  # is a dict
     >>> jdb["file1"]  # also works
-    >>> jdb["dir1"]  # JsonDB instance
+    >>> jdb["dir1"]  # TextDB instance
     >>> jdb["dir1"]["file1"]  # nested JSON file
     >>> jdb["dir1/file1"]  # also works
     >>> jdb.dir1.file # keys can be accessed as attributes
     """
 
     def __init__(self, path: str | Path, lazy: str | bool = False) -> None:
-        """Construct a :class:`.JsonDB` object.
+        """Construct a :class:`.TextDB` object.
 
         Parameters
         ----------
@@ -353,7 +365,7 @@ class JsonDB:
     def keys(self) -> list[str]:
         return self.__store__.keys()
 
-    def items(self) -> Iterator[(str, JsonDB | AttrsDict | list)]:
+    def items(self) -> Iterator[(str, TextDB | AttrsDict | list)]:
         return self.__store__.items()
 
     def on(
@@ -441,7 +453,7 @@ class JsonDB:
         """
         return self.__store__.group(label)
 
-    def __getitem__(self, item: str | Path) -> JsonDB | AttrsDict | list:
+    def __getitem__(self, item: str | Path) -> TextDB | AttrsDict | list:
         """Access files or directories in the database."""
         # resolve relative paths / links, but keep it relative to self.__path__
         item = Path(item)
@@ -467,9 +479,9 @@ class JsonDB:
         # skip if object is already in the store
         if item_id not in db_ptr.__store__:
             obj = db_ptr.__path__ / item.name
-            # if directory, construct another JsonDB object
+            # if directory, construct another TextDB object
             if obj.is_dir():
-                db_ptr.__store__[item_id] = JsonDB(obj, lazy=self.__lazy__)
+                db_ptr.__store__[item_id] = TextDB(obj, lazy=self.__lazy__)
 
             else:
                 # try to attach an extension if file cannot be found
@@ -509,7 +521,7 @@ class JsonDB:
 
         return db_ptr.__store__[item_id]
 
-    def __getattr__(self, name: str) -> JsonDB | AttrsDict | list:
+    def __getattr__(self, name: str) -> TextDB | AttrsDict | list:
         try:
             return object.__getattribute__(self, name)
         except AttributeError:
@@ -519,16 +531,16 @@ class JsonDB:
                 msg = f"JSON database does not contain '{name}'"
                 raise AttributeError(msg) from exc
 
-    # NOTE: self cannot stay a JsonDB, since the class is characterized by a
+    # NOTE: self cannot stay a TextDB, since the class is characterized by a
     # (unique) root directory. What would be the root directory of the merged
-    # JsonDB?
-    def __ior__(self, other: JsonDB) -> AttrsDict:
-        msg = "cannot merge JsonDB in-place"
+    # TextDB?
+    def __ior__(self, other: TextDB) -> AttrsDict:
+        msg = "cannot merge TextDB in-place"
         raise TypeError(msg)
 
-    # NOTE: returning a JsonDB does not make much sense, see above
-    def __or__(self, other: JsonDB) -> AttrsDict:
-        if isinstance(other, JsonDB):
+    # NOTE: returning a TextDB does not make much sense, see above
+    def __or__(self, other: TextDB) -> AttrsDict:
+        if isinstance(other, TextDB):
             return self.__store__ | other.__store__
 
         return self.__store__ | other

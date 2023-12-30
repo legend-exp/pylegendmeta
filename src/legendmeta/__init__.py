@@ -19,7 +19,7 @@ from __future__ import annotations
 from ._version import version as __version__
 from .catalog import to_datetime
 from .core import LegendMetadata
-from .jsondb import AttrsDict, JsonDB
+from .jsondb import AttrsDict, JsonDB, TextDB
 from .slowcontrol import LegendSlowControlDB
 
 __all__ = [
@@ -27,6 +27,7 @@ __all__ = [
     "LegendMetadata",
     "LegendSlowControlDB",
     "JsonDB",
+    "TextDB",
     "AttrsDict",
     "to_datetime",
 ]
