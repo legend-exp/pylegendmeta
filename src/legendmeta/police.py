@@ -23,7 +23,7 @@ from importlib import resources
 from pathlib import Path
 
 from . import utils
-from .jsondb import TextDB
+from .textdb import TextDB
 
 templates = resources.files("legendmeta") / "templates"
 

@@ -24,7 +24,7 @@ from tempfile import gettempdir
 
 from git import GitCommandError, InvalidGitRepositoryError, Repo
 
-from .jsondb import AttrsDict, TextDB
+from .textdb import AttrsDict, TextDB
 
 log = logging.getLogger(__name__)
 
@@ -121,7 +121,7 @@ class LegendMetadata(TextDB):
 
         See Also
         --------
-        .jsondb.TextDB.on
+        .textdb.TextDB.on
         """
         if on is None:
             on = datetime.now()

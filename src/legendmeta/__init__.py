@@ -19,8 +19,8 @@ from __future__ import annotations
 from ._version import version as __version__
 from .catalog import to_datetime
 from .core import LegendMetadata
-from .jsondb import AttrsDict, JsonDB, TextDB
 from .slowcontrol import LegendSlowControlDB
+from .textdb import AttrsDict, JsonDB, TextDB
 
 __all__ = [
     "__version__",
