@@ -4,8 +4,8 @@ import pytest
 import sqlalchemy as sql
 
 from legendmeta import LegendMetadata, LegendSlowControlDB
-from legendmeta.jsondb import AttrsDict
 from legendmeta.slowcontrol import DiodeSnap
+from legendmeta.textdb import AttrsDict
 
 pytestmark = pytest.mark.xfail(
     run=True, reason="requires access to LEGEND slow control database"

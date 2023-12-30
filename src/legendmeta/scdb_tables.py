@@ -23,7 +23,7 @@ from datetime import datetime
 import sqlalchemy as db
 from sqlalchemy.orm import DeclarativeBase, Mapped
 
-from .jsondb import AttrsDict
+from .textdb import AttrsDict
 
 
 class Base(DeclarativeBase):

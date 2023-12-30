@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from legendmeta import AttrsDict, JsonDB
+from legendmeta import AttrsDict, TextDB
 from legendmeta.catalog import Props
 
 testdb = Path(__file__).parent / "testdb"
@@ -13,7 +13,7 @@ testdb = Path(__file__).parent / "testdb"
 
 def test_props():
     # test read_from
-    test_dict = Props.read_from(str(Path(__file__).parent / "testdb/file2.json"))
+    test_dict = Props.read_from(str(Path(__file__).parent / "testdb/file2.yaml"))
     assert test_dict["data"] == 2
 
     # test subst_vars
@@ -35,7 +35,7 @@ def test_props():
 
     test_dict = Props.read_from(
         [
-            str(Path(__file__).parent / "testdb/file2.json"),
+            str(Path(__file__).parent / "testdb/file2.yaml"),
             str(Path(__file__).parent / "testdb/file3.json"),
         ],
         subst_pathvar=True,
@@ -50,15 +50,15 @@ def test_props():
 
 
 def test_access():
-    jdb = JsonDB(testdb)
+    jdb = TextDB(testdb)
     assert isinstance(jdb["file1.json"], AttrsDict)
-    assert isinstance(jdb["file2.json"], AttrsDict)
+    assert isinstance(jdb["file2.yaml"], AttrsDict)
     assert isinstance(jdb["file1"], AttrsDict)
-    assert isinstance(jdb["dir1"], JsonDB)
+    assert isinstance(jdb["dir1"], TextDB)
     assert isinstance(jdb["dir1"]["file3.json"], AttrsDict)
     assert isinstance(jdb["dir1"]["file3"], AttrsDict)
     assert isinstance(jdb["dir1/file3.json"], AttrsDict)
-    assert isinstance(jdb["dir1"]["dir2"], JsonDB)
+    assert isinstance(jdb["dir1"]["dir2"], TextDB)
     assert isinstance(jdb["dir1"]["dir2"]["file4.json"], AttrsDict)
     assert isinstance(jdb["dir1/dir2/file4.json"], AttrsDict)
     assert jdb["file1.json"]["data"] == 1
@@ -66,7 +66,7 @@ def test_access():
 
     assert isinstance(jdb.file1, AttrsDict)
     assert isinstance(jdb.file1.group, AttrsDict)
-    assert isinstance(jdb.dir1, JsonDB)
+    assert isinstance(jdb.dir1, TextDB)
     assert isinstance(jdb.dir1.file3, AttrsDict)
     assert jdb.file1.data == 1
     assert jdb.file2.data == 2
@@ -85,7 +85,7 @@ def test_access():
     assert jdb.file2.filepath == str(Path(__file__).parent / "testdb/dir1/file3.json")
 
     with pytest.raises(ValueError):
-        JsonDB("non-existent-db")
+        TextDB("non-existent-db")
     with pytest.raises(FileNotFoundError):
         jdb["non-existent-file"]
     with pytest.raises(FileNotFoundError):
@@ -96,7 +96,7 @@ def test_access():
 
 
 def test_keys():
-    jdb = JsonDB(testdb, lazy=False)
+    jdb = TextDB(testdb, lazy=False)
     assert sorted(jdb.keys()) == ["arrays", "dir1", "dir2", "file1", "file2", "file3"]
     assert sorted(jdb.dir1.keys()) == ["dir2", "file3", "file5"]
 
@@ -104,21 +104,22 @@ def test_keys():
 
 
 def test_items():
-    jdb = JsonDB(testdb, lazy=False)
+    jdb = TextDB(testdb, lazy=False)
     items = sorted(jdb.items())
     assert items[0][0] == "arrays"
     assert isinstance(items[0][1], list)
     assert items[1][0] == "dir1"
-    assert isinstance(items[1][1], JsonDB)
+    assert isinstance(items[1][1], TextDB)
     assert items[3][0] == "file1"
     assert isinstance(items[3][1], AttrsDict)
 
 
 def test_scan():
-    jdb = JsonDB(testdb, lazy=True)
+    jdb = TextDB(testdb, lazy=True)
     jdb.scan(recursive=True)
 
     assert sorted(jdb.__dict__.keys()) == [
+        "__ftypes__",
         "__lazy__",
         "__path__",
         "__store__",
@@ -130,10 +131,11 @@ def test_scan():
         "file3",
     ]
 
-    jdb = JsonDB(testdb, lazy=True)
+    jdb = TextDB(testdb, lazy=True)
     jdb.scan(recursive=False)
 
     assert sorted(jdb.__dict__.keys()) == [
+        "__ftypes__",
         "__lazy__",
         "__path__",
         "__store__",
@@ -143,10 +145,11 @@ def test_scan():
         "file3",
     ]
 
-    jdb = JsonDB(testdb, lazy=True)
+    jdb = TextDB(testdb, lazy=True)
     jdb.scan(recursive=False, subdir="dir1")
 
     assert sorted(jdb.__dict__.keys()) == [
+        "__ftypes__",
         "__lazy__",
         "__path__",
         "__store__",
@@ -155,7 +158,7 @@ def test_scan():
 
 
 def test_time_validity():
-    jdb = JsonDB(testdb)
+    jdb = TextDB(testdb)
     assert isinstance(jdb["dir1"].on("20220628T221955Z"), AttrsDict)
 
     assert jdb["dir1"].on("20220628T221955Z")["data"] == 1
@@ -186,7 +189,7 @@ def test_time_validity():
 
 
 def test_mapping():
-    jdb = JsonDB(testdb)
+    jdb = TextDB(testdb)
 
     assert isinstance(jdb.map("label"), AttrsDict)
     assert jdb.map("label")[3].data == 2
@@ -232,7 +235,7 @@ def test_merging():
     assert hasattr(d2, "b")
     assert hasattr(d2, "c")
 
-    jdb = JsonDB(testdb, lazy=False)
+    jdb = TextDB(testdb, lazy=False)
     j = jdb.dir1 | jdb.dir2
     assert isinstance(j, AttrsDict)
     assert sorted(j.keys()) == ["dir2", "file3", "file5", "file7", "file8"]
@@ -244,17 +247,28 @@ def test_merging():
 
 
 def test_lazyness():
-    jdb = JsonDB(testdb, lazy="auto")
+    jdb = TextDB(testdb, lazy="auto")
     assert jdb.__lazy__ is True
-    assert sorted(jdb.__dict__.keys()) == ["__lazy__", "__path__", "__store__"]
+    assert sorted(jdb.__dict__.keys()) == [
+        "__ftypes__",
+        "__lazy__",
+        "__path__",
+        "__store__",
+    ]
 
-    jdb = JsonDB(testdb, lazy=True)
+    jdb = TextDB(testdb, lazy=True)
     assert jdb.__lazy__ is True
-    assert sorted(jdb.__dict__.keys()) == ["__lazy__", "__path__", "__store__"]
+    assert sorted(jdb.__dict__.keys()) == [
+        "__ftypes__",
+        "__lazy__",
+        "__path__",
+        "__store__",
+    ]
 
-    jdb = JsonDB(testdb, lazy=False)
+    jdb = TextDB(testdb, lazy=False)
     assert jdb.__lazy__ is False
     assert sorted(jdb.__dict__.keys()) == [
+        "__ftypes__",
         "__lazy__",
         "__path__",
         "__store__",

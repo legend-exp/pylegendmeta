@@ -17,9 +17,14 @@ temporary (i.e. not preserved across system reboots) directory.
    it or, alternatively, as an argument to the :class:`~.core.LegendMetadata`
    constructor. Recommended if a custom legend-metadata_ is needed.
 
-:class:`~.core.LegendMetadata` is a :class:`~.jsondb.JsonDB` object, which
-implements an interface to a database of JSON files arbitrary scattered in a
-filesystem. ``JsonDB`` does not assume any directory structure or file naming.
+:class:`~.core.LegendMetadata` is a :class:`~.textdb.textdb` object, which
+implements an interface to a database of text files arbitrary scattered in a
+filesystem. ``TextDB`` does not assume any directory structure or file naming.
+
+.. note::
+
+   Currently supported file formats are `JSON <https://json.org>`_ and `YAML
+   <https://yaml.org>`_.
 
 Access
 ------
@@ -32,7 +37,7 @@ Let's consider the following database:
     ├── dir1
     │   └── file1.json
     ├── file2.json
-    ├── file3.json
+    ├── file3.yaml
     └── validity.jsonl
 
 With:
@@ -45,10 +50,10 @@ With:
      "value": 1
    }
 
-and similarly ``file2.json`` and ``file3.json``.
+and similarly ``file2.json`` and ``file3.yaml``.
 
-``JsonDB`` treats directories, files and JSON keys at the same semantic level.
-Internally, the database is represented as a :class:`dict`, and can be
+``TextDB`` treats directories, files and JSON/YAML keys at the same semantic
+level.  Internally, the database is represented as a :class:`dict`, and can be
 therefore accessed with the same syntax:
 
 >>> lmeta["dir1"] # a dict
@@ -77,8 +82,8 @@ Metadata validity
 Mappings of metadata to time periods, data taking systems etc. are specified
 through JSONL files (`specification
 <https://legend-exp.github.io/legend-data-format-specs/dev/metadata>`_).
-If a ``.jsonl`` file is present in a directory, ``JsonDB``
-exposes the :meth:`~.jsondb.JsonDB.on` interface to perform a query.
+If a ``.jsonl`` file is present in a directory, ``TextDB``
+exposes the :meth:`~.textdb.textdb.on` interface to perform a query.
 
 Let's assume the ``legend-metadata`` directory from the example above contains
 the following file:
@@ -88,7 +93,7 @@ the following file:
    :caption: ``validity.jsonl``
 
    {"valid_from": "20220628T000000Z", "select": "all", "apply": ["file2.json"]}
-   {"valid_from": "20220629T000000Z", "select": "all", "apply": ["file3.json"]}
+   {"valid_from": "20220629T000000Z", "select": "all", "apply": ["file3.yaml"]}
 
 From code, it's possible to obtain the metadata valid for a certain time point:
 
@@ -119,7 +124,7 @@ channel map:
 Remapping and grouping metadata
 -------------------------------
 
-A second important method of ``JsonDB`` is :meth:`.JsonDB.map`, which allows to
+A second important method of ``TextDB`` is :meth:`.textdb.map`, which allows to
 query ``(key, value)`` dictionaries with an alternative unique key defined in
 ``value``. A typical application is querying parameters in a channel map
 corresponding to a certain DAQ channel:
@@ -135,10 +140,10 @@ corresponding to a certain DAQ channel:
  ...
 
 If the requested key is not unique, an exception will be raised.
-:meth:`.JsonDB.map` can, however, handle non-unique keys too and return a
+:meth:`.textdb.map` can, however, handle non-unique keys too and return a
 dictionary of matching entries instead, keyed by an arbitrary integer to allow
-further :meth:`.JsonDB.map` calls. The behavior is achieved by using
-:meth:`.JsonDB.group` or by setting the ``unique`` argument flag. A typical
+further :meth:`.textdb.map` calls. The behavior is achieved by using
+:meth:`.textdb.group` or by setting the ``unique`` argument flag. A typical
 application is retrieving all channels attached to the same CC4:
 
 >>> chmap = lmeta.hardware.configuration.channelmaps.on(datetime.now())

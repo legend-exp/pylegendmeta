@@ -13,21 +13,31 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""A package to access `legend-metadata <https://github.com/legend-exp/legend-metadata>`_ in Python."""
 from __future__ import annotations
 
-from ._version import version as __version__
-from .catalog import to_datetime
-from .core import LegendMetadata
-from .slowcontrol import LegendSlowControlDB
-from .textdb import AttrsDict, JsonDB, TextDB
+import json
+from pathlib import Path
 
-__all__ = [
-    "__version__",
-    "LegendMetadata",
-    "LegendSlowControlDB",
-    "JsonDB",
-    "TextDB",
-    "AttrsDict",
-    "to_datetime",
-]
+import yaml
+
+__file_extensions__ = {"json": [".json"], "yaml": [".yaml", ".yml"]}
+
+
+def load_dict(fname: str, ftype: str | None = None) -> dict:
+    """Load a text file as a Python dict."""
+    fname = Path(fname)
+
+    # determine file type from extension
+    if ftype is None:
+        for _ftype, exts in __file_extensions__.items():
+            if fname.suffix in exts:
+                ftype = _ftype
+
+    with fname.open() as f:
+        if ftype == "json":
+            return json.load(f)
+        if ftype == "yaml":
+            return yaml.safe_load(f)
+
+        msg = f"unsupported file format {ftype}"
+        raise NotImplementedError(msg)

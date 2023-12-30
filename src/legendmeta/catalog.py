@@ -24,6 +24,8 @@ from datetime import datetime
 from pathlib import Path
 from string import Template
 
+from . import utils
+
 
 def to_datetime(value):
     """Convert a LEGEND timestamp (or key) to :class:`datetime.datetime`."""
@@ -134,24 +136,23 @@ class Props:
         def read_impl(sources):
             if isinstance(sources, str):
                 file_name = sources
-                with Path(file_name).open() as file:
-                    result = json.load(file)
-                    if subst_pathvar:
-                        Props.subst_vars(
-                            result,
-                            var_values={"_": Path(file_name).parent},
-                            ignore_missing=True,
-                        )
-                    return result
+                result = utils.load_dict(file_name)
+                if subst_pathvar:
+                    Props.subst_vars(
+                        result,
+                        var_values={"_": Path(file_name).parent},
+                        ignore_missing=True,
+                    )
+                return result
 
-            elif isinstance(sources, list):
+            if isinstance(sources, list):
                 result = {}
                 for p in map(read_impl, sources):
                     Props.add_to(result, p)
                 return result
-            else:
-                msg = f"Can't run Props.read_from on sources-value of type {type(sources)}"
-                raise ValueError(msg)
+
+            msg = f"Can't run Props.read_from on sources-value of type {type(sources)}"
+            raise ValueError(msg)
 
         result = read_impl(sources)
         if trim_null:

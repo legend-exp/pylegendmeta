@@ -24,7 +24,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from legendmeta.catalog import Catalog, Props
+import yaml
+
+from . import utils
+from .catalog import Catalog, Props
 
 log = logging.getLogger(__name__)
 
@@ -35,10 +38,12 @@ class AttrsDict(dict):
     Examples
     --------
     >>> d = AttrsDict({"key1": {"key2": 1}})
-    >>> d.key1.key2 # == 1
+    >>> d.key1.key2
+    1
     >>> d1 = AttrsDict()
     >>> d1["a"] = 1
-    >>> d1.a # == 1
+    >>> d1.a
+    1
     """
 
     def __init__(self, value: dict | None = None) -> None:
@@ -247,13 +252,27 @@ class AttrsDict(dict):
         return AttrsDict(super().__or__(other))
 
 
-class JsonDB:
-    """Bare-bones JSON database.
+def JsonDB(*args, **kwargs):
+    import warnings
 
-    The database is represented on disk by a collection of JSON files
+    warnings.warn(
+        "The JsonDB class has been renamed to TextDB. "
+        "Please update your code, as JsonDB will be removed in a future release.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return TextDB(*args, **kwargs)
+
+
+class TextDB:
+    """A simple text file database.
+
+    The database is represented on disk by a collection of text files
     arbitrarily scattered in a filesystem. Subdirectories are also
-    :class:`.JsonDB` objects. In memory, the database is represented as an
+    :class:`.TextDB` objects. In memory, the database is represented as an
     :class:`AttrsDict`.
+
+    Currently supported file formats are JSON and YAML.
 
     Tip
     ---
@@ -269,18 +288,19 @@ class JsonDB:
 
     Examples
     --------
-    >>> from legendmeta.jsondb import JsonDB
-    >>> jdb = JsonDB("path/to/dir")
+    >>> from legendmeta.jsondb import TextDB
+    >>> jdb = TextDB("path/to/dir")
     >>> jdb["file1.json"]  # is a dict
+    >>> jdb["file1.yaml"]  # is a dict
     >>> jdb["file1"]  # also works
-    >>> jdb["dir1"]  # JsonDB instance
-    >>> jdb["dir1"]["file1"]  # nested JSON file
+    >>> jdb["dir1"]  # TextDB instance
+    >>> jdb["dir1"]["file1"]  # nested file
     >>> jdb["dir1/file1"]  # also works
     >>> jdb.dir1.file # keys can be accessed as attributes
     """
 
     def __init__(self, path: str | Path, lazy: str | bool = False) -> None:
-        """Construct a :class:`.JsonDB` object.
+        """Construct a :class:`.TextDB` object.
 
         Parameters
         ----------
@@ -296,7 +316,7 @@ class JsonDB:
         elif lazy == "auto":
             self.__lazy__ = not hasattr(sys, "ps1")
         else:
-            msg = f"unrecognized value lazy={lazy}"
+            msg = f"unrecognized value {lazy=}"
             raise ValueError(msg)
 
         self.__path__ = Path(path).expanduser().resolve()
@@ -306,9 +326,21 @@ class JsonDB:
             raise ValueError(msg)
 
         self.__store__ = AttrsDict()
+        self.__ftypes__ = {"json", "yaml"}
 
         if not self.__lazy__:
             self.scan()
+
+    @property
+    def __extensions__(self) -> set:
+        # determine list of supported file extensions
+        return set().union(
+            *[
+                exts
+                for ft, exts in utils.__file_extensions__.items()
+                if ft in self.__ftypes__
+            ]
+        )
 
     def scan(self, recursive: bool = True, subdir: str = ".") -> None:
         """Populate the database by walking the filesystem.
@@ -320,22 +352,22 @@ class JsonDB:
         subdir
             restrict scan to path relative to the database location.
         """
-        if recursive:
-            flist = self.__path__.rglob(f"{subdir}/*.json")
-        else:
-            flist = self.__path__.glob(f"{subdir}/*.json")
+        # recursive search or not?
+        _fcn = self.__path__.rglob if recursive else self.__path__.glob
+        # build file list
+        flist = (p for p in _fcn(f"{subdir}/*") if p.suffix in self.__extensions__)
 
         for j in flist:
             try:
-                self[j]
-            except (json.JSONDecodeError, ValueError) as e:
+                self[j.with_suffix("")]
+            except (json.JSONDecodeError, yaml.YAMLError, ValueError) as e:
                 msg = f"could not scan file {j}, reason {e}"
                 log.warning(msg)
 
     def keys(self) -> list[str]:
         return self.__store__.keys()
 
-    def items(self) -> Iterator[(str, JsonDB | AttrsDict | list)]:
+    def items(self) -> Iterator[(str, TextDB | AttrsDict | list)]:
         return self.__store__.items()
 
     def on(
@@ -351,7 +383,7 @@ class JsonDB:
         <https://legend-exp.github.io/legend-data-format-specs/dev/metadata/#Specifying-metadata-validity-in-time-(and-system)>`_.
 
         The special ``$_`` string is expanded to the directory containing the
-        JSON files.
+        text files.
 
         Parameters
         ----------
@@ -365,7 +397,7 @@ class JsonDB:
         """
         jsonl = self.__path__ / "validity.jsonl"
         if not jsonl.is_file():
-            msg = f"no validity.jsonl file found in {self.__path__}"
+            msg = f"no validity.jsonl file found in {self.__path__!s}"
             raise RuntimeError(msg)
 
         file_list = Catalog.get_files(str(jsonl), timestamp, system)
@@ -423,7 +455,7 @@ class JsonDB:
         """
         return self.__store__.group(label)
 
-    def __getitem__(self, item: str | Path) -> JsonDB | AttrsDict | list:
+    def __getitem__(self, item: str | Path) -> TextDB | AttrsDict | list:
         """Access files or directories in the database."""
         # resolve relative paths / links, but keep it relative to self.__path__
         item = Path(item)
@@ -435,7 +467,7 @@ class JsonDB:
                 (self.__path__ / item).expanduser().resolve().relative_to(self.__path__)
             )
         else:
-            msg = f"{item} lies outside the database root path {self.__path__}"
+            msg = f"{item} lies outside the database root path {self.__path__!s}"
             raise ValueError(msg)
 
         # now call this very function recursively to walk the directories to the file
@@ -444,38 +476,46 @@ class JsonDB:
             db_ptr = db_ptr[d]
 
         # item_id should not contain any / at this point
-        # store JSON file names without extension
+        # store file names without extension
         item_id = item.stem
         # skip if object is already in the store
         if item_id not in db_ptr.__store__:
             obj = db_ptr.__path__ / item.name
-            # if directory, construct another JsonDB object
+            # if directory, construct another TextDB object
             if obj.is_dir():
-                db_ptr.__store__[item_id] = JsonDB(obj, lazy=self.__lazy__)
+                db_ptr.__store__[item_id] = TextDB(obj, lazy=self.__lazy__)
+
             else:
-                # try to attach .json extension if file cannot be found
+                # try to attach an extension if file cannot be found
+                # but check if there are multiple files that only differ in extension (unsupported)
+                found = True
                 if not obj.is_file():
-                    obj = Path(str(obj) + ".json")
+                    found = False
+                    for ext in self.__extensions__:
+                        if obj.with_suffix(ext).is_file():
+                            if found:
+                                msg = "the database cannot contain files that differ only in the extension"
+                                raise RuntimeError(msg)
 
-                # if it's a valid JSON file, construct an AttrsDict object
-                if obj.is_file():
-                    with obj.open() as f:
-                        loaded = json.load(f)
-                        if isinstance(loaded, dict):
-                            loaded = AttrsDict(loaded)
-                            Props.subst_vars(loaded, var_values={"_": self.__path__})
-                        else:  # must be a list, check if there are dicts inside to convert
-                            for i, el in enumerate(loaded):
-                                if isinstance(el, dict):
-                                    loaded[i] = AttrsDict(el)
-                                    Props.subst_vars(
-                                        loaded[i], var_values={"_": self.__path__}
-                                    )
+                            obj = obj.with_suffix(ext)
+                            found = True
 
-                        db_ptr.__store__[item_id] = loaded
-                else:
-                    msg = f"{str(obj).replace('.json.json', '.json')} is not a valid file or directory"
+                if not found:
+                    msg = f"{obj.with_stem('.(json|yaml|yml)')} is not a valid file or directory"
                     raise FileNotFoundError(msg)
+
+                # if it's a valid file, construct an AttrsDict object
+                loaded = utils.load_dict(obj)
+                if isinstance(loaded, dict):
+                    loaded = AttrsDict(loaded)
+                    Props.subst_vars(loaded, var_values={"_": self.__path__})
+                else:  # must be a list, check if there are dicts inside to convert
+                    for i, el in enumerate(loaded):
+                        if isinstance(el, dict):
+                            loaded[i] = AttrsDict(el)
+                            Props.subst_vars(loaded[i], var_values={"_": self.__path__})
+
+                db_ptr.__store__[item_id] = loaded
 
             # set also an attribute, if possible
             if item_id.isidentifier():
@@ -483,26 +523,26 @@ class JsonDB:
 
         return db_ptr.__store__[item_id]
 
-    def __getattr__(self, name: str) -> JsonDB | AttrsDict | list:
+    def __getattr__(self, name: str) -> TextDB | AttrsDict | list:
         try:
             return object.__getattribute__(self, name)
         except AttributeError:
             try:
                 return self.__getitem__(name)
             except AttributeError as exc:
-                msg = f"JSON database does not contain '{name}'"
+                msg = f"file database does not contain '{name}'"
                 raise AttributeError(msg) from exc
 
-    # NOTE: self cannot stay a JsonDB, since the class is characterized by a
+    # NOTE: self cannot stay a TextDB, since the class is characterized by a
     # (unique) root directory. What would be the root directory of the merged
-    # JsonDB?
-    def __ior__(self, other: JsonDB) -> AttrsDict:
-        msg = "cannot merge JsonDB in-place"
+    # TextDB?
+    def __ior__(self, other: TextDB) -> AttrsDict:
+        msg = "cannot merge TextDB in-place"
         raise TypeError(msg)
 
-    # NOTE: returning a JsonDB does not make much sense, see above
-    def __or__(self, other: JsonDB) -> AttrsDict:
-        if isinstance(other, JsonDB):
+    # NOTE: returning a TextDB does not make much sense, see above
+    def __or__(self, other: TextDB) -> AttrsDict:
+        if isinstance(other, TextDB):
             return self.__store__ | other.__store__
 
         return self.__store__ | other

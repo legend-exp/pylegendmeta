@@ -6,7 +6,7 @@ import pytest
 from git import GitCommandError
 
 from legendmeta import LegendMetadata
-from legendmeta.jsondb import AttrsDict
+from legendmeta.textdb import AttrsDict
 
 pytestmark = pytest.mark.xfail(run=True, reason="requires access to legend-metadata")
 
