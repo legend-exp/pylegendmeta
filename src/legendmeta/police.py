@@ -22,6 +22,7 @@ import sys
 from importlib import resources
 from pathlib import Path
 
+from . import utils
 from .jsondb import JsonDB
 
 templates = resources.files("legendmeta") / "templates"
@@ -42,35 +43,33 @@ def validate_legend_detector_db() -> bool:
 
     dict_temp = {}
     for typ in ("bege", "ppc", "coax", "icpc"):
-        with (templates / f"{typ}-detector.json").open() as f:
-            dict_temp[typ] = json.load(f)
+        dict_temp[typ] = utils.load_dict(templates / f"{typ}-detector.yaml")
 
     for file in args.files:
         valid = True
 
-        with Path(file).open() as f:
-            entry = json.load(f)
+        entry = utils.load_dict(file)
 
-            if "type" not in entry:
-                print(  # noqa: T201
-                    f"ERROR: '{file}' entry does not contain 'type' key"
-                )
-                valid *= False
-                continue
-
-            if entry["type"] not in dict_temp:
-                print(  # noqa: T201
-                    f"WARNING: '{file}': no template for type '{entry['type']}' detector"
-                )
-                continue
-
-            valid *= validate_dict_schema(
-                entry,
-                dict_temp[entry["type"]],
-                greedy=False,
-                typecheck=True,
-                root_obj=file,
+        if "type" not in entry:
+            print(  # noqa: T201
+                f"ERROR: '{file}' entry does not contain 'type' key"
             )
+            valid *= False
+            continue
+
+        if entry["type"] not in dict_temp:
+            print(  # noqa: T201
+                f"WARNING: '{file}': no template for type '{entry['type']}' detector"
+            )
+            continue
+
+        valid *= validate_dict_schema(
+            entry,
+            dict_temp[entry["type"]],
+            greedy=False,
+            typecheck=True,
+            root_obj=file,
+        )
 
         if not valid:
             sys.exit(1)
@@ -91,8 +90,7 @@ def validate_legend_channel_map() -> bool:
 
     dict_temp = {}
     for typ in ("geds", "spms"):
-        with (templates / f"{typ}-channel.json").open() as f:
-            dict_temp[typ] = json.load(f)
+        dict_temp[typ] = utils.load_dict(templates / f"{typ}-channel.yaml")
 
     for d in {Path(f).parent for f in args.files}:
         db = JsonDB(d)
@@ -101,7 +99,7 @@ def validate_legend_channel_map() -> bool:
         with Path(f"{d}/validity.jsonl").open() as f:
             for line in f.readlines():
                 ts = json.loads(line)["valid_from"]
-                sy = json.loads(line)["category"]
+                sy = json.loads(line)["select"]
                 chmap = db.on(ts, system=sy)
 
                 for k, v in chmap.items():

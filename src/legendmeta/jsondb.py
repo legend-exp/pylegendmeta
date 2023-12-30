@@ -26,7 +26,8 @@ from typing import Any
 
 import yaml
 
-from legendmeta.catalog import Catalog, Props
+from . import utils
+from .catalog import Catalog, Props
 
 log = logging.getLogger(__name__)
 
@@ -311,27 +312,21 @@ class JsonDB:
             raise ValueError(msg)
 
         self.__store__ = AttrsDict()
-        self.__ftypes__ = {"json": [".json"], "yaml": [".yaml", ".yml"]}
+        self.__ftypes__ = {"json", "yaml"}
 
         if not self.__lazy__:
             self.scan()
 
-    def _fopen(self, name: str) -> dict:
-        name = Path(name)
-
-        ftype = None
-        for _ftype, exts in self.__ftypes__.items():
-            if name.suffix in exts:
-                ftype = _ftype
-
-        with name.open() as f:
-            if ftype == "json":
-                return json.load(f)
-            if ftype == "yaml":
-                return yaml.safe_load(f)
-
-            msg = f"unsupported file format {ftype}"
-            raise NotImplementedError(msg)
+    @property
+    def __extensions__(self) -> set:
+        # determine list of supported file extensions
+        return set().union(
+            *[
+                exts
+                for ft, exts in utils.__file_extensions__.items()
+                if ft in self.__ftypes__
+            ]
+        )
 
     def scan(self, recursive: bool = True, subdir: str = ".") -> None:
         """Populate the database by walking the filesystem.
@@ -343,14 +338,15 @@ class JsonDB:
         subdir
             restrict scan to path relative to the database location.
         """
-        extensions = sum(self.__ftypes__.values(), [])
+        # recursive search or not?
         _fcn = self.__path__.rglob if recursive else self.__path__.glob
-        flist = (p for p in _fcn(f"{subdir}/*") if p.suffix in extensions)
+        # build file list
+        flist = (p for p in _fcn(f"{subdir}/*") if p.suffix in self.__extensions__)
 
         for j in flist:
             try:
                 self[j.with_suffix("")]
-            except (json.JSONDecodeError, ValueError) as e:
+            except (json.JSONDecodeError, yaml.YAMLError, ValueError) as e:
                 msg = f"could not scan file {j}, reason {e}"
                 log.warning(msg)
 
@@ -481,7 +477,7 @@ class JsonDB:
                 found = True
                 if not obj.is_file():
                     found = False
-                    for ext in sum(self.__ftypes__.values(), []):
+                    for ext in self.__extensions__:
                         if obj.with_suffix(ext).is_file():
                             if found:
                                 msg = "the database cannot contain files that differ only in the extension"
@@ -491,11 +487,11 @@ class JsonDB:
                             found = True
 
                 if not found:
-                    msg = f"{obj.with_stem('(json|yaml|yml)')} is not a valid file or directory"
+                    msg = f"{obj.with_stem('.(json|yaml|yml)')} is not a valid file or directory"
                     raise FileNotFoundError(msg)
 
                 # if it's a valid file, construct an AttrsDict object
-                loaded = self._fopen(obj)
+                loaded = utils.load_dict(obj)
                 if isinstance(loaded, dict):
                     loaded = AttrsDict(loaded)
                     Props.subst_vars(loaded, var_values={"_": self.__path__})
