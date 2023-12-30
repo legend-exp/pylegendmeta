@@ -1,0 +1,36 @@
+name: ^C\w{6}$
+type: coax
+production:
+  manufacturer: ""
+  order: 0
+  crystal: ""
+  slice: ""
+  enrichment: 0.0
+  passivation: true
+  reprocessing: true
+  mass_in_g: 0.0
+  delivered:
+geometry:
+  height_in_mm: 0.0
+  radius_in_mm: 0.0
+  borehole:
+    radius_in_mm: 0.0
+    depth_in_mm: 0.0
+  groove:
+    depth_in_mm: 0.0
+    radius_in_mm:
+      outer: 0.0
+      inner: 0.0
+  pp_contact:
+    radius_in_mm: 0.0
+    depth_in_mm: 0.0
+  taper:
+    top:
+      angle_in_deg: 0.0
+      height_in_mm: 0.0
+    bottom:
+      angle_in_deg: 0.0
+      height_in_mm: 0.0
+    borehole:
+      angle_in_deg: 0.0
+      height_in_mm: 0.0

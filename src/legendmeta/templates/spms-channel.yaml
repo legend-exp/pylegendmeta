@@ -1,0 +1,23 @@
+name: ^S\d{3}$
+system: spms
+location:
+  fiber: 0
+  position: 0
+daq:
+  crate: 0
+  card:
+    id: 0
+    serialno: 0
+    address: ""
+  channel: 0
+  rawid: 0
+electronics:
+  card:
+    id: 0
+    serialno:
+  channel: 0
+  cable: ""
+  flange: ""
+  dsub:
+    id: ""
+    pinpair: 0
