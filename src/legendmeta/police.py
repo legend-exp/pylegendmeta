@@ -37,7 +37,7 @@ def validate_legend_detector_db() -> bool:
         prog="validate-legend-detdb", description="Validate LEGEND detector database"
     )
 
-    parser.add_argument("files", nargs="+", help="JSON files")
+    parser.add_argument("files", nargs="+", help="files")
 
     args = parser.parse_args()
 
@@ -84,7 +84,7 @@ def validate_legend_channel_map() -> bool:
         prog="validate-legend-chmaps", description="Validate LEGEND channel map files"
     )
 
-    parser.add_argument("files", nargs="+", help="JSON channel maps files")
+    parser.add_argument("files", nargs="+", help="channel maps files")
 
     args = parser.parse_args()
 

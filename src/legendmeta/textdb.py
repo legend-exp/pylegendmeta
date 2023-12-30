@@ -265,12 +265,14 @@ def JsonDB(*args, **kwargs):
 
 
 class TextDB:
-    """Bare-bones JSON database.
+    """A simple text file database.
 
-    The database is represented on disk by a collection of JSON files
+    The database is represented on disk by a collection of text files
     arbitrarily scattered in a filesystem. Subdirectories are also
     :class:`.TextDB` objects. In memory, the database is represented as an
     :class:`AttrsDict`.
+
+    Currently supported file formats are JSON and YAML.
 
     Tip
     ---
@@ -292,7 +294,7 @@ class TextDB:
     >>> jdb["file1.yaml"]  # is a dict
     >>> jdb["file1"]  # also works
     >>> jdb["dir1"]  # TextDB instance
-    >>> jdb["dir1"]["file1"]  # nested JSON file
+    >>> jdb["dir1"]["file1"]  # nested file
     >>> jdb["dir1/file1"]  # also works
     >>> jdb.dir1.file # keys can be accessed as attributes
     """
@@ -381,7 +383,7 @@ class TextDB:
         <https://legend-exp.github.io/legend-data-format-specs/dev/metadata/#Specifying-metadata-validity-in-time-(and-system)>`_.
 
         The special ``$_`` string is expanded to the directory containing the
-        JSON files.
+        text files.
 
         Parameters
         ----------
@@ -474,7 +476,7 @@ class TextDB:
             db_ptr = db_ptr[d]
 
         # item_id should not contain any / at this point
-        # store JSON file names without extension
+        # store file names without extension
         item_id = item.stem
         # skip if object is already in the store
         if item_id not in db_ptr.__store__:
@@ -528,7 +530,7 @@ class TextDB:
             try:
                 return self.__getitem__(name)
             except AttributeError as exc:
-                msg = f"JSON database does not contain '{name}'"
+                msg = f"file database does not contain '{name}'"
                 raise AttributeError(msg) from exc
 
     # NOTE: self cannot stay a TextDB, since the class is characterized by a
