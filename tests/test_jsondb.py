@@ -13,7 +13,7 @@ testdb = Path(__file__).parent / "testdb"
 
 def test_props():
     # test read_from
-    test_dict = Props.read_from(str(Path(__file__).parent / "testdb/file2.json"))
+    test_dict = Props.read_from(str(Path(__file__).parent / "testdb/file2.yaml"))
     assert test_dict["data"] == 2
 
     # test subst_vars
@@ -35,7 +35,7 @@ def test_props():
 
     test_dict = Props.read_from(
         [
-            str(Path(__file__).parent / "testdb/file2.json"),
+            str(Path(__file__).parent / "testdb/file2.yaml"),
             str(Path(__file__).parent / "testdb/file3.json"),
         ],
         subst_pathvar=True,
@@ -52,7 +52,7 @@ def test_props():
 def test_access():
     jdb = TextDB(testdb)
     assert isinstance(jdb["file1.json"], AttrsDict)
-    assert isinstance(jdb["file2.json"], AttrsDict)
+    assert isinstance(jdb["file2.yaml"], AttrsDict)
     assert isinstance(jdb["file1"], AttrsDict)
     assert isinstance(jdb["dir1"], TextDB)
     assert isinstance(jdb["dir1"]["file3.json"], AttrsDict)
