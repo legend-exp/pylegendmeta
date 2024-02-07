@@ -34,6 +34,7 @@ requires-python = ">=3.9"
 dependencies = [
     "GitPython",
     "pandas",
+    "pyarrow",
     "pyyaml",
     "psycopg2-binary",
     "sqlalchemy>=2",
