@@ -34,7 +34,6 @@ requires-python = ">=3.9"
 dependencies = [
     "GitPython",
     "pandas",
-    "pyarrow",
     "pyyaml",
     "psycopg2-binary",
     "sqlalchemy>=2",
@@ -102,7 +101,7 @@ ignore-words-list = "crate,nd,unparseable,compiletime"
 [tool.pytest.ini_options]
 minversion = "6.0"
 addopts = ["-ra", "--showlocals", "--strict-markers", "--strict-config"]
-filterwarnings = "error"
+filterwarnings = ["error", 'ignore:\nPyarrow:DeprecationWarning']
 log_cli_level = "info"
 testpaths = "tests"
 
