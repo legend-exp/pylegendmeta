@@ -120,6 +120,7 @@ def test_scan():
 
     assert sorted(jdb.__dict__.keys()) == [
         "__ftypes__",
+        "__hidden__",
         "__lazy__",
         "__path__",
         "__store__",
@@ -136,6 +137,7 @@ def test_scan():
 
     assert sorted(jdb.__dict__.keys()) == [
         "__ftypes__",
+        "__hidden__",
         "__lazy__",
         "__path__",
         "__store__",
@@ -150,6 +152,7 @@ def test_scan():
 
     assert sorted(jdb.__dict__.keys()) == [
         "__ftypes__",
+        "__hidden__",
         "__lazy__",
         "__path__",
         "__store__",
@@ -251,6 +254,7 @@ def test_lazyness():
     assert jdb.__lazy__ is True
     assert sorted(jdb.__dict__.keys()) == [
         "__ftypes__",
+        "__hidden__",
         "__lazy__",
         "__path__",
         "__store__",
@@ -260,6 +264,7 @@ def test_lazyness():
     assert jdb.__lazy__ is True
     assert sorted(jdb.__dict__.keys()) == [
         "__ftypes__",
+        "__hidden__",
         "__lazy__",
         "__path__",
         "__store__",
@@ -269,6 +274,7 @@ def test_lazyness():
     assert jdb.__lazy__ is False
     assert sorted(jdb.__dict__.keys()) == [
         "__ftypes__",
+        "__hidden__",
         "__lazy__",
         "__path__",
         "__store__",
