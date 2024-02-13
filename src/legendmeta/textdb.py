@@ -299,7 +299,9 @@ class TextDB:
     >>> jdb.dir1.file # keys can be accessed as attributes
     """
 
-    def __init__(self, path: str | Path, lazy: str | bool = False) -> None:
+    def __init__(
+        self, path: str | Path, lazy: str | bool = False, hidden: bool = False
+    ) -> None:
         """Construct a :class:`.TextDB` object.
 
         Parameters
@@ -310,6 +312,8 @@ class TextDB:
             whether a database scan should be performed at initialization time.
             if ``auto``, be non-lazy only if working in a python interactive
             session.
+        hidden
+            ignore hidden (i.e. starting with ".") files of directories.
         """
         if isinstance(lazy, bool):
             self.__lazy__ = lazy
@@ -319,6 +323,7 @@ class TextDB:
             msg = f"unrecognized value {lazy=}"
             raise ValueError(msg)
 
+        self.__hidden__ = hidden
         self.__path__ = Path(path).expanduser().resolve()
 
         if not self.__path__.is_dir():
@@ -361,7 +366,7 @@ class TextDB:
             try:
                 self[j.with_suffix("")]
             except (json.JSONDecodeError, yaml.YAMLError, ValueError) as e:
-                msg = f"could not scan file {j}, reason {e}"
+                msg = f"could not scan file {j}, reason: {e!r}"
                 log.warning(msg)
 
     def keys(self) -> list[str]:
@@ -455,7 +460,7 @@ class TextDB:
         """
         return self.__store__.group(label)
 
-    def __getitem__(self, item: str | Path) -> TextDB | AttrsDict | list:
+    def __getitem__(self, item: str | Path) -> TextDB | AttrsDict | list | None:
         """Access files or directories in the database."""
         # resolve relative paths / links, but keep it relative to self.__path__
         item = Path(item)
@@ -470,10 +475,17 @@ class TextDB:
             msg = f"{item} lies outside the database root path {self.__path__!s}"
             raise ValueError(msg)
 
+        ext_list = "[" + "|".join(self.__extensions__) + "]"
+        msg = f"parsing directory or file{ext_list}: {item}"
+        log.debug(msg)
+
         # now call this very function recursively to walk the directories to the file
         db_ptr = self
-        for d in item.parts[0:-1]:
+        for d in item.parts[:-1]:
             db_ptr = db_ptr[d]
+            # check if we encountered hidden directory (must skip)
+            if not self.__hidden__ and db_ptr is None:
+                return None
 
         # item_id should not contain any / at this point
         # store file names without extension
@@ -481,6 +493,11 @@ class TextDB:
         # skip if object is already in the store
         if item_id not in db_ptr.__store__:
             obj = db_ptr.__path__ / item.name
+
+            # do not consider hidden files
+            if not self.__hidden__ and obj.name.startswith("."):
+                return None
+
             # if directory, construct another TextDB object
             if obj.is_dir():
                 db_ptr.__store__[item_id] = TextDB(obj, lazy=self.__lazy__)
@@ -501,7 +518,7 @@ class TextDB:
                             found = True
 
                 if not found:
-                    msg = f"{obj.with_stem('.(json|yaml|yml)')} is not a valid file or directory"
+                    msg = f"{obj.with_stem(ext_list)} is not a valid file or directory"
                     raise FileNotFoundError(msg)
 
                 # if it's a valid file, construct an AttrsDict object

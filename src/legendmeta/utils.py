@@ -16,9 +16,12 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
 import yaml
+
+log = logging.getLogger(__name__)
 
 __file_extensions__ = {"json": [".json"], "yaml": [".yaml", ".yml"]}
 
@@ -32,6 +35,9 @@ def load_dict(fname: str, ftype: str | None = None) -> dict:
         for _ftype, exts in __file_extensions__.items():
             if fname.suffix in exts:
                 ftype = _ftype
+
+    msg = f"loading {ftype} dict from: {fname}"
+    log.debug(msg)
 
     with fname.open() as f:
         if ftype == "json":
