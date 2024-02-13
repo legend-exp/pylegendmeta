@@ -101,7 +101,7 @@ ignore-words-list = "crate,nd,unparseable,compiletime"
 [tool.pytest.ini_options]
 minversion = "6.0"
 addopts = ["-ra", "--showlocals", "--strict-markers", "--strict-config"]
-filterwarnings = "error"
+filterwarnings = ["error", 'ignore:\nPyarrow:DeprecationWarning']
 log_cli_level = "info"
 testpaths = "tests"
 
