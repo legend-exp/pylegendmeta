@@ -207,5 +207,18 @@ class Props:
 
                 if new_value != value:
                     props[key] = new_value
+            elif isinstance(value, list):
+                new_values = []
+                for val in value:
+                    if isinstance(val, str) and "$" in val:
+                        if ignore_missing:
+                            new_value = Template(val).safe_substitute(var_values)
+                        else:
+                            new_value = Template(val).substitute(var_values)
+                    else:
+                        new_value = val
+                    new_values.append(new_value)
+                if new_values != value:
+                    props[key] = new_values
             elif isinstance(value, dict):
                 Props.subst_vars(value, var_values, ignore_missing)
