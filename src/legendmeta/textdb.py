@@ -176,7 +176,7 @@ class AttrsDict(dict):
             if not isinstance(newid, (int, float, str)):
                 msg = f"'{label}' values are not all numbers or strings"
                 raise RuntimeError(msg)
-            # complain if a label with the same value was already found
+
             if newid in newmap:
                 newkey = sorted(newmap[newid].keys())[-1] + 1
                 newmap[newid].update({newkey: v})
@@ -186,6 +186,7 @@ class AttrsDict(dict):
                 newmap[newid] = {0: v}
 
         if unique is True and unique_tracker is False:
+            # complain if a label with the same value was already found
             msg = f"'{label}' values are not unique"
             raise RuntimeError(msg)
 
