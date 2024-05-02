@@ -36,7 +36,7 @@ def load_dict(fname: str, ftype: str | None = None) -> dict:
             if fname.suffix in exts:
                 ftype = _ftype
 
-    msg = f"loading {ftype} dict from: {fname}"
+    msg = f"writing {ftype} dict to: {fname}"
     log.debug(msg)
 
     with fname.open() as f:
@@ -47,3 +47,30 @@ def load_dict(fname: str, ftype: str | None = None) -> dict:
 
         msg = f"unsupported file format {ftype}"
         raise NotImplementedError(msg)
+
+
+def write_dict(fname: str, obj: dict, ftype: str | None = None) -> dict:
+    """Load a text file as a Python dict."""
+    fname = Path(fname)
+
+    # determine file type from extension
+    if ftype is None:
+        for _ftype, exts in __file_extensions__.items():
+            if fname.suffix in exts:
+                ftype = _ftype
+
+    msg = f"writing {ftype} dict to: {fname}"
+    log.debug(msg)
+
+    with fname.open("w") as f:
+        if ftype == "json":
+            separators = (",", ":")
+            indent = 2
+            json.dump(obj, f, indent=indent, separators=separators)
+            f.write("\n")
+        elif ftype == "yaml":
+            yaml.dump(obj, f)
+
+        else:
+            msg = f"unsupported file format {ftype}"
+            raise NotImplementedError(msg)
