@@ -160,12 +160,8 @@ class Props:
         return result
 
     @staticmethod
-    def write_to(file_name, obj, pretty=False):
-        separators = None if pretty else (",", ":")
-        indent = 2 if pretty else None
-        with Path(file_name).open("w") as file:
-            json.dump(obj, file, indent=indent, separators=separators)
-            file.write("\n")
+    def write_to(file_name, obj):
+        utils.write_dict(file_name, obj)
 
     @staticmethod
     def add_to(props_a, props_b):
