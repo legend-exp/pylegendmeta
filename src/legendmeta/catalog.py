@@ -173,9 +173,9 @@ class Props:
                 if isinstance(a[key], dict) and isinstance(b[key], dict):
                     Props.add_to(a[key], b[key])
                 elif a[key] != b[key]:
-                    a[key] = copy.copy(b[key])
+                    a[key] = copy.deepcopy(b[key])
             else:
-                a[key] = copy.copy(b[key])
+                a[key] = copy.deepcopy(b[key])
 
     @staticmethod
     def trim_null(props_a):
