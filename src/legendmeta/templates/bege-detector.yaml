@@ -5,7 +5,9 @@ production:
   order: 0
   crystal: ""
   slice: ""
-  enrichment: 0.0
+  enrichment:
+    val: 0.0
+    unc: 0.0
   passivation: true
   reprocessing: false
   mass_in_g: 0.0
