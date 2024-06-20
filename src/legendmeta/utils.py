@@ -69,7 +69,7 @@ def write_dict(fname: str, obj: dict, ftype: str | None = None) -> dict:
             json.dump(obj, f, indent=indent, separators=separators)
             f.write("\n")
         elif ftype == "yaml":
-            yaml.dump(obj, f)
+            yaml.dump(obj, f, sort_keys=False)
 
         else:
             msg = f"unsupported file format {ftype}"
