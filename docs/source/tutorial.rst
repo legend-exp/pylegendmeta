@@ -160,7 +160,7 @@ For further details, have a look at the documentation for :meth:`.AttrsDict.map`
 LEGEND channel maps
 -------------------
 
-The :meth:`.core.LegendMetadata.channelmap` method is a conveniece method to
+The :meth:`.core.LegendMetadata.channelmap` method is a convenience method to
 obtain channel-relevant metadata (hardware, analysis, etc.) in time:
 
 >>> myicpc = lmeta.channelmap(datetime.now()).V00048B
