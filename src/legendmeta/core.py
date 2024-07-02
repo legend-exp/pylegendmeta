@@ -70,7 +70,9 @@ class LegendMetadata(TextDB):
             repo = Repo(self._repo_path)
         except InvalidGitRepositoryError:
             msg = f"Cloning git@github.com:legend-exp/legend-metadata in {self._repo_path}..."
-            log.info(msg)
+            # set logging level as warning (default logging level), so it's
+            # always printed and the user knows why it takes so long to initialize
+            log.warning(msg)
 
             repo = Repo.clone_from(
                 "git@github.com:legend-exp/legend-metadata",
