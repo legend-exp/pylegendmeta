@@ -66,7 +66,7 @@ class LegendMetadata(TextDB):
         while self._repo_path != exp_path:
             self._repo_path = exp_path
             exp_path = os.path.expandvars(self._repo_path)
-        
+
         if not Path(self._repo_path).exists():
             Path(self._repo_path).mkdir()
 
