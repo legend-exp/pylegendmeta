@@ -62,6 +62,11 @@ class LegendMetadata(TextDB):
 
     def _init_metadata_repo(self):
         """Clone legend-metadata, if not existing, and checkout default Git ref."""
+        exp_path = os.path.expandvars(self._repo_path)
+        while self._repo_path != exp_path:
+            self._repo_path = exp_path
+            exp_path = os.path.expandvars(self._repo_path)
+        
         if not Path(self._repo_path).exists():
             Path(self._repo_path).mkdir()
 
