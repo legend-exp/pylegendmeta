@@ -160,8 +160,8 @@ class Props:
         return result
 
     @staticmethod
-    def write_to(file_name, obj):
-        utils.write_dict(file_name, obj)
+    def write_to(file_name, obj, ftype: str | None = None):
+        utils.write_dict(file_name, obj, ftype)
 
     @staticmethod
     def add_to(props_a, props_b):
