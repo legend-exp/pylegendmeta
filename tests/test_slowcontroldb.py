@@ -19,7 +19,7 @@ def scdb():
     return scdb
 
 
-def test_connection(scdb):  # noqa: ARG001
+def test_connection(scdb):
     pass
 
 
