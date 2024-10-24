@@ -62,3 +62,6 @@ def test_channelmap(metadb):
     assert "geometry" in channel
     assert hasattr(channel, "geometry")
     assert "analysis" in channel
+
+    channel = metadb.channelmap(on=datetime.now(), system="cal").V02162B
+    assert "analysis" in channel
