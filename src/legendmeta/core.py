@@ -102,13 +102,23 @@ class LegendMetadata(TextDB):
         """Checkout legend-metadata to the default Git ref."""
         self._repo.git.checkout(self._default_git_ref)
 
-    def channelmap(self, on: str | datetime | None = None) -> AttrsDict:
+    def channelmap(
+        self, on: str | datetime | None = None, system: str = "all"
+    ) -> AttrsDict:
         """Get a LEGEND channel map.
 
         Aliases ``legend-metadata.hardware.configuration.channelmaps.on()`` and
         tries to merge the returned channel map with the detector database
         `legend-metadata.hardware.detectors` and the analysis channel map
         `dataprod.config.on(...).analysis`.
+
+        Parameters
+        ----------
+        on
+            a :class:`~datetime.datetime` object or a string matching the
+            pattern ``YYYYmmddTHHMMSSZ``.
+        system: 'all', 'phy', 'cal', 'lar', ...
+            query only a data taking "system".
 
         Warning
         -------
@@ -134,11 +144,11 @@ class LegendMetadata(TextDB):
             on = datetime.now()
 
         chmap = self.hardware.configuration.channelmaps.on(
-            on, pattern=None, system="all"
+            on, pattern=None, system=system
         )
 
         # get analysis metadata
-        anamap = self.dataprod.config.on(on, pattern=None, system="all").analysis
+        anamap = self.dataprod.config.on(on, pattern=None, system=system).analysis
 
         # get full detector db
         detdb = self.hardware.detectors
