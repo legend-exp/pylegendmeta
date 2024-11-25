@@ -19,10 +19,10 @@ def test_props():
     # test subst_vars
     Props.subst_vars(test_dict, var_values={"_": str(Path(__file__).parent / "testdb")})
     assert test_dict["filepath"] == str(
-        Path(__file__).parent / "testdb/dir1/file3.json"
+        Path(__file__).parent / "testdb/dir1/file3.yaml"
     )
 
-    test_dict2 = Props.read_from(str(Path(__file__).parent / "testdb/file3.json"))
+    test_dict2 = Props.read_from(str(Path(__file__).parent / "testdb/file3.yaml"))
 
     # test add_to
     Props.add_to(test_dict, test_dict2)
@@ -36,14 +36,14 @@ def test_props():
     test_dict = Props.read_from(
         [
             str(Path(__file__).parent / "testdb/file2.yaml"),
-            str(Path(__file__).parent / "testdb/file3.json"),
+            str(Path(__file__).parent / "testdb/file3.yaml"),
         ],
         subst_pathvar=True,
         trim_null=True,
     )
     assert test_dict["data"] == 3
     assert test_dict["filepath"] == str(
-        Path(__file__).parent / "testdb/dir1/file3.json"
+        Path(__file__).parent / "testdb/dir1/file3.yaml"
     )
     with pytest.raises(KeyError):
         test_dict["null_key"]
@@ -55,12 +55,12 @@ def test_access():
     assert isinstance(jdb["file2.yaml"], AttrsDict)
     assert isinstance(jdb["file1"], AttrsDict)
     assert isinstance(jdb["dir1"], TextDB)
-    assert isinstance(jdb["dir1"]["file3.json"], AttrsDict)
+    assert isinstance(jdb["dir1"]["file3.yaml"], AttrsDict)
     assert isinstance(jdb["dir1"]["file3"], AttrsDict)
-    assert isinstance(jdb["dir1/file3.json"], AttrsDict)
+    assert isinstance(jdb["dir1/file3.yaml"], AttrsDict)
     assert isinstance(jdb["dir1"]["dir2"], TextDB)
-    assert isinstance(jdb["dir1"]["dir2"]["file4.json"], AttrsDict)
-    assert isinstance(jdb["dir1/dir2/file4.json"], AttrsDict)
+    assert isinstance(jdb["dir1"]["dir2"]["file4.yaml"], AttrsDict)
+    assert isinstance(jdb["dir1/dir2/file4.yaml"], AttrsDict)
     assert jdb["file1.json"]["data"] == 1
     assert isinstance(jdb["file1"]["group"], AttrsDict)
 
@@ -82,7 +82,7 @@ def test_access():
     assert jdb.arrays[1].array[0] == 1
     assert jdb.arrays[1].array[1].data == 2
 
-    assert jdb.file2.filepath == str(Path(__file__).parent / "testdb/dir1/file3.json")
+    assert jdb.file2.filepath == str(Path(__file__).parent / "testdb/dir1/file3.yaml")
 
     with pytest.raises(ValueError):
         TextDB("non-existent-db")
@@ -98,7 +98,7 @@ def test_access():
 def test_keys():
     jdb = TextDB(testdb, lazy=False)
     assert sorted(jdb.keys()) == ["arrays", "dir1", "dir2", "file1", "file2", "file3"]
-    assert sorted(jdb.dir1.keys()) == ["dir2", "file3", "file5"]
+    assert sorted(jdb.dir1.keys()) == ["dir2", "file3", "file5", "file6"]
 
     assert "arrays" in jdb
 

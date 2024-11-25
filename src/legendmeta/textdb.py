@@ -381,7 +381,7 @@ class TextDB:
     ) -> AttrsDict | list:
         """Query database in `time[, file pattern, system]`.
 
-        A (only one) valid ``validity.yml`` file must exist in the directory
+        A (only one) valid ``validity.yaml`` file must exist in the directory
         to specify a validity mapping. This functionality relies on the
         :class:`.catalog.Catalog` class.
 
@@ -401,9 +401,9 @@ class TextDB:
         system: 'all', 'phy', 'cal', 'lar', ...
             query only a data taking "system".
         """
-        yml = self.__path__ / "validity.yml"
+        yml = self.__path__ / "validity.yaml"
         if not yml.is_file():
-            msg = f"no validity.yml file found in {self.__path__!s}"
+            msg = f"no validity.yaml file found in {self.__path__!s}"
             raise RuntimeError(msg)
 
         file_list = Catalog.get_files(str(yml), timestamp, system)
