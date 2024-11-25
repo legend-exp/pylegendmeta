@@ -401,9 +401,12 @@ class TextDB:
         system: 'all', 'phy', 'cal', 'lar', ...
             query only a data taking "system".
         """
-        yml = self.__path__ / "validity.yaml"
+        for ext in utils.___file_extensions__["yaml"]:
+            yml = self.__path__ / f"validity{ext}"
+            if yml.is_file():
+                break
         if not yml.is_file():
-            msg = f"no validity.yaml file found in {self.__path__!s}"
+            msg = f"no validity.yaml / validity.yml file found in {self.__path__!s}"
             raise RuntimeError(msg)
 
         file_list = Catalog.get_files(str(yml), timestamp, system)

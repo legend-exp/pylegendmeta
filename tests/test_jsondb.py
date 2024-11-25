@@ -22,7 +22,7 @@ def test_props():
         Path(__file__).parent / "testdb/dir1/file3.yaml"
     )
 
-    test_dict2 = Props.read_from(str(Path(__file__).parent / "testdb/file3.yaml"))
+    test_dict2 = Props.read_from(str(Path(__file__).parent / "testdb/file3.json"))
 
     # test add_to
     Props.add_to(test_dict, test_dict2)
@@ -36,7 +36,7 @@ def test_props():
     test_dict = Props.read_from(
         [
             str(Path(__file__).parent / "testdb/file2.yaml"),
-            str(Path(__file__).parent / "testdb/file3.yaml"),
+            str(Path(__file__).parent / "testdb/file3.json"),
         ],
         subst_pathvar=True,
         trim_null=True,
