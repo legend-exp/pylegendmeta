@@ -162,21 +162,24 @@ def test_scan():
 
 def test_time_validity():
     jdb = TextDB(testdb)
-    assert isinstance(jdb["dir1"].on("20220628T221955Z"), AttrsDict)
+    assert isinstance(jdb["dir1"].on("20220101T000001Z"), AttrsDict)
 
-    assert jdb["dir1"].on("20220628T221955Z")["data"] == 1
-    assert jdb.dir1.on("20220629T221955Z").data == 2
+    assert jdb["dir1"].on("20220101T000000Z")["data"] == 1
+    assert jdb.dir1.on("20220102T000000Z").data == 2
     # time point in between
-    assert jdb["dir1"].on("20220628T233500Z")["data"] == 1
+    assert jdb["dir1"].on("20220102T120000Z")["data"] == 1
     # time point after
-    assert jdb["dir1"].on("20220630T233500Z")["data"] == 2
+    assert jdb["dir1"].on("20220102T120000Z")["data"] == 2
     # time point before
     with pytest.raises(RuntimeError):
-        jdb["dir1"].on("20220627T233500Z")["data"]
-
-    # directory with no .jsonl
+        jdb["dir1"].on("20210101T000000Z")["data"]
+    # test remove functionality
+    assert jdb["dir1"].on("20220103T120000Z")["data"] == 1
+    # test reset functionality
+    assert jdb["dir1"].on("20220104T120000Z")["data"] == 3
+    # directory with no .yml
     with pytest.raises(RuntimeError):
-        jdb["dir1"]["dir2"].on("20220627T233500Z")
+        jdb["dir1"]["dir2"].on("20220101T000001Z")
 
     # invalid timestamp
     with pytest.raises(ValueError):

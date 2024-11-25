@@ -1,5 +1,5 @@
 data: 2
-filepath: $_/dir1/file3.json
+filepath: $_/dir1/file3.yml
 key:
   label: 3
 label: 3

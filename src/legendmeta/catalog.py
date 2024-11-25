@@ -17,12 +17,13 @@ from __future__ import annotations
 import bisect
 import collections
 import copy
-import json
 import types
 from collections import namedtuple
 from datetime import datetime
 from pathlib import Path
 from string import Template
+
+import yaml
 
 from . import utils
 
@@ -57,13 +58,14 @@ class PropsStream:
 
     @staticmethod
     def read_from(file_name):
-        with Path(file_name).open() as file:
-            for json_str in file:
-                yield json.loads(json_str)
+        with Path(file_name).open() as r:
+            file = yaml.safe_load(r)
+        file = sorted(file, key=lambda item: unix_time(item["valid_from"]))
+        yield from file
 
 
 class Catalog(namedtuple("Catalog", ["entries"])):
-    """Implementation of the `JSONL metadata validity specification <https://legend-exp.github.io/legend-data-format-specs/dev/metadata/#Specifying-metadata-validity-in-time-(and-system)>`_."""
+    """Implementation of the `YAML metadata validity specification <https://legend-exp.github.io/legend-data-format-specs/dev/metadata/#Specifying-metadata-validity-in-time-(and-system)>`_."""
 
     __slots__ = ()
 
@@ -84,14 +86,30 @@ class Catalog(namedtuple("Catalog", ["entries"])):
     @staticmethod
     def read_from(file_name):
         entries = {}
-
         for props in PropsStream.get(file_name):
             timestamp = props["valid_from"]
             system = "all" if props.get("category") is None else props["category"]
             file_key = props["apply"]
             if system not in entries:
                 entries[system] = []
-            entries[system].append(Catalog.Entry(unix_time(timestamp), file_key))
+            mode = "append" if props.get("mode") is None else props["mode"]
+            mode = "reset" if len(entries[system]) == 0 else mode
+            if mode == "reset":
+                entries[system].append(Catalog.Entry(unix_time(timestamp), file_key))
+            elif mode == "append":
+                entries[system].append(
+                    Catalog.Entry(
+                        unix_time(timestamp), entries[system][-1].file.copy() + file_key
+                    )
+                )
+            elif mode == "remove":
+                previous = entries[system][-1].file.copy()
+                for file in file_key:
+                    previous.remove(file)
+                entries[system].append(Catalog.Entry(unix_time(timestamp), previous))
+            else:
+                msg = f"Unknown mode for {timestamp}"
+                raise ValueError(msg)
 
         for system in entries:
             entries[system] = sorted(

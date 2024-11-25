@@ -381,11 +381,11 @@ class TextDB:
     ) -> AttrsDict | list:
         """Query database in `time[, file pattern, system]`.
 
-        A (only one) valid ``validity.jsonl`` file must exist in the directory
+        A (only one) valid ``validity.yml`` file must exist in the directory
         to specify a validity mapping. This functionality relies on the
         :class:`.catalog.Catalog` class.
 
-        The JSONL specification is documented at `this link
+        The YAML specification is documented at `this link
         <https://legend-exp.github.io/legend-data-format-specs/dev/metadata/#Specifying-metadata-validity-in-time-(and-system)>`_.
 
         The special ``$_`` string is expanded to the directory containing the
@@ -401,12 +401,12 @@ class TextDB:
         system: 'all', 'phy', 'cal', 'lar', ...
             query only a data taking "system".
         """
-        jsonl = self.__path__ / "validity.jsonl"
-        if not jsonl.is_file():
-            msg = f"no validity.jsonl file found in {self.__path__!s}"
+        yml = self.__path__ / "validity.yml"
+        if not yml.is_file():
+            msg = f"no validity.yml file found in {self.__path__!s}"
             raise RuntimeError(msg)
 
-        file_list = Catalog.get_files(str(jsonl), timestamp, system)
+        file_list = Catalog.get_files(str(yml), timestamp, system)
         # select only files matching pattern if specified
         if pattern is not None:
             c = re.compile(pattern)
