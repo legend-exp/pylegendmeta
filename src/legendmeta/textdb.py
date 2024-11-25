@@ -401,7 +401,7 @@ class TextDB:
         system: 'all', 'phy', 'cal', 'lar', ...
             query only a data taking "system".
         """
-        for ext in utils.___file_extensions__["yaml"]:
+        for ext in utils.__file_extensions__["yaml"]:
             yml = self.__path__ / f"validity{ext}"
             if yml.is_file():
                 break

@@ -95,21 +95,30 @@ class Catalog(namedtuple("Catalog", ["entries"])):
             mode = "append" if props.get("mode") is None else props["mode"]
             mode = "reset" if len(entries[system]) == 0 else mode
             if mode == "reset":
-                entries[system].append(Catalog.Entry(unix_time(timestamp), file_key))
+                new = file_key
             elif mode == "append":
-                entries[system].append(
-                    Catalog.Entry(
-                        unix_time(timestamp), entries[system][-1].file.copy() + file_key
-                    )
-                )
+                new = entries[system][-1].file.copy() + file_key
             elif mode == "remove":
-                previous = entries[system][-1].file.copy()
+                new = entries[system][-1].file.copy()
                 for file in file_key:
-                    previous.remove(file)
-                entries[system].append(Catalog.Entry(unix_time(timestamp), previous))
+                    new.remove(file)
+            elif mode == "replace":
+                new = entries[system][-1].file.copy()
+                if len(file_key) != 2:
+                    msg = f"Invalid number of elements in replace mode: {len(file_key)}"
+                    raise ValueError(msg)
+                new.remove(file_key[0])
+                new += [file_key[1]]
+                
             else:
                 msg = f"Unknown mode for {timestamp}"
                 raise ValueError(msg)
+        
+            if timestamp in [entry.valid_from for entry in entries[system]]:
+                msg = f"Duplicate timestamp: {timestamp}, use reset mode instead with a single entry"
+                raise ValueError(msg)
+            else:
+                entries[system].append(Catalog.Entry(unix_time(timestamp), new))
 
         for system in entries:
             entries[system] = sorted(

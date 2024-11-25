@@ -98,7 +98,7 @@ def test_access():
 def test_keys():
     jdb = TextDB(testdb, lazy=False)
     assert sorted(jdb.keys()) == ["arrays", "dir1", "dir2", "file1", "file2", "file3"]
-    assert sorted(jdb.dir1.keys()) == ["dir2", "file3", "file5", "file6"]
+    assert sorted(jdb.dir1.keys()) == ["dir2", "file3", "file5", "file6", "validity"]
 
     assert "arrays" in jdb
 
@@ -162,31 +162,34 @@ def test_scan():
 
 def test_time_validity():
     jdb = TextDB(testdb)
-    assert isinstance(jdb["dir1"].on("20220101T000001Z"), AttrsDict)
+    assert isinstance(jdb["dir1"].on("20230101T000001Z"), AttrsDict)
 
-    assert jdb["dir1"].on("20220101T000000Z")["data"] == 1
-    assert jdb.dir1.on("20220102T000000Z").data == 2
+    assert jdb["dir1"].on("20230101T000000Z")["data"] == 1
+    assert jdb.dir1.on("20230102T000000Z").data == 2
     # time point in between
-    assert jdb["dir1"].on("20220102T120000Z")["data"] == 1
+    assert jdb["dir1"].on("20230101T120000Z")["data"] == 1
     # time point after
-    assert jdb["dir1"].on("20220102T120000Z")["data"] == 2
+    assert jdb["dir1"].on("20230102T120000Z")["data"] == 2
     # time point before
     with pytest.raises(RuntimeError):
         jdb["dir1"].on("20210101T000000Z")["data"]
     # test remove functionality
-    assert jdb["dir1"].on("20220103T120000Z")["data"] == 1
+    assert jdb["dir1"].on("20230103T120000Z")["data"] == 1
     # test reset functionality
-    assert jdb["dir1"].on("20220104T120000Z")["data"] == 3
+    assert jdb["dir1"].on("20230104T120000Z")["data"] == 3
+    # test replace functionality
+    assert jdb["dir1"].on("20230105T120000Z")["data"] == 1
     # directory with no .yml
     with pytest.raises(RuntimeError):
-        jdb["dir1"]["dir2"].on("20220101T000001Z")
+        jdb["dir1"]["dir2"].on("20230101T000001Z")
+
 
     # invalid timestamp
     with pytest.raises(ValueError):
-        jdb.dir1.on("20220627T2335002Z")
+        jdb.dir1.on("20230627T2335002Z")
 
     # test usage of datetime object
-    tstamp = datetime(2022, 6, 28, 23, 35, 00, tzinfo=timezone.utc)
+    tstamp = datetime(2023, 6, 28, 23, 35, 00, tzinfo=timezone.utc)
     assert jdb.dir1.on(tstamp).data == 1
     assert jdb.dir1.on(tstamp, r"^file3.*", "all").data == 1
 
@@ -244,7 +247,7 @@ def test_merging():
     jdb = TextDB(testdb, lazy=False)
     j = jdb.dir1 | jdb.dir2
     assert isinstance(j, AttrsDict)
-    assert sorted(j.keys()) == ["dir2", "file3", "file5", "file7", "file8"]
+    assert sorted(j.keys()) == ["dir2", "file3", "file5", "file6", "file7", "file8", "validity"]
     assert hasattr(j, "dir2")
     assert hasattr(j, "file8")
 
