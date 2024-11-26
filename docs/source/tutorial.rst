@@ -38,7 +38,7 @@ Let's consider the following database:
     │   └── file1.json
     ├── file2.json
     ├── file3.yaml
-    └── validity.jsonl
+    └── validity.yaml
 
 With:
 
@@ -88,7 +88,7 @@ exposes the :meth:`~.textdb.textdb.on` interface to perform a query.
 Let's assume the ``legend-metadata`` directory from the example above contains
 the following file:
 
-.. code-block::
+.. code-block:: yaml
    :linenos:
    :caption: ``validity.yaml``
 
@@ -121,13 +121,6 @@ the following file:
       apply:
          - file2.yaml
          - file3.yaml
-
-Here the modes define how each block is applied to the database.
-Reset means that the database is reset to the files in the apply block.
-Append adds the apply files to the current state.
-Remove removes the apply files from the current state.
-Replace replaces the first apply file with the second apply file.
-
 
 From code, it's possible to obtain the metadata valid for a certain time point:
 
