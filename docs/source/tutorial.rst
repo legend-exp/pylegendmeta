@@ -38,7 +38,7 @@ Let's consider the following database:
     │   └── file1.json
     ├── file2.json
     ├── file3.yaml
-    └── validity.jsonl
+    └── validity.yaml
 
 With:
 
@@ -80,20 +80,47 @@ Metadata validity
 -----------------
 
 Mappings of metadata to time periods, data taking systems etc. are specified
-through JSONL files (`specification
+through YAML files (`specification
 <https://legend-exp.github.io/legend-data-format-specs/dev/metadata>`_).
-If a ``.jsonl`` file is present in a directory, ``TextDB``
+If a ``validity.yaml`` file is present in a directory, ``TextDB``
 exposes the :meth:`~.textdb.textdb.on` interface to perform a query.
 
 Let's assume the ``legend-metadata`` directory from the example above contains
 the following file:
 
-.. code-block::
+.. code-block:: yaml
    :linenos:
-   :caption: ``validity.jsonl``
+   :caption: ``validity.yaml``
 
-   {"valid_from": "20220628T000000Z", "select": "all", "apply": ["file2.json"]}
-   {"valid_from": "20220629T000000Z", "select": "all", "apply": ["file3.yaml"]}
+   - valid_from: 20230101T000000Z
+      category: all
+      apply:
+         - file3.yaml
+
+   - valid_from: 20230102T000000Z
+      category: all
+      mode: append
+      apply:
+         - file2.yaml
+
+   - valid_from: 20230103T000000Z
+      category: all
+      mode: remove
+      apply:
+         - file2.yaml
+
+   - valid_from: 20230104T000000Z
+      category: all
+      mode: reset
+      apply:
+         - file2.yaml
+
+   - valid_from: 20230105T000000Z
+      category: all
+      mode: replace
+      apply:
+         - file2.yaml
+         - file3.yaml
 
 From code, it's possible to obtain the metadata valid for a certain time point:
 

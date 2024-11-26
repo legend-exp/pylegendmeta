@@ -1,0 +1,29 @@
+- valid_from: 20230101T000000Z
+  category: all
+  apply:
+    - file3.yaml
+
+- valid_from: 20230102T000000Z
+  category: all
+  mode: append
+  apply:
+    - file5.yaml
+
+- valid_from: 20230103T000000Z
+  category: all
+  mode: remove
+  apply:
+    - file5.yaml
+
+- valid_from: 20230104T000000Z
+  category: all
+  mode: reset
+  apply:
+    - file6.yaml
+
+- valid_from: 20230105T000000Z
+  category: all
+  mode: replace
+  apply:
+    - file6.yaml
+    - file3.yaml

@@ -16,11 +16,12 @@
 from __future__ import annotations
 
 import argparse
-import json
 import re
 import sys
 from importlib import resources
 from pathlib import Path
+
+import yaml
 
 from . import utils
 from .textdb import TextDB
@@ -96,10 +97,11 @@ def validate_legend_channel_map() -> bool:
         db = TextDB(d)
         valid = True
 
-        with Path(f"{d}/validity.jsonl").open() as f:
-            for line in f.readlines():
-                ts = json.loads(line)["valid_from"]
-                sy = json.loads(line)["select"]
+        with Path(f"{d}/validity.yaml").open() as f:
+            validity = yaml.safe_load(f)
+            for line in validity():
+                ts = line["valid_from"]
+                sy = line["apply"]
                 chmap = db.on(ts, system=sy)
 
                 for k, v in chmap.items():

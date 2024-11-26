@@ -19,7 +19,7 @@ def test_props():
     # test subst_vars
     Props.subst_vars(test_dict, var_values={"_": str(Path(__file__).parent / "testdb")})
     assert test_dict["filepath"] == str(
-        Path(__file__).parent / "testdb/dir1/file3.json"
+        Path(__file__).parent / "testdb/dir1/file3.yaml"
     )
 
     test_dict2 = Props.read_from(str(Path(__file__).parent / "testdb/file3.json"))
@@ -43,7 +43,7 @@ def test_props():
     )
     assert test_dict["data"] == 3
     assert test_dict["filepath"] == str(
-        Path(__file__).parent / "testdb/dir1/file3.json"
+        Path(__file__).parent / "testdb/dir1/file3.yaml"
     )
     with pytest.raises(KeyError):
         test_dict["null_key"]
@@ -55,12 +55,12 @@ def test_access():
     assert isinstance(jdb["file2.yaml"], AttrsDict)
     assert isinstance(jdb["file1"], AttrsDict)
     assert isinstance(jdb["dir1"], TextDB)
-    assert isinstance(jdb["dir1"]["file3.json"], AttrsDict)
+    assert isinstance(jdb["dir1"]["file3.yaml"], AttrsDict)
     assert isinstance(jdb["dir1"]["file3"], AttrsDict)
-    assert isinstance(jdb["dir1/file3.json"], AttrsDict)
+    assert isinstance(jdb["dir1/file3.yaml"], AttrsDict)
     assert isinstance(jdb["dir1"]["dir2"], TextDB)
-    assert isinstance(jdb["dir1"]["dir2"]["file4.json"], AttrsDict)
-    assert isinstance(jdb["dir1/dir2/file4.json"], AttrsDict)
+    assert isinstance(jdb["dir1"]["dir2"]["file4.yaml"], AttrsDict)
+    assert isinstance(jdb["dir1/dir2/file4.yaml"], AttrsDict)
     assert jdb["file1.json"]["data"] == 1
     assert isinstance(jdb["file1"]["group"], AttrsDict)
 
@@ -82,7 +82,7 @@ def test_access():
     assert jdb.arrays[1].array[0] == 1
     assert jdb.arrays[1].array[1].data == 2
 
-    assert jdb.file2.filepath == str(Path(__file__).parent / "testdb/dir1/file3.json")
+    assert jdb.file2.filepath == str(Path(__file__).parent / "testdb/dir1/file3.yaml")
 
     with pytest.raises(ValueError):
         TextDB("non-existent-db")
@@ -98,7 +98,7 @@ def test_access():
 def test_keys():
     jdb = TextDB(testdb, lazy=False)
     assert sorted(jdb.keys()) == ["arrays", "dir1", "dir2", "file1", "file2", "file3"]
-    assert sorted(jdb.dir1.keys()) == ["dir2", "file3", "file5"]
+    assert sorted(jdb.dir1.keys()) == ["dir2", "file3", "file5", "file6", "validity"]
 
     assert "arrays" in jdb
 
@@ -162,28 +162,33 @@ def test_scan():
 
 def test_time_validity():
     jdb = TextDB(testdb)
-    assert isinstance(jdb["dir1"].on("20220628T221955Z"), AttrsDict)
+    assert isinstance(jdb["dir1"].on("20230101T000001Z"), AttrsDict)
 
-    assert jdb["dir1"].on("20220628T221955Z")["data"] == 1
-    assert jdb.dir1.on("20220629T221955Z").data == 2
+    assert jdb["dir1"].on("20230101T000000Z")["data"] == 1
+    assert jdb.dir1.on("20230102T000000Z").data == 2
     # time point in between
-    assert jdb["dir1"].on("20220628T233500Z")["data"] == 1
+    assert jdb["dir1"].on("20230101T120000Z")["data"] == 1
     # time point after
-    assert jdb["dir1"].on("20220630T233500Z")["data"] == 2
+    assert jdb["dir1"].on("20230102T120000Z")["data"] == 2
     # time point before
     with pytest.raises(RuntimeError):
-        jdb["dir1"].on("20220627T233500Z")["data"]
-
-    # directory with no .jsonl
+        jdb["dir1"].on("20210101T000000Z")["data"]
+    # test remove functionality
+    assert jdb["dir1"].on("20230103T120000Z")["data"] == 1
+    # test reset functionality
+    assert jdb["dir1"].on("20230104T120000Z")["data"] == 3
+    # test replace functionality
+    assert jdb["dir1"].on("20230105T120000Z")["data"] == 1
+    # directory with no .yml
     with pytest.raises(RuntimeError):
-        jdb["dir1"]["dir2"].on("20220627T233500Z")
+        jdb["dir1"]["dir2"].on("20230101T000001Z")
 
     # invalid timestamp
     with pytest.raises(ValueError):
-        jdb.dir1.on("20220627T2335002Z")
+        jdb.dir1.on("20230627T2335002Z")
 
     # test usage of datetime object
-    tstamp = datetime(2022, 6, 28, 23, 35, 00, tzinfo=timezone.utc)
+    tstamp = datetime(2023, 6, 28, 23, 35, 00, tzinfo=timezone.utc)
     assert jdb.dir1.on(tstamp).data == 1
     assert jdb.dir1.on(tstamp, r"^file3.*", "all").data == 1
 
@@ -241,7 +246,15 @@ def test_merging():
     jdb = TextDB(testdb, lazy=False)
     j = jdb.dir1 | jdb.dir2
     assert isinstance(j, AttrsDict)
-    assert sorted(j.keys()) == ["dir2", "file3", "file5", "file7", "file8"]
+    assert sorted(j.keys()) == [
+        "dir2",
+        "file3",
+        "file5",
+        "file6",
+        "file7",
+        "file8",
+        "validity",
+    ]
     assert hasattr(j, "dir2")
     assert hasattr(j, "file8")
 
