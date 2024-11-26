@@ -183,7 +183,6 @@ def test_time_validity():
     with pytest.raises(RuntimeError):
         jdb["dir1"]["dir2"].on("20230101T000001Z")
 
-
     # invalid timestamp
     with pytest.raises(ValueError):
         jdb.dir1.on("20230627T2335002Z")
@@ -247,7 +246,15 @@ def test_merging():
     jdb = TextDB(testdb, lazy=False)
     j = jdb.dir1 | jdb.dir2
     assert isinstance(j, AttrsDict)
-    assert sorted(j.keys()) == ["dir2", "file3", "file5", "file6", "file7", "file8", "validity"]
+    assert sorted(j.keys()) == [
+        "dir2",
+        "file3",
+        "file5",
+        "file6",
+        "file7",
+        "file8",
+        "validity",
+    ]
     assert hasattr(j, "dir2")
     assert hasattr(j, "file8")
 

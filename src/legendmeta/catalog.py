@@ -34,6 +34,7 @@ def to_datetime(value):
 
 
 def unix_time(value):
+    """Convert a LEGEND timestamp or datetime object to Unix time value"""
     if isinstance(value, str):
         return datetime.timestamp(datetime.strptime(value, "%Y%m%dT%H%M%SZ"))
 
@@ -45,6 +46,8 @@ def unix_time(value):
 
 
 class PropsStream:
+    """Simple class to control loading of validity.yaml files"""
+
     @staticmethod
     def get(value):
         if isinstance(value, str):
@@ -85,6 +88,7 @@ class Catalog(namedtuple("Catalog", ["entries"])):
 
     @staticmethod
     def read_from(file_name):
+        """Read from a valdiity YAML file and build a Catalog object"""
         entries = {}
         for props in PropsStream.get(file_name):
             timestamp = props["valid_from"]
@@ -109,16 +113,15 @@ class Catalog(namedtuple("Catalog", ["entries"])):
                     raise ValueError(msg)
                 new.remove(file_key[0])
                 new += [file_key[1]]
-                
+
             else:
                 msg = f"Unknown mode for {timestamp}"
                 raise ValueError(msg)
-        
+
             if timestamp in [entry.valid_from for entry in entries[system]]:
                 msg = f"Duplicate timestamp: {timestamp}, use reset mode instead with a single entry"
                 raise ValueError(msg)
-            else:
-                entries[system].append(Catalog.Entry(unix_time(timestamp), new))
+            entries[system].append(Catalog.Entry(unix_time(timestamp), new))
 
         for system in entries:
             entries[system] = sorted(
@@ -127,6 +130,7 @@ class Catalog(namedtuple("Catalog", ["entries"])):
         return Catalog(entries)
 
     def valid_for(self, timestamp, system="all", allow_none=False):
+        """Get the valid entries for a given timestamp and system"""
         if system in self.entries:
             valid_from = [entry.valid_from for entry in self.entries[system]]
             pos = bisect.bisect_right(valid_from, unix_time(timestamp))
@@ -153,11 +157,14 @@ class Catalog(namedtuple("Catalog", ["entries"])):
 
     @staticmethod
     def get_files(catalog_file, timestamp, category="all"):
+        """Helper function to get the files for a given timestamp and category"""
         catalog = Catalog.read_from(catalog_file)
         return Catalog.valid_for(catalog, timestamp, category)
 
 
 class Props:
+    """Class to handle overwriting of dictionaries in cascade order"""
+
     @staticmethod
     def read_from(sources, subst_pathvar=False, trim_null=False):
         def read_impl(sources):
