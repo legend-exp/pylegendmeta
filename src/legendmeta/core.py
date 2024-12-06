@@ -148,7 +148,7 @@ class LegendMetadata(TextDB):
         )
 
         # get analysis metadata
-        anamap = self.dataprod.config.on(on, pattern=None, system=system).analysis
+        anamap = self.datasets.statuses.on(on, pattern=None, system=system)
 
         # get full detector db
         detdb = self.hardware.detectors
