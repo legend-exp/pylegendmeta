@@ -431,7 +431,7 @@ class TextDB:
                 Props.add_to(result, db_ptr[next(iter(fp))])
             db_ptr = result
         else:
-            fp = self.__path__.rglob(file)
+            fp = self.__path__.rglob(files)
             db_ptr = db_ptr[next(iter(fp))]
         Props.subst_vars(db_ptr, var_values={"_": self.__path__})
         return db_ptr
