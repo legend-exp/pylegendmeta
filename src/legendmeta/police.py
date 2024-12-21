@@ -22,9 +22,9 @@ from importlib import resources
 from pathlib import Path
 
 import yaml
+from dbetto import TextDB
 
 from . import utils
-from .textdb import TextDB
 
 templates = resources.files("legendmeta") / "templates"
 

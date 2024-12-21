@@ -22,9 +22,8 @@ from getpass import getuser
 from pathlib import Path
 from tempfile import gettempdir
 
+from dbetto import AttrsDict, TextDB
 from git import GitCommandError, InvalidGitRepositoryError, Repo
-
-from .textdb import AttrsDict, TextDB
 
 log = logging.getLogger(__name__)
 

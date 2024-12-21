@@ -14,7 +14,7 @@ pytestmark = pytest.mark.xfail(run=True, reason="requires access to legend-metad
 @pytest.fixture(scope="module")
 def metadb():
     mdata = LegendMetadata()
-    mdata.checkout("98c00f0")
+    mdata.checkout("refactor")
     return mdata
 
 
