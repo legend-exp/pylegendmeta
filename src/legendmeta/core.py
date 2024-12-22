@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from datetime import datetime
 from getpass import getuser
 from pathlib import Path
@@ -24,6 +25,7 @@ from tempfile import gettempdir
 
 from dbetto import AttrsDict, TextDB
 from git import GitCommandError, InvalidGitRepositoryError, Repo
+from packaging.version import Version
 
 log = logging.getLogger(__name__)
 
@@ -33,6 +35,10 @@ class LegendMetadata(TextDB):
 
     Class representing the LEGEND metadata repository with utilities for fast
     access.
+
+    If no valid path to an existing legend-metadata directory is provided, will
+    attempt to clone https://github.com/legend-exp/legend-metadata via SSH and
+    git-checkout the latest stable tag (vM.m.p format).
 
     Parameters
     ----------
@@ -45,61 +51,89 @@ class LegendMetadata(TextDB):
     """
 
     def __init__(self, path: str | None = None, **kwargs) -> None:
-        self._default_git_ref = "main"
-
         if isinstance(path, str):
-            self._repo_path = path
+            self.__repo_path__ = path
         else:
-            self._repo_path = os.getenv(
+            self.__repo_path__ = os.getenv(
                 "LEGEND_METADATA",
                 str(Path(gettempdir()) / ("legend-metadata-" + getuser())),
             )
 
-        self._repo: Repo = self._init_metadata_repo()
+        # self.__repo__: Repo =
+        self._init_metadata_repo()
 
-        super().__init__(self._repo_path, **kwargs)
+        super().__init__(self.__repo_path__, **kwargs)
 
-    def _init_metadata_repo(self):
-        """Clone legend-metadata, if not existing, and checkout default Git ref."""
-        exp_path = os.path.expandvars(self._repo_path)
-        while self._repo_path != exp_path:
-            self._repo_path = exp_path
-            exp_path = os.path.expandvars(self._repo_path)
+    def _init_metadata_repo(self) -> None:
+        """Clone legend-metadata, if not existing, and checkout latest stable tag."""
+        exp_path = os.path.expandvars(self.__repo_path__)
+        while self.__repo_path__ != exp_path:
+            self.__repo_path__ = exp_path
+            exp_path = os.path.expandvars(self.__repo_path__)
 
-        if not Path(self._repo_path).exists():
-            Path(self._repo_path).mkdir()
+        if not Path(self.__repo_path__).exists():
+            msg = f"mkdir {self.__repo_path__}"
+            log.debug(msg)
+            Path(self.__repo_path__).mkdir()
 
-        repo = None
         try:
-            repo = Repo(self._repo_path)
+            msg = f"trying to load Git repo in {self.__repo_path__}"
+            log.debug(msg)
+            self.__repo__ = Repo(self.__repo_path__)
+
         except InvalidGitRepositoryError:
-            msg = f"Cloning git@github.com:legend-exp/legend-metadata in {self._repo_path}..."
+            msg = f"Cloning git@github.com:legend-exp/legend-metadata in {self.__repo_path__}..."
             # set logging level as warning (default logging level), so it's
             # always printed and the user knows why it takes so long to initialize
             log.warning(msg)
 
-            repo = Repo.clone_from(
+            self.__repo__ = Repo.clone_from(
                 "git@github.com:legend-exp/legend-metadata",
-                self._repo_path,
+                self.__repo_path__,
                 multi_options=["--recurse-submodules"],
             )
-            repo.git.checkout(self._default_git_ref)
 
-        return repo
+            # checkout legend-metadata at its latest stable tag
+            if self.latest_stable_tag is not None:
+                msg = (
+                    f"Checking out the latest stable tag ({self.latest_stable_tag})..."
+                )
+                log.warning(msg)
+
+                self.checkout(self.latest_stable_tag)
+            else:
+                msg = "No stable tags found, checking out the default branch"
+                log.warning(msg)
+
+    @property
+    def latest_stable_tag(self) -> str | None:
+        """Latest stable legend-metadata tag (i.e. strictly numeric vM.m.p)"""
+        tag_list = [tag.name for tag in self.__repo__.tags]
+
+        version_regex = re.compile(r"^v\d+\.\d+\.\d+$")
+        version_tags = [t for t in tag_list if version_regex.match(t)]
+
+        if not version_tags:
+            log.warning(
+                "No valid version tags (vM.m.p) found in this repository, "
+                "defaulting to the current Git ref."
+            )
+            return None
+
+        # drop the leading 'v'
+        version_tags.sort(key=lambda t: Version(t[1:]))
+
+        return version_tags[-1]
 
     def checkout(self, git_ref: str) -> None:
         """Select a legend-metadata version."""
         try:
-            self._repo.git.checkout(git_ref)
-            self._repo.git.submodule("update", "--init")
+            self.__repo__.git.checkout(git_ref)
+            self.__repo__.git.submodule("update", "--init")
         except GitCommandError:
-            self._repo.remote().pull()
-            self._repo.git.checkout(git_ref)
-            self._repo.git.submodule("update", "--init")
-
-    def reset(self) -> None:
-        """Checkout legend-metadata to the default Git ref."""
-        self._repo.git.checkout(self._default_git_ref)
+            self.__repo__.remote().pull()
+            self.__repo__.git.checkout(git_ref)
+            self.__repo__.git.submodule("update", "--init")
 
     def channelmap(
         self, on: str | datetime | None = None, system: str = "all"

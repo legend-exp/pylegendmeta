@@ -13,9 +13,16 @@ pytestmark = pytest.mark.xfail(run=True, reason="requires access to legend-metad
 
 @pytest.fixture(scope="module")
 def metadb():
-    mdata = LegendMetadata()
+    mdata = LegendMetadata(lazy=True)
     mdata.checkout("refactor")
     return mdata
+
+
+def test_checkout(metadb):
+    metadb.checkout("v0.5.6")
+    metadb.checkout("v0.5.7")
+    metadb.checkout("main")
+    metadb.checkout("1c36c84b")
 
 
 def test_get_file(metadb):
@@ -46,6 +53,7 @@ def test_nested_get(metadb):
 
 
 def test_chmap_remapping(metadb):
+    metadb.scan()
     assert (
         "daq"
         in metadb.hardware.configuration.channelmaps.on(datetime.now()).map(
