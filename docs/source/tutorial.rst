@@ -17,9 +17,10 @@ temporary (i.e. not preserved across system reboots) directory.
    it or, alternatively, as an argument to the :class:`~.core.LegendMetadata`
    constructor. Recommended if a custom legend-metadata_ is needed.
 
-:class:`~.core.LegendMetadata` is a :class:`~.textdb.TextDB` object, which
-implements an interface to a database of text files arbitrary scattered in a
-filesystem. ``TextDB`` does not assume any directory structure or file naming.
+:class:`~.core.LegendMetadata` is a :class:`dbetto.TextDB` object, provided by
+the :mod:`dbetto` package, which implements an interface to a database of text
+files arbitrary scattered in a filesystem. :class:`~dbetto.TextDB` does not
+assume any directory structure or file naming.
 
 .. note::
 
@@ -151,7 +152,7 @@ channel map:
 Remapping and grouping metadata
 -------------------------------
 
-A second important method of ``TextDB`` is :meth:`.TextDB.map`, which allows to
+A second important method of ``TextDB`` is :meth:`dbetto.TextDB.map`, which allows to
 query ``(key, value)`` dictionaries with an alternative unique key defined in
 ``value``. A typical application is querying parameters in a channel map
 corresponding to a certain DAQ channel:
@@ -167,10 +168,10 @@ corresponding to a certain DAQ channel:
  ...
 
 If the requested key is not unique, an exception will be raised.
-:meth:`.TextDB.map` can, however, handle non-unique keys too and return a
+:meth:`dbetto.TextDB.map` can, however, handle non-unique keys too and return a
 dictionary of matching entries instead, keyed by an arbitrary integer to allow
-further :meth:`.TextDB.map` calls. The behavior is achieved by using
-:meth:`.TextDB.group` or by setting the ``unique`` argument flag. A typical
+further :meth:`dbetto.TextDB.map` calls. The behavior is achieved by using
+:meth:`dbetto.TextDB.group` or by setting the ``unique`` argument flag. A typical
 application is retrieving all channels attached to the same CC4:
 
 >>> chmap = lmeta.hardware.configuration.channelmaps.on(datetime.now())
@@ -182,7 +183,7 @@ application is retrieving all channels attached to the same CC4:
    'card': {'id': 1, 'address': '0x410', 'serialno': None},
    'channel': 0,
 
-For further details, have a look at the documentation for :meth:`.AttrsDict.map`.
+For further details, have a look at the documentation for :meth:`dbetto.AttrsDict.map`.
 
 LEGEND channel maps
 -------------------
@@ -198,8 +199,8 @@ obtain channel-relevant metadata (hardware, analysis, etc.) in time:
 >>> myicpc.analysis.usability  # analysis info
 'on'
 
-Since :meth:`~.core.LegendMetadata.channelmap` returns an :class:`~.AttrsDict`,
-other useful operations like :meth:`~.AttrsDict.map` can be applied.
+Since :meth:`~.core.LegendMetadata.channelmap` returns an :class:`~dbetto.AttrsDict`,
+other useful operations like :meth:`~dbetto.AttrsDict.map` can be applied.
 
 Slow Control interface
 ----------------------
