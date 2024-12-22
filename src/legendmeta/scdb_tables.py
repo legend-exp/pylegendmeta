@@ -21,9 +21,8 @@ from dataclasses import dataclass
 from datetime import datetime
 
 import sqlalchemy as db
+from dbetto import AttrsDict
 from sqlalchemy.orm import DeclarativeBase, Mapped
-
-from .textdb import AttrsDict
 
 
 class Base(DeclarativeBase):

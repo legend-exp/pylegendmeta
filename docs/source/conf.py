@@ -55,6 +55,7 @@ intersphinx_mapping = {
     "matplotlib": ("https://matplotlib.org/stable", None),
     "sqlalchemy": ("https://docs.sqlalchemy.org", None),
     "pygama": ("https://pygama.readthedocs.io/en/stable", None),
+    "dbetto": ("https://dbetto.readthedocs.io/en/stable", None),
 }  # add new intersphinx mappings here
 
 # sphinx-autodoc

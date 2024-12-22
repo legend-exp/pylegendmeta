@@ -17,8 +17,9 @@
 
 from __future__ import annotations
 
+from dbetto import str_to_datetime as to_datetime
+
 from ._version import version as __version__
-from .catalog import to_datetime
 from .core import LegendMetadata
 from .slowcontrol import LegendSlowControlDB
 from .textdb import AttrsDict, JsonDB, TextDB

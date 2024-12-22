@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 
+import dbetto
 import pytest
 
 from legendmeta import AttrsDict, TextDB
@@ -51,23 +52,23 @@ def test_props():
 
 def test_access():
     jdb = TextDB(testdb)
-    assert isinstance(jdb["file1.json"], AttrsDict)
-    assert isinstance(jdb["file2.yaml"], AttrsDict)
-    assert isinstance(jdb["file1"], AttrsDict)
-    assert isinstance(jdb["dir1"], TextDB)
-    assert isinstance(jdb["dir1"]["file3.yaml"], AttrsDict)
-    assert isinstance(jdb["dir1"]["file3"], AttrsDict)
-    assert isinstance(jdb["dir1/file3.yaml"], AttrsDict)
-    assert isinstance(jdb["dir1"]["dir2"], TextDB)
-    assert isinstance(jdb["dir1"]["dir2"]["file4.yaml"], AttrsDict)
-    assert isinstance(jdb["dir1/dir2/file4.yaml"], AttrsDict)
+    assert isinstance(jdb["file1.json"], dbetto.AttrsDict)
+    assert isinstance(jdb["file2.yaml"], dbetto.AttrsDict)
+    assert isinstance(jdb["file1"], dbetto.AttrsDict)
+    assert isinstance(jdb["dir1"], dbetto.TextDB)
+    assert isinstance(jdb["dir1"]["file3.yaml"], dbetto.AttrsDict)
+    assert isinstance(jdb["dir1"]["file3"], dbetto.AttrsDict)
+    assert isinstance(jdb["dir1/file3.yaml"], dbetto.AttrsDict)
+    assert isinstance(jdb["dir1"]["dir2"], dbetto.TextDB)
+    assert isinstance(jdb["dir1"]["dir2"]["file4.yaml"], dbetto.AttrsDict)
+    assert isinstance(jdb["dir1/dir2/file4.yaml"], dbetto.AttrsDict)
     assert jdb["file1.json"]["data"] == 1
-    assert isinstance(jdb["file1"]["group"], AttrsDict)
+    assert isinstance(jdb["file1"]["group"], dbetto.AttrsDict)
 
-    assert isinstance(jdb.file1, AttrsDict)
-    assert isinstance(jdb.file1.group, AttrsDict)
-    assert isinstance(jdb.dir1, TextDB)
-    assert isinstance(jdb.dir1.file3, AttrsDict)
+    assert isinstance(jdb.file1, dbetto.AttrsDict)
+    assert isinstance(jdb.file1.group, dbetto.AttrsDict)
+    assert isinstance(jdb.dir1, dbetto.TextDB)
+    assert isinstance(jdb.dir1.file3, dbetto.AttrsDict)
     assert jdb.file1.data == 1
     assert jdb.file2.data == 2
     assert jdb.dir1.file3.data == 1
@@ -75,10 +76,10 @@ def test_access():
 
     assert isinstance(jdb.arrays, list)
     assert jdb.arrays[0] == 0
-    assert isinstance(jdb.arrays[1], AttrsDict)
+    assert isinstance(jdb.arrays[1], dbetto.AttrsDict)
     assert jdb.arrays[1].data == 1
     assert isinstance(jdb.arrays[1].array, list)
-    assert isinstance(jdb.arrays[1].array[1], AttrsDict)
+    assert isinstance(jdb.arrays[1].array[1], dbetto.AttrsDict)
     assert jdb.arrays[1].array[0] == 1
     assert jdb.arrays[1].array[1].data == 2
 
@@ -109,9 +110,9 @@ def test_items():
     assert items[0][0] == "arrays"
     assert isinstance(items[0][1], list)
     assert items[1][0] == "dir1"
-    assert isinstance(items[1][1], TextDB)
+    assert isinstance(items[1][1], dbetto.TextDB)
     assert items[3][0] == "file1"
-    assert isinstance(items[3][1], AttrsDict)
+    assert isinstance(items[3][1], dbetto.AttrsDict)
 
 
 def test_scan():
@@ -162,7 +163,7 @@ def test_scan():
 
 def test_time_validity():
     jdb = TextDB(testdb)
-    assert isinstance(jdb["dir1"].on("20230101T000001Z"), AttrsDict)
+    assert isinstance(jdb["dir1"].on("20230101T000001Z"), dbetto.AttrsDict)
 
     assert jdb["dir1"].on("20230101T000000Z")["data"] == 1
     assert jdb.dir1.on("20230102T000000Z").data == 2
@@ -199,10 +200,10 @@ def test_time_validity():
 def test_mapping():
     jdb = TextDB(testdb)
 
-    assert isinstance(jdb.map("label"), AttrsDict)
+    assert isinstance(jdb.map("label"), dbetto.AttrsDict)
     assert jdb.map("label")[3].data == 2
     assert jdb.map("key.label")[3].data == 2
-    assert isinstance(jdb.file1.group.map("label"), AttrsDict)
+    assert isinstance(jdb.file1.group.map("label"), dbetto.AttrsDict)
     assert jdb.file1.group.map("label")["a"].data == 1
     assert jdb.file1.group.map("label")["b"].data == 2
 
@@ -232,12 +233,12 @@ def test_merging():
     d = AttrsDict({"a": 1})
     d |= {"b": 2}
     assert d == {"a": 1, "b": 2}
-    assert isinstance(d, AttrsDict)
+    assert isinstance(d, dbetto.AttrsDict)
     assert hasattr(d, "a")
     assert hasattr(d, "b")
 
     d2 = d | {"c": 3}
-    assert isinstance(d2, AttrsDict)
+    assert isinstance(d2, dbetto.AttrsDict)
     assert d2 == {"a": 1, "b": 2, "c": 3}
     assert hasattr(d2, "a")
     assert hasattr(d2, "b")
@@ -245,7 +246,7 @@ def test_merging():
 
     jdb = TextDB(testdb, lazy=False)
     j = jdb.dir1 | jdb.dir2
-    assert isinstance(j, AttrsDict)
+    assert isinstance(j, dbetto.AttrsDict)
     assert sorted(j.keys()) == [
         "dir2",
         "file3",

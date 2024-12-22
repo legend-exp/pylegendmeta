@@ -21,8 +21,8 @@ from datetime import datetime
 
 import pandas as pd
 import sqlalchemy as db
+from dbetto import AttrsDict
 
-from .core import AttrsDict
 from .scdb_tables import (
     DiodeConfMon,
     DiodeInfo,
