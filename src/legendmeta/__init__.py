@@ -25,11 +25,11 @@ from .slowcontrol import LegendSlowControlDB
 from .textdb import AttrsDict, JsonDB, TextDB
 
 __all__ = [
-    "__version__",
+    "AttrsDict",
+    "JsonDB",
     "LegendMetadata",
     "LegendSlowControlDB",
-    "JsonDB",
     "TextDB",
-    "AttrsDict",
+    "__version__",
     "to_datetime",
 ]
