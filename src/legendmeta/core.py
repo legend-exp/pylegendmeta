@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from datetime import datetime
 from getpass import getuser
 from pathlib import Path
@@ -116,7 +117,8 @@ class LegendMetadata(TextDB):
         ----------
         on
             a :class:`~datetime.datetime` object or a string matching the
-            pattern ``YYYYmmddTHHMMSSZ``.
+            pattern ``YYYYmmddTHHMMSSZ``, or ``p# r#``, which are period and
+            run numbers.
         system: 'all', 'phy', 'cal', 'lar', ...
             query only a data taking "system". If on is None, default to
             'all', otherwise this must be provided
@@ -139,6 +141,8 @@ class LegendMetadata(TextDB):
 
         >>> channel = lmeta.channelmap(on=datetime.now(), system='cal').V05267B
 
+        >>> channel = lmeta.channelmap('p08 r005', system='cal').V05267B
+
         See Also
         --------
         .textdb.TextDB.on
@@ -152,6 +156,16 @@ class LegendMetadata(TextDB):
             msg = "System cannot be None. Provide a value (e.g. 'all', 'cal', 'phy', etc.)"
             raise ValueError(msg)
 
+        try:
+            pd, run = re.fullmatch("([pP][0-9]+)\\s*([rR][0-9]+)", on).group(1, 2)
+            runinfo = self.dataprod.runinfo[pd][run]
+            if system == "all":
+                on = list(runinfo.values())[0].start_key
+            else:
+                on = runinfo[system].start_key
+        except (AttributeError, TypeError):
+            # on is not a period/run
+            pass
 
         chmap = self.hardware.configuration.channelmaps.on(
             on, pattern=None, system=system
