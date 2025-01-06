@@ -103,7 +103,7 @@ class LegendMetadata(TextDB):
         self._repo.git.checkout(self._default_git_ref)
 
     def channelmap(
-        self, on: str | datetime | None = None, system: str = "all"
+        self, on: str | datetime | None = None, system: str | None = None
     ) -> AttrsDict:
         """Get a LEGEND channel map.
 
@@ -118,7 +118,8 @@ class LegendMetadata(TextDB):
             a :class:`~datetime.datetime` object or a string matching the
             pattern ``YYYYmmddTHHMMSSZ``.
         system: 'all', 'phy', 'cal', 'lar', ...
-            query only a data taking "system".
+            query only a data taking "system". If on is None, default to
+            'all', otherwise this must be provided
 
         Warning
         -------
@@ -136,12 +137,21 @@ class LegendMetadata(TextDB):
         >>> channel.analysis.usability
         'on'
 
+        >>> channel = lmeta.channelmap(on=datetime.now(), system='cal').V05267B
+
         See Also
         --------
         .textdb.TextDB.on
         """
         if on is None:
             on = datetime.now()
+            if system is None:
+                system = "all"
+
+        if system is None:
+            msg = "System cannot be None. Provide a value (e.g. 'all', 'cal', 'phy', etc.)"
+            raise ValueError(msg)
+
 
         chmap = self.hardware.configuration.channelmaps.on(
             on, pattern=None, system=system
