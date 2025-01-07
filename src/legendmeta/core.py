@@ -155,8 +155,8 @@ class LegendMetadata(TextDB):
         if system is None:
             msg = "Use of channelmap with an on arg but no system arg is deprecated and will raise an error in the future. Provide a value (e.g. 'all', 'cal', 'phy', etc.)"
             log.warning(msg)
-            #msg = "System cannot be None. Provide a value (e.g. 'all', 'cal', 'phy', etc.)"
-            #raise ValueError(msg)
+            # msg = "System cannot be None. Provide a value (e.g. 'all', 'cal', 'phy', etc.)"
+            # raise ValueError(msg)
 
         try:
             pd, run = re.fullmatch("([pP][0-9]+)\\s*([rR][0-9]+)", on).group(1, 2)
