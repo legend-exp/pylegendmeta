@@ -162,7 +162,7 @@ class LegendMetadata(TextDB):
             pd, run = re.fullmatch("([pP][0-9]+)\\s*([rR][0-9]+)", on).group(1, 2)
             runinfo = self.dataprod.runinfo[pd][run]
             if system == "all":
-                on = list(runinfo.values())[0].start_key
+                on = next(iter(runinfo.values())).start_key
             else:
                 on = runinfo[system].start_key
         except (AttributeError, TypeError):
