@@ -25,6 +25,10 @@ def test_checkout(metadb):
     metadb.checkout("1c36c84b")
 
 
+def test_get_version(metadb):
+    metadb.meta_version_info(verbosity=0)
+
+
 def test_get_file(metadb):
     assert metadb["hardware/detectors/germanium/diodes/B00000A.json"]
 

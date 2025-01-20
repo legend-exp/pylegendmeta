@@ -143,15 +143,15 @@ class LegendMetadata(TextDB):
             if verbosity >= 1:
                 msg += f"\n{commit.message}\n"
             msg += "\n----------------\n"
-            log.info(msg)
+            print(msg)  # noqa: T201
 
         else:
             gitlog = modu.head.log()[0]
             tstamp = datetime.fromtimestamp(gitlog.time[0])
             msg = f'located at : {modu.working_dir}, \nlatest commit is: {gitlog.newhexsha[:7]}, on: {tstamp.strftime("%Y/%m/%d")}'
-            log.info(msg)
+            print(msg)  # noqa: T201
 
-    def versions(self, verbosity=0) -> None:
+    def meta_version_info(self, verbosity=0) -> None:
         """
         Logs commit and time of the latest commit for the legend-metadata repository and all its submodules.
         """
