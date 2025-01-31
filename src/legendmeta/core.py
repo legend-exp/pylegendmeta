@@ -54,9 +54,11 @@ class LegendMetadata(TextDB):
         if isinstance(path, str):
             self.__repo_path__ = path
         else:
-            self.__repo_path__ = os.getenv(
-                "LEGEND_METADATA",
-                str(Path(gettempdir()) / ("legend-metadata-" + getuser())),
+            self.__repo_path__ = os.getenv("LEGEND_METADATA", "")
+
+        if self.__repo_path__ == "":
+            self.__repo_path__ = str(
+                Path(gettempdir()) / ("legend-metadata-" + getuser())
             )
 
         # self.__repo__: Repo =
