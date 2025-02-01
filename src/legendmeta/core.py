@@ -137,6 +137,20 @@ class LegendMetadata(TextDB):
             self.__repo__.git.checkout(git_ref)
             self.__repo__.git.submodule("update", "--init")
 
+    def metadata_version(self) -> None:
+        """Logs version info for legend-metadata repository and all its submodules."""
+
+        print(  # noqa: T201
+            f"{self.__repo__.working_dir}:",
+            self.__repo__.git.describe("--tags", "--always"),
+        )
+
+        submods = self.__repo__.submodules
+        for i, s in enumerate(submods):
+            char = "└──" if i == len(submods) - 1 else "├──"
+            version = s.module().git.describe("--tags", "--always")
+            print(f"{char} {s.name}: {version}")  # noqa: T201
+
     def channelmap(
         self, on: str | datetime | None = None, system: str = "all"
     ) -> AttrsDict:
