@@ -26,7 +26,7 @@ def test_checkout(metadb):
 
 
 def test_get_version(metadb):
-    metadb.meta_version_info(verbosity=0)
+    metadb.metadata_version()
 
 
 def test_get_file(metadb):

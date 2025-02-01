@@ -135,31 +135,19 @@ class LegendMetadata(TextDB):
             self.__repo__.git.checkout(git_ref)
             self.__repo__.git.submodule("update", "--init")
 
-    def _log_versions(self, modu, verbosity=0) -> None:
-        if modu.head.is_detached is False:
-            commit = modu.head.commit
-            msg = f'{next(modu.remote().urls).split("/")[-1]}'
-            msg += f'\nlocated at : {modu.working_dir}, \nlatest commit is: {commit.hexsha[:7]}, on: {commit.committed_datetime.strftime("%Y/%m/%d")}'
-            if verbosity >= 1:
-                msg += f"\n{commit.message}\n"
-            msg += "\n----------------\n"
-            print(msg)  # noqa: T201
+    def metadata_version(self) -> None:
+        """Logs version info for legend-metadata repository and all its submodules."""
 
-        else:
-            gitlog = modu.head.log()[0]
-            tstamp = datetime.fromtimestamp(gitlog.time[0])
-            msg = f'located at : {modu.working_dir}, \nlatest commit is: {gitlog.newhexsha[:7]}, on: {tstamp.strftime("%Y/%m/%d")}'
-            print(msg)  # noqa: T201
+        print(  # noqa: T201
+            f"{self.__repo__.working_dir}:",
+            self.__repo__.git.describe("--tags", "--always"),
+        )
 
-    def meta_version_info(self, verbosity=0) -> None:
-        """
-        Logs commit and time of the latest commit for the legend-metadata repository and all its submodules.
-        """
-        self._log_versions(self.__repo__, verbosity)
-
-        for s in self.__repo__.submodules:
-            mod = s.module()
-            self._log_versions(mod, verbosity)
+        submods = self.__repo__.submodules
+        for i, s in enumerate(submods):
+            char = "└──" if i == len(submods) - 1 else "├──"
+            version = s.module().git.describe("--tags", "--always")
+            print(f"{char} {s.name}: {version}")  # noqa: T201
 
     def channelmap(
         self, on: str | datetime | None = None, system: str = "all"
