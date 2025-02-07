@@ -137,6 +137,9 @@ class LegendMetadata(TextDB):
             self.__repo__.git.checkout(git_ref)
             self.__repo__.git.submodule("update", "--init")
 
+        # now reset this TextDB instance
+        super().reset()
+
     def metadata_version(self) -> None:
         """Logs version info for legend-metadata repository and all its submodules."""
 
