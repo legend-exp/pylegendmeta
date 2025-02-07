@@ -3,15 +3,17 @@ from __future__ import annotations
 from datetime import datetime
 
 import pytest
+from dbetto import AttrsDict, TextDB
 from git import GitCommandError
 
 from legendmeta import LegendMetadata
-from legendmeta.textdb import AttrsDict
 
 pytestmark = pytest.mark.xfail(run=True, reason="requires access to legend-metadata")
 
+date = datetime(2024, 7, 1)
 
-@pytest.fixture(scope="module")
+
+@pytest.fixture
 def metadb():
     mdata = LegendMetadata(lazy=True)
     mdata.checkout("refactor")
@@ -24,23 +26,31 @@ def test_checkout(metadb):
     metadb.checkout("main")
     metadb.checkout("1c36c84b")
 
+    assert isinstance(metadb.hardware, TextDB)
+    assert list(metadb.keys()) == ["hardware"]
+
+    metadb.checkout("main")
+    assert list(metadb.keys()) == []
+
 
 def test_get_version(metadb):
     metadb.metadata_version()
 
 
 def test_get_file(metadb):
-    assert metadb["hardware/detectors/germanium/diodes/B00000A.json"]
+    assert isinstance(
+        metadb["hardware/detectors/germanium/diodes/B00000A.json"], AttrsDict
+    )
 
 
 def test_get_directory(metadb):
-    assert metadb["hardware"]
-    assert metadb.hardware
+    assert isinstance(metadb["hardware"], TextDB)
+    assert isinstance(metadb.hardware, TextDB)
 
 
 def test_file_not_found(metadb):
     with pytest.raises(FileNotFoundError):
-        assert metadb["non-existing-file.ext"]
+        metadb["non-existing-file.ext"]
 
 
 def test_git_ref_not_found(metadb):
@@ -58,22 +68,24 @@ def test_nested_get(metadb):
 
 def test_chmap_remapping(metadb):
     metadb.scan()
+    print(metadb.hardware.configuration.channelmaps.on(date).map("daq.rawid").keys())
     assert (
         "daq"
-        in metadb.hardware.configuration.channelmaps.on(datetime.now()).map(
-            "daq.rawid"
-        )[1080000]
+        in metadb.hardware.configuration.channelmaps.on(date).map("daq.rawid")[1027200]
     )
 
-    assert "daq" in metadb.channelmap().map("daq.rawid")[1080000]
+    assert "daq" in metadb.channelmap().map("daq.rawid")[1027200]
 
 
 def test_channelmap(metadb):
-    channel = metadb.channelmap(on=datetime.now()).V02162B
+    metadb.scan()
+    assert isinstance(metadb, LegendMetadata)
+    assert isinstance(metadb.channelmap(date), AttrsDict)
+    channel = metadb.channelmap(on=date).V02160A
     assert isinstance(channel, AttrsDict)
     assert "geometry" in channel
     assert hasattr(channel, "geometry")
     assert "analysis" in channel
 
-    channel = metadb.channelmap(on=datetime.now(), system="cal").V02162B
+    channel = metadb.channelmap(on=date, system="cal").V02160A
     assert "analysis" in channel
