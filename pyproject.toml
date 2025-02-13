@@ -77,6 +77,7 @@ test = [
 [project.scripts]
 validate-legend-chmaps = "legendmeta.police:validate_legend_channel_map"
 validate-legend-detdb = "legendmeta.police:validate_legend_detector_db"
+validate-validity = "legendmeta.police:validate_validity"
 
 [tool.setuptools]
 include-package-data = true
