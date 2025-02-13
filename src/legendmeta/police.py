@@ -22,7 +22,7 @@ from importlib import resources
 from pathlib import Path
 
 import yaml
-from dbetto import TextDB, utils
+from dbetto import Props, TextDB, utils
 
 templates = resources.files("legendmeta") / "templates"
 
@@ -227,3 +227,28 @@ def len_nested(d: dict) -> int:
             count += len_nested(v)
 
     return count
+
+
+def validate_validity():
+    parser = argparse.ArgumentParser(
+        prog="validate-validity", description="Validate LEGEND validity files"
+    )
+
+    parser.add_argument("dir", help="metadata directory")
+
+    args = parser.parse_args()
+
+    valid = True
+    pa = Path(args.dir)
+    for file in pa.rglob("validity.yaml"):
+        valid_dic = Props.read_from(str(file))
+        for dic in valid_dic:
+            for f in dic["apply"]:
+                full_path = Path(file).parent / f
+                if full_path.exists() is False:
+                    print(  # noqa: T201
+                        f" ERROR : no file {full_path}"
+                    )
+                    valid = False
+    if not valid:
+        sys.exit(1)
