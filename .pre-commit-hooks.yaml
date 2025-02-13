@@ -9,3 +9,9 @@
   entry: validate-legend-detdb
   language: python
   types: [yaml]
+
+- id: validate-validity
+  name: check LEGEND validity format
+  entry: validate-validity
+  language: python
+  types: [yaml]
