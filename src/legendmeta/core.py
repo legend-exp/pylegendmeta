@@ -140,13 +140,21 @@ class LegendMetadata(TextDB):
         # now reset this TextDB instance
         super().reset()
 
-    def metadata_version(self) -> None:
+    @property
+    def __version__(self) -> str:
+        """legend-metadata version.
+
+        Calculated with ``git describe``, looking for the closest tag with a
+        name based on semantic versioning.
+        """
+        return self.__repo__.git.describe(
+            "--tags", "--always", "--match", "v[0-9]*[0-9]*[0-9]*"
+        )
+
+    def show_metadata_version(self) -> None:
         """Logs version info for legend-metadata repository and all its submodules."""
 
-        print(  # noqa: T201
-            f"{self.__repo__.working_dir}:",
-            self.__repo__.git.describe("--tags", "--always"),
-        )
+        print(f"{self.__repo__.working_dir}: {self.__version__}")  # noqa: T201
 
         submods = self.__repo__.submodules
         for i, s in enumerate(submods):
