@@ -108,7 +108,7 @@ class LegendMetadata(TextDB):
                 log.warning(msg)
 
     @property
-    def latest_stable_tag(self) -> str | None:
+    def latest_stable_tag(self) -> Version | None:
         """Latest stable legend-metadata tag (i.e. strictly numeric vM.m.p)"""
         tag_list = [tag.name for tag in self.__repo__.tags]
 
@@ -127,8 +127,11 @@ class LegendMetadata(TextDB):
 
         return version_tags[-1]
 
-    def checkout(self, git_ref: str) -> None:
+    def checkout(self, git_ref: str | Version) -> None:
         """Select a legend-metadata version."""
+        if isinstance(git_ref, Version):
+            git_ref = "v" + str(git_ref)
+
         try:
             self.__repo__.git.checkout(git_ref)
             self.__repo__.git.submodule("update", "--init")
@@ -148,7 +151,20 @@ class LegendMetadata(TextDB):
         name based on semantic versioning.
         """
         return self.__repo__.git.describe(
-            "--tags", "--always", "--match", "v[0-9]*[0-9]*[0-9]*"
+            "--tags", "--always", "--match=v[0-9]*[0-9]*[0-9]*"
+        )
+
+    @property
+    def __closest_tag__(self) -> Version:
+        """legend-metadata Git tag closest to the current commit.
+
+        Calculated with ``git describe``, looking for the closest tag with a
+        name based on semantic versioning.
+        """
+        return Version(
+            self.__repo__.git.describe(
+                "--tags", "--always", "--match=v[0-9]*[0-9]*[0-9]*", "--abbrev=0"
+            )
         )
 
     def show_metadata_version(self) -> None:
@@ -208,7 +224,10 @@ class LegendMetadata(TextDB):
         )
 
         # get analysis metadata
-        anamap = self.datasets.statuses.on(on, pattern=None, system=system)
+        if self.__closest_tag__ < Version("v0.5.9"):
+            anamap = self.dataprod.config.on(on, pattern=None, system=system).analysis
+        else:
+            anamap = self.datasets.statuses.on(on, pattern=None, system=system)
 
         # get full detector db
         detdb = self.hardware.detectors

@@ -5,6 +5,7 @@ from datetime import datetime
 import pytest
 from dbetto import AttrsDict, TextDB
 from git import GitCommandError
+from packaging.version import Version
 
 from legendmeta import LegendMetadata
 
@@ -37,6 +38,11 @@ def test_checkout(metadb):
 def test_version(metadb):
     metadb.checkout("63b789e")
     assert metadb.__version__ == "v0.5.9-3-g63b789e"
+    assert metadb.__closest_tag__ == Version("v0.5.9")
+
+    metadb.checkout("4c30f27")
+    assert metadb.__version__ == "v0.5.4-4-g4c30f27"
+    assert metadb.__closest_tag__ == Version("v0.5.4")
 
     metadb.show_metadata_version()
 
@@ -95,5 +101,10 @@ def test_channelmap(metadb):
     assert hasattr(channel, "geometry")
     assert "analysis" in channel
 
+    channel = metadb.channelmap(on=date, system="cal").V02160A
+    assert "analysis" in channel
+
+    metadb.checkout("8c311d5")
+    metadb.scan()
     channel = metadb.channelmap(on=date, system="cal").V02160A
     assert "analysis" in channel
