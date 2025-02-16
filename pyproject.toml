@@ -103,9 +103,13 @@ ignore-words-list = "crate,nd,unparseable,compiletime"
 [tool.pytest.ini_options]
 minversion = "6.0"
 addopts = ["-ra", "--showlocals", "--strict-markers", "--strict-config"]
-filterwarnings = ["error", 'ignore:\nPyarrow:DeprecationWarning', 'ignore::DeprecationWarning']
+filterwarnings = ["error"]
 log_cli_level = "info"
 testpaths = "tests"
+markers = [
+    "needs_metadata: Tests that require access to legend-metadata",
+    "needs_slowcontrol: Tests that need connection to the LEGEND Slow Control database"
+]
 
 [tool.ruff]
 src = ["src"]

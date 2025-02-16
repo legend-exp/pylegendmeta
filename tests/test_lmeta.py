@@ -8,15 +8,16 @@ from git import GitCommandError
 
 from legendmeta import LegendMetadata
 
-pytestmark = pytest.mark.xfail(run=True, reason="requires access to legend-metadata")
-
-date = datetime(2024, 7, 1)
+pytestmark = [
+    pytest.mark.xfail(run=True, reason="requires access to legend-metadata"),
+    pytest.mark.needs_metadata,
+]
 
 
 @pytest.fixture
 def metadb():
     mdata = LegendMetadata(lazy=True)
-    mdata.checkout("refactor")
+    mdata.checkout("main")
     return mdata
 
 
@@ -33,17 +34,20 @@ def test_checkout(metadb):
     assert list(metadb.keys()) == []
 
 
-def test_get_version(metadb):
-    metadb.metadata_version()
+def test_version(metadb):
+    metadb.checkout("63b789e")
+    assert metadb.__version__ == "v0.5.9-3-g63b789e"
+
+    metadb.show_metadata_version()
 
 
 def test_get_file(metadb):
-    assert isinstance(
-        metadb["hardware/detectors/germanium/diodes/B00000A.json"], AttrsDict
-    )
+    metadb.checkout("63b789e")
+    assert isinstance(metadb["hardware/detectors/germanium/diodes/B00000A"], AttrsDict)
 
 
 def test_get_directory(metadb):
+    metadb.checkout("63b789e")
     assert isinstance(metadb["hardware"], TextDB)
     assert isinstance(metadb.hardware, TextDB)
 
@@ -59,6 +63,7 @@ def test_git_ref_not_found(metadb):
 
 
 def test_nested_get(metadb):
+    metadb.checkout("63b789e")
     assert (
         metadb["hardware"]["detectors"]["germanium"]["diodes"]["B00000A"]["name"]
         == "B00000A"
@@ -67,17 +72,20 @@ def test_nested_get(metadb):
 
 
 def test_chmap_remapping(metadb):
+    date = datetime(2024, 7, 1)
+    metadb.checkout("63b789e")
     metadb.scan()
-    print(metadb.hardware.configuration.channelmaps.on(date).map("daq.rawid").keys())
     assert (
         "daq"
         in metadb.hardware.configuration.channelmaps.on(date).map("daq.rawid")[1027200]
     )
 
-    assert "daq" in metadb.channelmap().map("daq.rawid")[1027200]
+    assert "daq" in metadb.channelmap(date).map("daq.rawid")[1027200]
 
 
 def test_channelmap(metadb):
+    date = datetime(2024, 7, 1)
+    metadb.checkout("63b789e")
     metadb.scan()
     assert isinstance(metadb, LegendMetadata)
     assert isinstance(metadb.channelmap(date), AttrsDict)

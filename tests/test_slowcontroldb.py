@@ -7,9 +7,12 @@ from legendmeta import LegendMetadata, LegendSlowControlDB
 from legendmeta.slowcontrol import DiodeSnap
 from legendmeta.textdb import AttrsDict
 
-pytestmark = pytest.mark.xfail(
-    run=True, reason="requires access to LEGEND slow control database"
-)
+pytestmark = [
+    pytest.mark.xfail(
+        run=True, reason="requires access to LEGEND slow control database"
+    ),
+    pytest.mark.needs_slowcontrol,
+]
 
 
 @pytest.fixture(scope="session")
