@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+import tempfile
 from datetime import datetime
 
 import pytest
@@ -14,10 +16,17 @@ pytestmark = [
     pytest.mark.needs_metadata,
 ]
 
+tmpdir = tempfile.mkdtemp()
+
 
 @pytest.fixture
 def metadb():
-    mdata = LegendMetadata(lazy=True)
+    if os.getenv("LEGEND_METADATA_TESTDIR") is not None:
+        # for the CI
+        mdata = LegendMetadata(os.getenv("LEGEND_METADATA_TESTDIR"), lazy=True)
+    else:
+        # explicit path ignores LEGEND_METADATA
+        mdata = LegendMetadata(str(tmpdir), lazy=True)
     mdata.checkout("main")
     return mdata
 

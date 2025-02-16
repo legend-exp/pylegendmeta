@@ -51,7 +51,7 @@ class LegendMetadata(TextDB):
     """
 
     def __init__(self, path: str | None = None, **kwargs) -> None:
-        if isinstance(path, str):
+        if isinstance(path, (str, Path)):
             self.__repo_path__ = path
         else:
             self.__repo_path__ = os.getenv("LEGEND_METADATA", "")
@@ -102,7 +102,7 @@ class LegendMetadata(TextDB):
                 )
                 log.warning(msg)
 
-                self.checkout(self.latest_stable_tag)
+                self.checkout(self.latest_stable_tag, rescan=False)
             else:
                 msg = "No stable tags found, checking out the default branch"
                 log.warning(msg)
@@ -127,7 +127,7 @@ class LegendMetadata(TextDB):
 
         return version_tags[-1]
 
-    def checkout(self, git_ref: str | Version) -> None:
+    def checkout(self, git_ref: str | Version, rescan: bool = True) -> None:
         """Select a legend-metadata version."""
         if isinstance(git_ref, Version):
             git_ref = "v" + str(git_ref)
@@ -141,7 +141,7 @@ class LegendMetadata(TextDB):
             self.__repo__.git.submodule("update", "--init")
 
         # now reset this TextDB instance
-        super().reset()
+        super().reset(rescan=rescan)
 
     @property
     def __version__(self) -> str:
