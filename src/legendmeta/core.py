@@ -51,7 +51,7 @@ class LegendMetadata(TextDB):
     """
 
     def __init__(self, path: str | None = None, **kwargs) -> None:
-        if isinstance(path, str):
+        if isinstance(path, (str, Path)):
             self.__repo_path__ = path
         else:
             self.__repo_path__ = os.getenv("LEGEND_METADATA", "")
@@ -102,13 +102,13 @@ class LegendMetadata(TextDB):
                 )
                 log.warning(msg)
 
-                self.checkout(self.latest_stable_tag)
+                self.checkout(self.latest_stable_tag, rescan=False)
             else:
                 msg = "No stable tags found, checking out the default branch"
                 log.warning(msg)
 
     @property
-    def latest_stable_tag(self) -> str | None:
+    def latest_stable_tag(self) -> Version | None:
         """Latest stable legend-metadata tag (i.e. strictly numeric vM.m.p)"""
         tag_list = [tag.name for tag in self.__repo__.tags]
 
@@ -127,8 +127,11 @@ class LegendMetadata(TextDB):
 
         return version_tags[-1]
 
-    def checkout(self, git_ref: str) -> None:
+    def checkout(self, git_ref: str | Version, rescan: bool = True) -> None:
         """Select a legend-metadata version."""
+        if isinstance(git_ref, Version):
+            git_ref = "v" + str(git_ref)
+
         try:
             self.__repo__.git.checkout(git_ref)
             self.__repo__.git.submodule("update", "--init")
@@ -138,15 +141,36 @@ class LegendMetadata(TextDB):
             self.__repo__.git.submodule("update", "--init")
 
         # now reset this TextDB instance
-        super().reset()
+        super().reset(rescan=rescan)
 
-    def metadata_version(self) -> None:
+    @property
+    def __version__(self) -> str:
+        """legend-metadata version.
+
+        Calculated with ``git describe``, looking for the closest tag with a
+        name based on semantic versioning.
+        """
+        return self.__repo__.git.describe(
+            "--tags", "--always", "--match=v[0-9]*[0-9]*[0-9]*"
+        )
+
+    @property
+    def __closest_tag__(self) -> Version:
+        """legend-metadata Git tag closest to the current commit.
+
+        Calculated with ``git describe``, looking for the closest tag with a
+        name based on semantic versioning.
+        """
+        return Version(
+            self.__repo__.git.describe(
+                "--tags", "--always", "--match=v[0-9]*[0-9]*[0-9]*", "--abbrev=0"
+            )
+        )
+
+    def show_metadata_version(self) -> None:
         """Logs version info for legend-metadata repository and all its submodules."""
 
-        print(  # noqa: T201
-            f"{self.__repo__.working_dir}:",
-            self.__repo__.git.describe("--tags", "--always"),
-        )
+        print(f"{self.__repo__.working_dir}: {self.__version__}")  # noqa: T201
 
         submods = self.__repo__.submodules
         for i, s in enumerate(submods):
@@ -200,7 +224,10 @@ class LegendMetadata(TextDB):
         )
 
         # get analysis metadata
-        anamap = self.datasets.statuses.on(on, pattern=None, system=system)
+        if self.__closest_tag__ < Version("v0.5.9"):
+            anamap = self.dataprod.config.on(on, pattern=None, system=system).analysis
+        else:
+            anamap = self.datasets.statuses.on(on, pattern=None, system=system)
 
         # get full detector db
         detdb = self.hardware.detectors

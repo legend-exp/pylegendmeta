@@ -32,20 +32,26 @@ jobs:
         run: |
           python -m pip install --upgrade pip wheel setuptools
           python -m pip install --upgrade .[test]
-      - name: Set LEGEND_METADATA variable
+      - name: Set LEGEND_METADATA_TESTDIR variable
         run: |
-          echo "LEGEND_METADATA=$GITHUB_WORKSPACE/legend-metadata" >> $GITHUB_ENV
+          echo "LEGEND_METADATA_TESTDIR=$GITHUB_WORKSPACE/legend-metadata" >> $GITHUB_ENV
       - name: Clone legend-metadata
-        if: github.event_name != 'pull_request'
+        if: github.event.pull_request.head.repo.fork == false
         uses: actions/checkout@v4
         with:
           repository: legend-exp/legend-metadata
           fetch-depth: 0
+          submodules: recursive
           token: ${{ secrets.READPRIVATE }}
-          path: ${{ env.LEGEND_METADATA }}
+          path: ${{ env.LEGEND_METADATA_TESTDIR }}
       - name: Run unit tests
+        if: github.event.pull_request.head.repo.fork == true
         run: |
-          python -m pytest
+          python -m pytest -m "not needs_slowcontrol"
+      - name: Run unit tests that need legend-metadata
+        if: github.event.pull_request.head.repo.fork == false
+        run: |
+          python -m pytest --runxfail -m "not needs_slowcontrol"
 
   test-coverage:
     name: Calculate and upload test coverage
@@ -62,20 +68,26 @@ jobs:
         run: |
           python -m pip install --upgrade pip wheel setuptools
           python -m pip install --upgrade .[test]
-      - name: Set LEGEND_METADATA variable
+      - name: Set LEGEND_METADATA_TESTDIR variable
         run: |
-          echo "LEGEND_METADATA=$GITHUB_WORKSPACE/legend-metadata" >> $GITHUB_ENV
+          echo "LEGEND_METADATA_TESTDIR=$GITHUB_WORKSPACE/legend-metadata" >> $GITHUB_ENV
       - name: Clone legend-metadata
-        if: github.event_name != 'pull_request'
+        if: github.event.pull_request.head.repo.fork == false
         uses: actions/checkout@v4
         with:
           repository: legend-exp/legend-metadata
           fetch-depth: 0
+          submodules: recursive
           token: ${{ secrets.READPRIVATE }}
-          path: ${{ env.LEGEND_METADATA }}
-      - name: Generate report for (all) unit tests
+          path: ${{ env.LEGEND_METADATA_TESTDIR }}
+      - name: Generate report for unit tests
+        if: github.event.pull_request.head.repo.fork == true
         run: |
-          python -m pytest --cov=legendmeta --cov-report=xml
+          python -m pytest --cov=legendmeta --cov-report=xml -m "not needs_slowcontrol"
+      - name: Generate report for (all) unit tests
+        if: github.event.pull_request.head.repo.fork == false
+        run: |
+          python -m pytest --cov=legendmeta --cov-report=xml --runxfail -m "not needs_slowcontrol"
       - name: Upload Coverage to codecov.io
         uses: codecov/codecov-action@v5
         with:
