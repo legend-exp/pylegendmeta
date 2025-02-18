@@ -14,5 +14,5 @@
   name: check LEGEND validity format
   entry: validate-validity
   language: python
-  files: .*\/validity\..+$
+  files: (.*\/)?validity\..+$
   types_or: [yaml, json]
