@@ -32,7 +32,7 @@ classifiers = [
 ]
 requires-python = ">=3.9"
 dependencies = [
-    "dbetto>=1.2.1",
+    "dbetto>=1.2.2",
     "GitPython",
     "pandas",
     "pyyaml",
