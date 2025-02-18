@@ -23,6 +23,7 @@ from pathlib import Path
 
 import yaml
 from dbetto import Props, TextDB, utils
+from dbetto.catalog import Catalog
 
 templates = resources.files("legendmeta") / "templates"
 
@@ -233,14 +234,14 @@ def validate_validity():
     parser = argparse.ArgumentParser(
         prog="validate-validity", description="Validate LEGEND validity files"
     )
-
-    parser.add_argument("dir", help="metadata directory")
-
+    parser.add_argument("files", nargs="+", help="validity files")
     args = parser.parse_args()
 
     valid = True
-    pa = Path(args.dir)
-    for file in pa.rglob("validity.yaml"):
+    for file in args.files:
+        # check catalog builds
+        Catalog.read_from(file)
+        # check files in validity exist
         valid_dic = Props.read_from(str(file))
         for dic in valid_dic:
             for f in dic["apply"]:
