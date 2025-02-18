@@ -224,7 +224,7 @@ class LegendMetadata(TextDB):
         )
 
         # get analysis metadata
-        if self.__closest_tag__ < Version("v0.5.9"):
+        if self.__closest_tag__ < Version("v0.5.9") or self.__version__ == "v0.5.9":
             anamap = self.dataprod.config.on(on, pattern=None, system=system).analysis
         else:
             anamap = self.datasets.statuses.on(on, pattern=None, system=system)
