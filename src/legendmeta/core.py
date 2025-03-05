@@ -61,6 +61,8 @@ class LegendMetadata(TextDB):
                 Path(gettempdir()) / ("legend-metadata-" + getuser())
             )
 
+        self.__repo_path__ = Path(self.__repo_path__)
+
         # self.__repo__: Repo =
         self._init_metadata_repo()
 
@@ -73,21 +75,22 @@ class LegendMetadata(TextDB):
             self.__repo_path__ = exp_path
             exp_path = os.path.expandvars(self.__repo_path__)
 
-        if not Path(self.__repo_path__).exists():
-            msg = f"mkdir {self.__repo_path__}"
-            log.debug(msg)
-            Path(self.__repo_path__).mkdir()
+        self.__repo_path__ = Path(self.__repo_path__)
 
-        try:
-            msg = f"trying to load Git repo in {self.__repo_path__}"
-            log.debug(msg)
-            self.__repo__ = Repo(self.__repo_path__)
+        if self.__repo_path__.exists() and not self.__repo_path__.is_dir():
+            msg = f"cannot initialize with a file: {self.__repo_path__}"
+            raise ValueError(msg)
 
-        except InvalidGitRepositoryError:
+        if not self.__repo_path__.exists() or not any(self.__repo_path__.iterdir()):
             msg = f"Cloning git@github.com:legend-exp/legend-metadata in {self.__repo_path__}..."
             # set logging level as warning (default logging level), so it's
             # always printed and the user knows why it takes so long to initialize
             log.warning(msg)
+
+            if not Path(self.__repo_path__).exists():
+                msg = f"mkdir {self.__repo_path__}"
+                log.debug(msg)
+                Path(self.__repo_path__).mkdir()
 
             self.__repo__ = Repo.clone_from(
                 "git@github.com:legend-exp/legend-metadata",
@@ -107,9 +110,19 @@ class LegendMetadata(TextDB):
                 msg = "No stable tags found, checking out the default branch"
                 log.warning(msg)
 
+        try:
+            msg = f"trying to load Git repo in {self.__repo_path__}"
+            log.debug(msg)
+            self.__repo__ = Repo(self.__repo_path__)
+
+        except InvalidGitRepositoryError:
+            self.__repo__ = None
+
     @property
     def latest_stable_tag(self) -> Version | None:
         """Latest stable legend-metadata tag (i.e. strictly numeric vM.m.p)"""
+        self._except_if_not_git_repo()
+
         tag_list = [tag.name for tag in self.__repo__.tags]
 
         version_regex = re.compile(r"^v\d+\.\d+\.\d+$")
@@ -129,6 +142,8 @@ class LegendMetadata(TextDB):
 
     def checkout(self, git_ref: str | Version, rescan: bool = True) -> None:
         """Select a legend-metadata version."""
+        self._except_if_not_git_repo()
+
         if isinstance(git_ref, Version):
             git_ref = "v" + str(git_ref)
 
@@ -150,6 +165,8 @@ class LegendMetadata(TextDB):
         Calculated with ``git describe``, looking for the closest tag with a
         name based on semantic versioning.
         """
+        self._except_if_not_git_repo()
+
         return self.__repo__.git.describe(
             "--tags", "--always", "--match=v[0-9]*[0-9]*[0-9]*"
         )
@@ -161,6 +178,8 @@ class LegendMetadata(TextDB):
         Calculated with ``git describe``, looking for the closest tag with a
         name based on semantic versioning.
         """
+        self._except_if_not_git_repo()
+
         return Version(
             self.__repo__.git.describe(
                 "--tags", "--always", "--match=v[0-9]*[0-9]*[0-9]*", "--abbrev=0"
@@ -169,6 +188,7 @@ class LegendMetadata(TextDB):
 
     def show_metadata_version(self) -> None:
         """Logs version info for legend-metadata repository and all its submodules."""
+        self._except_if_not_git_repo()
 
         print(f"{self.__repo__.working_dir}: {self.__version__}")  # noqa: T201
 
@@ -251,3 +271,8 @@ class LegendMetadata(TextDB):
                 log.debug(msg)
 
         return chmap
+
+    def _except_if_not_git_repo(self) -> None:
+        if self.__repo__ is None:
+            msg = f"{self.__repo_path__} is not a Git repository (.git folder missing)"
+            raise InvalidGitRepositoryError(msg)

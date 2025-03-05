@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import tempfile
 from datetime import datetime
+from pathlib import Path
 
 import pytest
 from dbetto import AttrsDict, TextDB
@@ -29,6 +30,12 @@ def metadb():
         mdata = LegendMetadata(str(tmpdir), lazy=True)
     mdata.checkout("main")
     return mdata
+
+
+def test_dir_with_files():
+    dir1 = Path(tempfile.mkdtemp())
+    (dir1 / "myfile.txt").touch()
+    LegendMetadata(dir1, lazy=True)
 
 
 def test_checkout(metadb):
