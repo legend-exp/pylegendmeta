@@ -255,7 +255,7 @@ class LegendMetadata(TextDB):
         for det in chmap:
             # find channel info in detector database and merge it into
             # channelmap item, if possible
-            try: 
+            try:
                 if chmap[det]["system"] == "geds":
                     chmap[det] |= detdb.germanium.diodes[det]
                 else:
