@@ -251,14 +251,16 @@ class LegendMetadata(TextDB):
 
         # get full detector db
         detdb = self.hardware.detectors
-        fulldb = detdb.germanium.diodes | detdb.lar.sipms
 
         for det in chmap:
             # find channel info in detector database and merge it into
             # channelmap item, if possible
-            if det in fulldb:
-                chmap[det] |= fulldb[det]
-            else:
+            try:
+                if chmap[det]["system"] == "geds":
+                    chmap[det] |= detdb.germanium.diodes[det]
+                else:
+                    chmap[det] |= detdb.lar.sipms[det]
+            except KeyError:
                 msg = f"Could not find detector '{det}' in hardware.detectors database"
                 log.debug(msg)
 
