@@ -55,7 +55,11 @@ class LegendSlowControlDB:
             self.connect()
 
     def connect(
-        self, host: str = "localhost", port: int = 5432, password: str | None = None, dbname: str = "scdb"
+        self,
+        host: str = "localhost",
+        port: int = 5432,
+        password: str | None = None,
+        dbname: str = "scdb",
     ) -> None:
         """Establish a connection to the database.
 
