@@ -59,7 +59,7 @@ class LegendSlowControlDB:
         host: str = "localhost",
         port: int = 5432,
         password: str | None = None,
-        dbname: str = "scdb",
+        db_name: str = "scdb",
     ) -> None:
         """Establish a connection to the database.
 
