@@ -112,7 +112,7 @@ class LegendSlowControlDB:
             self.disconnect()
 
         self.connection = db.create_engine(
-            f"postgresql://scuser:{password}@{host}:{port}/{dbname}"
+            f"postgresql://scuser:{password}@{host}:{port}/{db_name}"
         ).connect()
 
     def disconnect(self) -> None:
