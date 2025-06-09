@@ -55,12 +55,15 @@ class LegendSlowControlDB:
             self.connect()
 
     def connect(
-        self, host: str = "localhost", port: int = 5432, password: str | None = None
+        self,
+        host: str = "localhost",
+        port: int = 5432,
+        password: str | None = None,
+        db_name: str = "scdb",
     ) -> None:
         """Establish a connection to the database.
 
-        Authentication is attempted with the read-only user ``scuser`` on a
-        database named ``scdb``.
+        Authentication is attempted with the read-only user ``scuser``.
 
         Parameters
         ----------
@@ -73,7 +76,11 @@ class LegendSlowControlDB:
             password for user ``scuser`` of the ``scdb`` database. May be found
             on LEGEND's internal documentation (e.g. the Wiki web pages). If
             ``None``, uses the value of the ``$LEGEND_SCDB_PW`` shell variable.
-
+        db_name
+            name of the database, default is ``scdb``:
+            ``scdb`` is the current database, active since 2024-09-02;
+            ``scdbL140`` is the database for the 142 kg deployment, from 2022-11-09 to 2024-08-28;
+            ``scdbL60`` is for commissioning data with a 60 kg array, from 2021-12-23 to 2022-10-15.
         Examples
         --------
         If the Slow Control database connection is forwarded to a local machine
@@ -105,7 +112,7 @@ class LegendSlowControlDB:
             self.disconnect()
 
         self.connection = db.create_engine(
-            f"postgresql://scuser:{password}@{host}:{port}/scdb"
+            f"postgresql://scuser:{password}@{host}:{port}/{db_name}"
         ).connect()
 
     def disconnect(self) -> None:
