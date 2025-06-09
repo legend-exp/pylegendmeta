@@ -76,12 +76,11 @@ class LegendSlowControlDB:
             password for user ``scuser`` of the ``scdb`` database. May be found
             on LEGEND's internal documentation (e.g. the Wiki web pages). If
             ``None``, uses the value of the ``$LEGEND_SCDB_PW`` shell variable.
-        dbname
+        db_name
             name of the database, default is ``scdb``:
-            ``scdb`` is current database from 2024-09-02
-            ``scdbL140`` for PRl25 data, from 2022-11-09 to 2024-08-28
-            ``scdbL60`` commissioning data with 60 Kg, from 2021-12-23 to 2022-10-15
-
+            ``scdb`` is the current database, active since 2024-09-02;
+            ``scdbL140`` is the database for the 142 kg deployment, from 2022-11-09 to 2024-08-28;
+            ``scdbL60`` is for commissioning data with a 60 kg array, from 2021-12-23 to 2022-10-15.
         Examples
         --------
         If the Slow Control database connection is forwarded to a local machine
