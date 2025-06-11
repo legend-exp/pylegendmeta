@@ -260,7 +260,7 @@ class LegendMetadata(TextDB):
                     chmap[det] |= detdb.germanium.diodes[det]
                 else:
                     chmap[det] |= detdb.lar.sipms[det]
-            except KeyError:
+            except (KeyError, FileNotFoundError):
                 msg = f"Could not find detector '{det}' in hardware.detectors database"
                 log.debug(msg)
 
