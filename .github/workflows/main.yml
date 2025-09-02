@@ -42,7 +42,7 @@ jobs:
           repository: legend-exp/legend-metadata
           fetch-depth: 0
           submodules: recursive
-          token: ${{ secrets.READPRIVATE }}
+          token: ${{ secrets.CLONE_LEGEND_METADATA }}
           path: ${{ env.LEGEND_METADATA_TESTDIR }}
       - name: Run unit tests
         if: github.event.pull_request.head.repo.fork == true
@@ -78,7 +78,7 @@ jobs:
           repository: legend-exp/legend-metadata
           fetch-depth: 0
           submodules: recursive
-          token: ${{ secrets.READPRIVATE }}
+          token: ${{ secrets.CLONE_LEGEND_METADATA }}
           path: ${{ env.LEGEND_METADATA_TESTDIR }}
       - name: Generate report for unit tests
         if: github.event.pull_request.head.repo.fork == true
