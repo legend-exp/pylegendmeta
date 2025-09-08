@@ -22,7 +22,6 @@ from dbetto import str_to_datetime as to_datetime
 from ._version import version as __version__
 from .core import LegendMetadata
 from .slowcontrol import LegendSlowControlDB
-from .textdb import AttrsDict, JsonDB, TextDB
 
 __all__ = [
     "AttrsDict",

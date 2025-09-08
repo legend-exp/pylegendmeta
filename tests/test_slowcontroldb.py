@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import pytest
 import sqlalchemy as sql
+from dbetto import AttrsDict
 
 from legendmeta import LegendMetadata, LegendSlowControlDB
 from legendmeta.slowcontrol import DiodeSnap
-from legendmeta.textdb import AttrsDict
 
 pytestmark = [
     pytest.mark.xfail(
