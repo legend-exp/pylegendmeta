@@ -130,7 +130,12 @@ def validate_legend_channel_map() -> bool:
 
 
 def validate_dict_schema(
-    adict: dict, template: dict, greedy: bool = True, typecheck=True, root_obj: str = ""
+    adict: dict,
+    template: dict,
+    greedy: bool = True,
+    typecheck=True,
+    root_obj: str = "",
+    verbose: bool = True,
 ) -> bool:
     """Validate the format of a dictionary based on a template.
 
@@ -148,6 +153,8 @@ def validate_dict_schema(
         if true, perform type checking.
     root_obj
         key name (or path to) dictionary. Used for error printing.
+    verbose
+        if false, do not print error messages.
     """
     if not isinstance(adict, dict) or not isinstance(template, dict):
         msg = "input objects must be of type dict"
@@ -158,11 +165,13 @@ def validate_dict_schema(
     # make sure keys in template exist and are valid in adict
     for k, v in template.items():
         if k not in adict:
-            print(f"ERROR: '{root_obj}/{k}' key not found")  # noqa: T201
+            if verbose:
+                print(f"ERROR: '{root_obj}/{k}' key not found")  # noqa: T201
             valid = False
         elif isinstance(v, dict):
             if not isinstance(adict[k], dict):
-                print(f"ERROR: '{root_obj}/{k}' must be a dictionary")  # noqa: T201
+                if verbose:
+                    print(f"ERROR: '{root_obj}/{k}' must be a dictionary")  # noqa: T201
                 valid = False
             else:
                 valid *= validate_dict_schema(
@@ -179,19 +188,22 @@ def validate_dict_schema(
             # make an exception for null (missing) fields
             if adict[k] is None:
                 continue
-            print(  # noqa: T201
-                f"ERROR: value of '{root_obj}/{k}' must be {type(v)}"
-            )
+            if verbose:
+                print(  # noqa: T201
+                    f"ERROR: value of '{root_obj}/{k}' must be {type(v)}"
+                )
             valid = False
         elif isinstance(v, str) and v != "":
             if re.match(v, adict[k]) is None:
-                print(  # noqa: T201
-                    f"ERROR: key '{root_obj}/{k}' does not match template regex '{v}'"
-                )
+                if verbose:
+                    print(  # noqa: T201
+                        f"ERROR: key '{root_obj}/{k}' does not match template regex '{v}'"
+                    )
                 valid = False
 
     if greedy and len_nested(adict) != len_nested(template):
-        print("ERROR: the dictionary contains extra keys")  # noqa: T201
+        if verbose:
+            print("ERROR: the dictionary contains extra keys")  # noqa: T201
         valid = False
 
     if greedy:
