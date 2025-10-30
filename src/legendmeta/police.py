@@ -180,6 +180,7 @@ def validate_dict_schema(
                     greedy=greedy,
                     typecheck=typecheck,
                     root_obj=f"{root_obj}/{k}",
+                    verbose=verbose,
                 )
         elif typecheck and not isinstance(adict[k], type(v)):
             # do not complain if float is requested but int is given
@@ -207,12 +208,12 @@ def validate_dict_schema(
         valid = False
 
     if greedy:
-        valid *= validate_keys_recursive(adict, template)
+        valid *= validate_keys_recursive(adict, template, verbose=verbose)
 
     return valid
 
 
-def validate_keys_recursive(adict: dict, template: dict) -> bool:
+def validate_keys_recursive(adict: dict, template: dict, verbose: bool = True) -> bool:
     """Return false if `adict` contains keys not in `template`."""
     valid = True
 
@@ -223,10 +224,11 @@ def validate_keys_recursive(adict: dict, template: dict) -> bool:
     # analyze adict
     for k, v in adict.items():
         if k not in template:
-            print(f"ERROR: '{k}' key not allowed")  # noqa: T201
+            if verbose:
+                print(f"ERROR: '{k}' key not allowed")  # noqa: T201
             valid = False
         elif isinstance(v, dict):
-            valid *= validate_keys_recursive(v, template[k])
+            valid *= validate_keys_recursive(v, template[k], verbose=verbose)
 
     return valid
 
