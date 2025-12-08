@@ -283,5 +283,7 @@ class LegendMetadata(TextDB):
             self.__repo__.git.rev_parse("HEAD")
         except GitCommandError as e:
             if "fatal: detected dubious ownership" in e.stderr:
+                msg = f"git raised dubious ownership error. Automatically called 'git config --global --add safe.directory {self.__repo_path__}`"
+                log.warning(msg)
                 with self.__repo__.config_writer("global") as c:
                     c.add_value("safe", "directory", str(self.__repo_path__))
