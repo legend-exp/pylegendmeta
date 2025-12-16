@@ -15,6 +15,7 @@
 
 from __future__ import annotations
 
+import copy
 import logging
 import os
 from datetime import datetime
@@ -53,6 +54,24 @@ class LegendSlowControlDB:
 
         if connect:
             self.connect()
+
+    def __copy__(self) -> LegendSlowControlDB:
+        cls = self.__class__
+        new_obj = cls.__new__(cls)
+        new_obj.__dict__.update(self.__dict__)
+        return new_obj
+
+    def __deepcopy__(self, memo: dict[int, object]) -> LegendSlowControlDB:
+        cls = self.__class__
+        new_obj = cls.__new__(cls)
+        memo[id(self)] = new_obj
+        for key, value in self.__dict__.items():
+            new_obj.__dict__[key] = (
+                value
+                if key in {"connection", "session"}
+                else copy.deepcopy(value, memo)
+            )
+        return new_obj
 
     def connect(
         self,

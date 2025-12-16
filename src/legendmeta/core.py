@@ -15,6 +15,7 @@
 
 from __future__ import annotations
 
+import copy
 import logging
 import os
 import re
@@ -117,6 +118,23 @@ class LegendMetadata(TextDB):
 
         except InvalidGitRepositoryError:
             self.__repo__ = None
+
+    def __copy__(self) -> LegendMetadata:
+        cls = self.__class__
+        new_obj = cls.__new__(cls)
+        new_obj.__dict__.update(self.__dict__)
+        return new_obj
+
+    def __deepcopy__(self, memo: dict[int, object]) -> LegendMetadata:
+        cls = self.__class__
+        new_obj = cls.__new__(cls)
+        memo[id(self)] = new_obj
+        for key, value in self.__dict__.items():
+            if key in {"_TextDB__rootdir", "__repo__", "__repo_path__"}:
+                new_obj.__dict__[key] = value
+            else:
+                new_obj.__dict__[key] = copy.deepcopy(value, memo)
+        return new_obj
 
     @property
     def latest_stable_tag(self) -> Version | None:
