@@ -10,7 +10,7 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
-# You should have received a copy of the GNU General Public License
+# You should have received a copy of the GNU General General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from __future__ import annotations
@@ -72,6 +72,23 @@ class LegendSlowControlDB:
                 else copy.deepcopy(value, memo)
             )
         return new_obj
+
+    def __getstate__(self) -> dict:
+        """Return state for pickling.
+
+        SQLAlchemy connections/sessions are not pickleable; we drop them and
+        require reconnecting after unpickling.
+        """
+        state = dict(self.__dict__)
+        state["connection"] = None
+        state["session"] = None
+        return state
+
+    def __setstate__(self, state: dict) -> None:
+        """Restore state from pickling."""
+        self.__dict__.update(state)
+        self.connection = None
+        self.session = None
 
     def connect(
         self,

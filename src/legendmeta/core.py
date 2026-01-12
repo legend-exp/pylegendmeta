@@ -136,6 +136,29 @@ class LegendMetadata(TextDB):
                 new_obj.__dict__[key] = copy.deepcopy(value, memo)
         return new_obj
 
+    def __getstate__(self) -> dict:
+        """Return state for pickling.
+
+        GitPython's Repo object is not reliably pickleable, so we exclude it and
+        recreate it on unpickle.
+        """
+        state = dict(self.__dict__)
+        state["__repo__"] = None
+        return state
+
+    def __setstate__(self, state: dict) -> None:
+        """Restore state from pickling.
+
+        Re-initialize the Git repository handle so the instance is functional.
+        """
+        self.__dict__.update(state)
+
+        # Ensure __repo_path__ is a Path before re-initializing the repo.
+        self.__dict__["__repo_path__"] = Path(self.__dict__["__repo_path__"])
+
+        # Recreate a functional Repo handle (and clone if needed).
+        self._init_metadata_repo()
+
     @property
     def latest_stable_tag(self) -> Version | None:
         """Latest stable legend-metadata tag (i.e. strictly numeric vM.m.p)"""
