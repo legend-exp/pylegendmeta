@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import os
+import pickle
 import tempfile
 from datetime import datetime
 from pathlib import Path
 
 import pytest
 from dbetto import AttrsDict, TextDB
-from git import GitCommandError
+from git import GitCommandError, Repo
 from packaging.version import Version
 
 from legendmeta import LegendMetadata
@@ -124,3 +125,18 @@ def test_channelmap(metadb):
     metadb.scan()
     channel = metadb.channelmap(on=date, system="cal").V02160A
     assert "analysis" in channel
+
+
+def test_pickle_legend_metadata_roundtrip(metadb):
+    payload = pickle.dumps(metadb)
+    metadb2 = pickle.loads(payload)
+
+    assert isinstance(metadb2, LegendMetadata)
+    assert Path(metadb2.__repo_path__) == Path(metadb.__repo_path__)
+
+    # Ensure the repo handle was restored and is the correct type.
+    assert isinstance(metadb2.__repo__, Repo)
+
+    # Ensure the repo handle was restored and basic git-derived properties work.
+    assert isinstance(metadb2.__version__, str)
+    assert len(metadb2.__version__) > 0

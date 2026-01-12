@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pickle
+
 import pytest
 import sqlalchemy as sql
 from dbetto import AttrsDict
@@ -63,3 +65,12 @@ def test_status(scdb):
     assert isinstance(status, AttrsDict)
     assert "vmon" in status
     assert "vset" in status
+
+
+def test_pickle_legend_slowcontrol_db_roundtrip(scdb):
+    payload = pickle.dumps(scdb)
+    scdb2 = pickle.loads(payload)
+
+    assert isinstance(scdb2, LegendSlowControlDB)
+    assert scdb2.connection is None
+    assert scdb2.session is None
