@@ -167,10 +167,12 @@ def query_meta(
       periods with underscores
     - @db_name: name of data source. Data sources are found on disk using
       information in the dataflow config file (see `dataflow_conifg`):
+
         - ``@det``: detector database from ``metadata.channel_map()``
         - ``@run``: run info database from ``metadata.datasets.runinfo``
         - ``@par[_tier]``: parameter database from specified tier. If no
             tier is provided, search all tiers in reverse order.
+
     - par_path: path in database to par, using periods to separate fields
 
     Examples:
@@ -189,6 +191,7 @@ def query_meta(
         table of runs similar to one returned by :meth:query_runs
 
         Examples:
+
         - ``"period>='p06' and period<='p08' and datatype=='cal'"`` selects calibration data from periods 6, 7 and 8 (assuming default cycle names)
         - ``"det in ["V01234A", "V06789B"] and datatype=='th_HS2_lat_psa'`` selects runs for detectors V01234A and V06789B from Th calibration data (using Hades data cycle name ``experiment-det-datatype-run-starttime``)
 
@@ -197,6 +200,7 @@ def query_meta(
         access values from all databases, as well as the run table.
 
         Examples:
+
         - ``"@det.system=='geds' and @det.type=='icpc' and @det.analysis.usability=='on'"``
           selects all ICPC detectors for each run that are marked as usable
         - ``"@det.name=='S010' and @det.analysis.processible"`` selects SiPM channel 10 and
@@ -212,6 +216,7 @@ def query_meta(
         syntax for naming data sources from metadata and parameter databases.
 
         Example:
+
         - ``["@det.daq.rawid", "@run.livetime", "aoe_low_cut@par.pars.operations.AoE_Low_Cut.parameters.a"]``
 
     dataflow_config
@@ -261,7 +266,7 @@ def query_meta(
             (key, TextDB(path, lazy=True))
             for key, path in df_paths.items()
             if key[:4] == "par_"
-            and Path.exists(f"{path}/validity.yaml")
+            and Path(f"{path}/validity.yaml").exists()
             and (tiers is None or key[4:] in tiers)
         ]
     )
