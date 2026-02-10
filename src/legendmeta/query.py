@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import keyword
 import os
 import re
 from collections import OrderedDict
@@ -274,53 +275,42 @@ def query_meta(
     # get list of fields needed and build mapping to column names
     col_name_map = {}
     col_list = set()
-    chan_vars = re.findall("[\\w\\.@]+\\(?", channels)
+    chan_vars = parse_query_paths(channels)
+    field_vars = [ parse_query_paths(v, fullmatch=True) for v in fields ]
 
     # capture alias@path.to.val into two variables
-    parser = re.compile("(?:(\\w+))?(@\\w+(?:\\.\\w+)*)?")
-    for field in fields + chan_vars:
-        match = parser.fullmatch(field)
-        if match is None or match == (None, None):
-            raise ValueError()
-        alias, path = match.groups()
-
+    for _, alias, path in chan_vars + field_vars:
         # map from path to alias
-        if path is not None and col_name_map.get(path) is None:
-            col_name_map[path] = alias
+        if col_name_map.get(path) is None:
             # alias must be unique
             if alias is not None and any(
                 path != p and alias == a for p, a in col_name_map.items()
             ):
                 msg = f"alias {alias} already assigned"
                 raise ValueError(msg)
+            col_name_map[path] = alias
 
         # path can only be aliased to a single name
-        elif path in col_name_map and alias != col_name_map[path]:
+        elif path in col_name_map and alias == col_name_map[path]:
+            print(path, alias, col_name_map[path])
             msg = f"{path} assigned multiple alias names"
             raise ValueError(msg)
-
-        # If this is in the field list, add to col_list
-        if return_query_vals or field in fields:
-            if alias is not None:
-                col_list.add(alias)
-            else:
-                col_list.add(path)
-
-        if field in chan_vars:
-            if alias is not None:
-                channels = channels.replace(field, alias)
-            else:
-                channels = channels.replace(field, path)
 
     # Find all the un-aliased paths and assign them an alias
     for path, alias in col_name_map.items():
         if alias is None:
             new_alias = path.replace(".", "_").replace("@", "")
             col_name_map[path] = new_alias
-            channels = channels.replace(path, new_alias)
-            if path in col_list:
-                col_list.remove(path)
-                col_list.add(new_alias)
+
+    # add aliases to col_list
+    for _, _, path in field_vars:
+        col_list.add(col_name_map[path])
+
+    for field, _, path in chan_vars:
+        alias = col_name_map[path]
+        channels = channels.replace(field, alias)
+        if return_query_vals:
+            col_list.add(alias)
 
     if isinstance(runs, str):
         run_records = query_runs(
@@ -368,8 +358,11 @@ def query_meta(
                         {},
                         {"run": runinfo},
                     )
+                    cts += 1
                 except AttributeError:
                     run_record[alias] = None
+            elif path in run_record:
+                cts += 1
             path_hits[path] = cts
 
         # Get pars DBs corresponding to current run
@@ -390,7 +383,8 @@ def query_meta(
                 cts = path_hits.setdefault(path, 0)
                 db = path.split(".")[0]
                 param = None
-                if db == "@run":
+                if db == "@run" or path in run_record:
+                    # these cases handled above
                     continue
                 if db == "@det":
                     if det is None:
@@ -487,3 +481,58 @@ def query_meta(
     if return_alias_map:
         return (result, col_name_map)
     return result
+
+def parse_query_paths(expr: str, fullmatch: bool = False) -> Tuple[str, str]:
+    """
+    Parse input string for variable names of the form
+
+        [alias][@ or :][par.path]
+
+    and return a list of each matching pair, with the first element being the
+    alias and the second element being the path. Aliases and names in paths must
+    be legal python names (i.e. alphanumeric, doesn't start with a digit).
+    If ``@`` is used to separate the alias and path, it is left in the path (to
+    denote a metadata location); if ``:`` is used, it is omitted.
+    Note that function names (i.e. a valid name followed by ``(``) are excluded.
+    Values inside of ``[...]``, ``{...}``, ``"..."``, and `'...' are also excluded.
+
+    If fullmatch is ``True``, expect full string to match pattern and return single pair.
+    """
+    # Note: ast does not like @'s and :'s used in this way, so instead we parse with regex
+    if not fullmatch:
+        # remove substrings inside of brackets or quotes
+        var_list = " ".join(re.split(r"(?:\{.*?\})|(?:\[.*?\])|(?:\".*?\")|(?:'.*?')", expr))
+        var_list = re.findall(r"[\w:@\.]+(?![\w:@\.(])", var_list)
+    else:
+        var_list = [expr]
+
+    ret = []
+    for var in var_list:
+        # skip numerals
+        try:
+            float(var)
+            if fullmatch:
+                msg = f"'{var}' is not a valid variable"
+                raise NameError(msg)
+            continue
+        except ValueError:
+            pass
+
+        # skip reserved keywords in python
+        if keyword.iskeyword(var):
+            if fullmatch:
+                msg = f"'{var}' is an illegal name"
+                raise NameError(msg)
+            continue
+
+        match = re.fullmatch(r"([a-zA-Z_]\w*)??:?(@?[a-zA-Z_]\w*(?:\.[a-zA-Z_]\w*)*)", var)
+        if match is None:
+            msg = f"'{var}' could not be parsed"
+            raise NameError(msg)
+
+        if keyword.iskeyword(match.group(1)):
+            msg = f"{match.group(1)} is an illegal name"
+            raise NameError(msg)
+        ret.append((match.group(0), match.group(1), match.group(2)))
+
+    return ret if not fullmatch else ret[0]
