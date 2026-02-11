@@ -276,7 +276,7 @@ def query_meta(
     col_name_map = {}
     col_list = set()
     chan_vars = parse_query_paths(channels)
-    field_vars = [ parse_query_paths(v, fullmatch=True) for v in fields ]
+    field_vars = [parse_query_paths(v, fullmatch=True) for v in fields]
 
     # capture alias@path.to.val into two variables
     for _, alias, path in chan_vars + field_vars:
@@ -482,6 +482,7 @@ def query_meta(
         return (result, col_name_map)
     return result
 
+
 def parse_query_paths(expr: str, fullmatch: bool = False) -> Tuple[str, str]:
     """
     Parse input string for variable names of the form
@@ -501,7 +502,9 @@ def parse_query_paths(expr: str, fullmatch: bool = False) -> Tuple[str, str]:
     # Note: ast does not like @'s and :'s used in this way, so instead we parse with regex
     if not fullmatch:
         # remove substrings inside of brackets or quotes
-        var_list = " ".join(re.split(r"(?:\{.*?\})|(?:\[.*?\])|(?:\".*?\")|(?:'.*?')", expr))
+        var_list = " ".join(
+            re.split(r"(?:\{.*?\})|(?:\[.*?\])|(?:\".*?\")|(?:'.*?')", expr)
+        )
         var_list = re.findall(r"[\w:@\.]+(?![\w:@\.(])", var_list)
     else:
         var_list = [expr]
@@ -525,7 +528,9 @@ def parse_query_paths(expr: str, fullmatch: bool = False) -> Tuple[str, str]:
                 raise NameError(msg)
             continue
 
-        match = re.fullmatch(r"([a-zA-Z_]\w*)??:?(@?[a-zA-Z_]\w*(?:\.[a-zA-Z_]\w*)*)", var)
+        match = re.fullmatch(
+            r"([a-zA-Z_]\w*)??:?(@?[a-zA-Z_]\w*(?:\.[a-zA-Z_]\w*)*)", var
+        )
         if match is None:
             msg = f"'{var}' could not be parsed"
             raise NameError(msg)
