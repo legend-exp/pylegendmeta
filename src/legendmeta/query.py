@@ -35,11 +35,18 @@ def query_runs(
     ----------
     runs
         python boolean expression for selecting runs, using column names defined
-        in ``cycle_def`` as variables. If ``None`` return all runs found.
+        in ``cycle_def`` as variables. See :meth:query_runs
 
         Examples:
-        - ``"period>='p06' and period<='p08' and datatype=='cal'"`` selects calibration data from periods 6, 7 and 8 (assuming default cycle names)
-        - ``"det in ["V01234A", "V06789B"] and datatype=='th_HS2_lat_psa'`` selects runs for detectors V01234A and V06789B from Th calibration data (using Hades data cycle name ``experiment-det-datatype-run-starttime``)
+
+        - select calibration data from periods 6, 7 and 8 (assuming default cycle names)::
+
+            "period>='p06' and period<='p08' and datatype=='cal'"
+
+        - select runs for detectors V01234A and V06789B from Th calibration data
+          (using Hades data cycle name ``experiment-det-datatype-run-starttime``)::
+
+            "det in ["V01234A", "V06789B"] and datatype=='th_HS2_lat_psa'``
 
     dataflow_config
         config file of reference production. If not provided, use the environment
@@ -191,18 +198,24 @@ def query_meta(
         list of fields to include in the table. See above for description of
         syntax for naming data sources from metadata and parameter databases.
 
-        Example:
+        Example::
 
-        - ``["@det.daq.rawid", "@run.livetime", "aoe_low_cut@par.pars.operations.AoE_Low_Cut.parameters.a"]``
+            ["@det.daq.rawid", "@run.livetime", "aoe_low_cut@par.pars.operations.AoE_Low_Cut.parameters.a"]
 
     runs
-        python boolean expression for selecting runs using :meth:query_runs, or
-        table of runs similar to one returned by :meth:query_runs
+        python boolean expression for selecting runs, using column names defined
+        in ``cycle_def`` as variables. See :meth:query_runs
 
         Examples:
 
-        - ``"period>='p06' and period<='p08' and datatype=='cal'"`` selects calibration data from periods 6, 7 and 8 (assuming default cycle names)
-        - ``"det in ["V01234A", "V06789B"] and datatype=='th_HS2_lat_psa'`` selects runs for detectors V01234A and V06789B from Th calibration data (using Hades data cycle name ``experiment-det-datatype-run-starttime``)
+        - select calibration data from periods 6, 7 and 8 (assuming default cycle names)::
+
+            "period>='p06' and period<='p08' and datatype=='cal'"
+
+        - select runs for detectors V01234A and V06789B from Th calibration data
+          (using Hades data cycle name ``experiment-det-datatype-run-starttime``)::
+
+            "det in ["V01234A", "V06789B"] and datatype=='th_HS2_lat_psa'``
 
     channels
         expression used to select channels for each run. Expression can
@@ -210,10 +223,13 @@ def query_meta(
 
         Examples:
 
-        - ``"@det.system=='geds' and @det.type=='icpc' and @det.analysis.usability=='on'"``
-          selects all ICPC detectors for each run that are marked as usable
-        - ``"@det.name=='S010' and @det.analysis.processible"`` selects SiPM channel 10 and
-          will only include runs where it is can be processed
+        - select all ICPC detectors for each run that are marked as usable::
+
+            "@det.system=='geds' and @det.type=='icpc' and @det.analysis.usability=='on'"``
+
+        - selects SiPM channel 10 and will only include runs where it is can be processed::
+
+            "@det.name=='S010' and @det.analysis.processible"
 
         Note: if a parameter does not exist for a channel, it will evaluate to ``None``.
         If this causes an error to be thrown, this expression will evaluate to ``False``,
@@ -484,7 +500,7 @@ def query_meta(
 
 def parse_query_paths(expr: str, fullmatch: bool = False) -> tuple[str, str]:
     """
-    Parse input string for variable names of the form
+    Parse input string for variable names of the form::
 
         [alias][@ or :][par.path]
 
@@ -494,7 +510,7 @@ def parse_query_paths(expr: str, fullmatch: bool = False) -> tuple[str, str]:
     If ``@`` is used to separate the alias and path, it is left in the path (to
     denote a metadata location); if ``:`` is used, it is omitted.
     Note that function names (i.e. a valid name followed by ``(``) are excluded.
-    Values inside of ``[...]``, ``{...}``, ``"..."``, and `'...' are also excluded.
+    Values inside of ``[...]``, ``{...}``, ``"..."``, and ``'...'`` are also excluded.
 
     If fullmatch is ``True``, expect full string to match pattern and return single pair.
     """
