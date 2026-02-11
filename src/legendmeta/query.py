@@ -138,9 +138,9 @@ def query_runs(
 
 
 def query_meta(
+    fields: Collection[str],
     runs: str | ak.Array | Mapping[np.ndarray] | pd.DataFrame,
     channels: str,
-    fields: Collection[str],
     *,
     dataflow_config: Path | str | Mapping = "$REFPROD/dataflow-config.yaml",
     tiers: Collection[str] | None = None,
@@ -187,6 +187,14 @@ def query_meta(
 
     Parameters
     ----------
+    fields
+        list of fields to include in the table. See above for description of
+        syntax for naming data sources from metadata and parameter databases.
+
+        Example:
+
+        - ``["@det.daq.rawid", "@run.livetime", "aoe_low_cut@par.pars.operations.AoE_Low_Cut.parameters.a"]``
+
     runs
         python boolean expression for selecting runs using :meth:query_runs, or
         table of runs similar to one returned by :meth:query_runs
@@ -211,14 +219,6 @@ def query_meta(
         If this causes an error to be thrown, this expression will evaluate to ``False``,
         excluding the channel. If an parameter always evaluates to False, it will raise
         an Exception.
-
-    fields
-        list of fields to include in the table. See above for description of
-        syntax for naming data sources from metadata and parameter databases.
-
-        Example:
-
-        - ``["@det.daq.rawid", "@run.livetime", "aoe_low_cut@par.pars.operations.AoE_Low_Cut.parameters.a"]``
 
     dataflow_config
         config file of reference production. If not provided, use the environment
