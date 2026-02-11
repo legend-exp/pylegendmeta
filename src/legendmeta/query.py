@@ -292,7 +292,6 @@ def query_meta(
 
         # path can only be aliased to a single name
         elif path in col_name_map and alias == col_name_map[path]:
-            print(path, alias, col_name_map[path])
             msg = f"{path} assigned multiple alias names"
             raise ValueError(msg)
 
@@ -483,7 +482,7 @@ def query_meta(
     return result
 
 
-def parse_query_paths(expr: str, fullmatch: bool = False) -> Tuple[str, str]:
+def parse_query_paths(expr: str, fullmatch: bool = False) -> tuple[str, str]:
     """
     Parse input string for variable names of the form
 
