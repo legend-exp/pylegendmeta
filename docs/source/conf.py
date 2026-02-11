@@ -2,9 +2,8 @@
 from __future__ import annotations
 
 import sys
-from pathlib import Path
-
 from importlib import metadata
+from pathlib import Path
 
 sys.path.insert(0, Path(__file__).parents[2].resolve().as_posix())
 
