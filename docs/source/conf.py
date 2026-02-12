@@ -2,15 +2,14 @@
 from __future__ import annotations
 
 import sys
+from importlib import metadata
 from pathlib import Path
-
-from pkg_resources import get_distribution
 
 sys.path.insert(0, Path(__file__).parents[2].resolve().as_posix())
 
 project = "pylegendmeta"
 copyright = "The LEGEND Collaboration"
-version = get_distribution("pylegendmeta").version
+version = metadata.version("pylegendmeta")
 
 extensions = [
     "sphinx.ext.githubpages",

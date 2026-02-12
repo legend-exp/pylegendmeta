@@ -77,7 +77,7 @@ class LegendMetadata(TextDB):
             exp_path = os.path.expandvars(self.__repo_path__)
 
         self.__repo_path__ = Path(self.__repo_path__)
-        self.__repo_path__ = self.__repo_path__.resolve(strict=True)
+        self.__repo_path__ = self.__repo_path__.resolve(strict=False)
 
         if self.__repo_path__.exists() and not self.__repo_path__.is_dir():
             msg = f"cannot initialize with a file: {self.__repo_path__}"
