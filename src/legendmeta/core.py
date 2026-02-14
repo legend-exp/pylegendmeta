@@ -19,12 +19,11 @@ import copy
 import logging
 import os
 import re
-from datetime import datetime
 from getpass import getuser
 from pathlib import Path
 from tempfile import gettempdir
 
-from dbetto import AttrsDict, TextDB
+from dbetto import TextDB
 from git import GitCommandError, InvalidGitRepositoryError, Repo
 from packaging.version import Version
 
@@ -251,6 +250,18 @@ class MetadataRepository(TextDB):
             )
         )
 
+    def show_metadata_version(self) -> None:
+        """Logs version info for metadata repository and all its submodules."""
+        self._except_if_not_git_repo()
+
+        print(f"{self.__repo__.working_dir}: {self.__version__}")  # noqa: T201
+
+        submods = self.__repo__.submodules
+        for i, s in enumerate(submods):
+            char = "└──" if i == len(submods) - 1 else "├──"
+            version = s.module().git.describe("--tags", "--always")
+            print(f"{char} {s.name}: {version}")  # noqa: T201
+
     def _except_if_not_git_repo(self) -> None:
         if self.__repo__ is None:
             msg = f"{self.__repo_path__} is not a Git repository (.git folder missing)"
@@ -264,151 +275,3 @@ class MetadataRepository(TextDB):
                 log.warning(msg)
                 with self.__repo__.config_writer("global") as c:
                     c.add_value("safe", "directory", str(self.__repo_path__))
-
-
-class LegendMetadata(MetadataRepository):
-    """LEGEND metadata.
-
-    Class representing the LEGEND metadata repository with utilities for fast
-    access.
-
-    If no valid path to an existing legend-metadata directory is provided, will
-    attempt to clone https://github.com/legend-exp/legend-metadata via SSH and
-    git-checkout the latest stable tag (vM.m.p format).
-
-    Parameters
-    ----------
-    path
-        path to legend-metadata repository. If not existing, will attempt a
-        git-clone through SSH. If ``None``, legend-metadata will be cloned
-        in a temporary directory (see :func:`tempfile.gettempdir`).
-    **kwargs
-        further keyword arguments forwarded to :class:`TextDB.__init__`.
-    """
-
-    def __init__(self, path: str | None = None, **kwargs) -> None:
-        super().__init__(
-            path=path,
-            repo_url="git@github.com:legend-exp/legend-metadata",
-            env_var="LEGEND_METADATA",
-            default_dir_name="legend-metadata-",
-            **kwargs,
-        )
-
-    def show_metadata_version(self) -> None:
-        """Logs version info for legend-metadata repository and all its submodules."""
-        self._except_if_not_git_repo()
-
-        print(f"{self.__repo__.working_dir}: {self.__version__}")  # noqa: T201
-
-        submods = self.__repo__.submodules
-        for i, s in enumerate(submods):
-            char = "└──" if i == len(submods) - 1 else "├──"
-            version = s.module().git.describe("--tags", "--always")
-            print(f"{char} {s.name}: {version}")  # noqa: T201
-
-    def channelmap(
-        self, on: str | datetime | None = None, system: str = "all"
-    ) -> AttrsDict:
-        """Get a LEGEND channel map.
-
-        Aliases ``legend-metadata.hardware.configuration.channelmaps.on()`` and
-        tries to merge the returned channel map with the detector database
-        `legend-metadata.hardware.detectors` and the analysis channel map
-        `dataprod.config.on(...).analysis`.
-
-        Parameters
-        ----------
-        on
-            a :class:`~datetime.datetime` object or a string matching the
-            pattern ``YYYYmmddTHHMMSSZ``.
-        system: 'all', 'phy', 'cal', 'lar', ...
-            query only a data taking "system".
-
-        Warning
-        -------
-        This method assumes ``legend-exp/legend-metadata`` has a certain
-        layout. Might stop working if changes are made to the structure of the
-        repository.
-
-        Examples
-        --------
-        >>> from legendmeta import LegendMetadata
-        >>> from datetime import datetime
-        >>> channel = lmeta.channelmap(on=datetime.now()).V05267B
-        >>> channel.geometry.mass_in_g
-        2362.0
-        >>> channel.analysis.usability
-        'on'
-
-        See Also
-        --------
-        .textdb.TextDB.on
-        """
-        if on is None:
-            on = datetime.now()
-
-        chmap = self.hardware.configuration.channelmaps.on(
-            on, pattern=None, system=system
-        )
-
-        # get analysis metadata
-        if self.__closest_tag__ < Version("v0.5.9") or self.__version__ == "v0.5.9":
-            anamap = self.dataprod.config.on(on, pattern=None, system=system).analysis
-        else:
-            anamap = self.datasets.statuses.on(on, pattern=None, system=system)
-
-        # get full detector db
-        detdb = self.hardware.detectors
-
-        for det in chmap:
-            # find channel info in detector database and merge it into
-            # channelmap item, if possible
-            try:
-                if chmap[det]["system"] == "geds":
-                    chmap[det] |= detdb.germanium.diodes[det]
-                else:
-                    chmap[det] |= detdb.lar.sipms[det]
-            except (KeyError, FileNotFoundError):
-                msg = f"Could not find detector '{det}' in hardware.detectors database"
-                log.debug(msg)
-
-            # find channel info in analysis database and add it into channelmap
-            # item under "analysis", if possible
-            if det in anamap:
-                chmap[det]["analysis"] = anamap[det]
-            else:
-                msg = f"Could not find detector '{det}' in dataprod.config database"
-                log.debug(msg)
-
-        return chmap
-
-
-class HadesMetadata(MetadataRepository):
-    """HADES metadata.
-
-    Class representing the HADES metadata repository with utilities for fast
-    access.
-
-    If no valid path to an existing hades-metadata directory is provided, will
-    attempt to clone https://github.com/legend-exp/hades-metadata via SSH and
-    git-checkout the latest stable tag (vM.m.p format).
-
-    Parameters
-    ----------
-    path
-        path to hades-metadata repository. If not existing, will attempt a
-        git-clone through SSH. If ``None``, hades-metadata will be cloned
-        in a temporary directory (see :func:`tempfile.gettempdir`).
-    **kwargs
-        further keyword arguments forwarded to :class:`TextDB.__init__`.
-    """
-
-    def __init__(self, path: str | None = None, **kwargs) -> None:
-        super().__init__(
-            path=path,
-            repo_url="git@github.com:legend-exp/hades-metadata",
-            env_var="HADES_METADATA",
-            default_dir_name="hades-metadata-",
-            **kwargs,
-        )

@@ -20,7 +20,9 @@ from __future__ import annotations
 from dbetto import str_to_datetime as to_datetime
 
 from ._version import version as __version__
-from .core import HadesMetadata, LegendMetadata, MetadataRepository
+from .core import MetadataRepository
+from .hadesmetadata import HadesMetadata
+from .legendmetadata import LegendMetadata
 from .slowcontrol import LegendSlowControlDB
 
 __all__ = [
