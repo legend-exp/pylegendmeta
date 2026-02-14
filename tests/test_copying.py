@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import copy
 
-from legendmeta.core import LegendMetadata
+from legendmeta import LegendMetadata
 from legendmeta.slowcontrol import LegendSlowControlDB
 
 
