@@ -241,7 +241,7 @@ class LegendMetadata(TextDB):
             print(f"{char} {s.name}: {version}")  # noqa: T201
 
     def channelmap(
-        self, on: str | datetime | None = None, system: str = "all"
+        self, on: str | datetime | None = None, system: str | None = None
     ) -> AttrsDict:
         """Get a LEGEND channel map.
 
@@ -254,9 +254,11 @@ class LegendMetadata(TextDB):
         ----------
         on
             a :class:`~datetime.datetime` object or a string matching the
-            pattern ``YYYYmmddTHHMMSSZ``.
+            pattern ``YYYYmmddTHHMMSSZ``, or ``p# r#``, which are period and
+            run numbers.
         system: 'all', 'phy', 'cal', 'lar', ...
-            query only a data taking "system".
+            query only a data taking "system". If on is None, default to
+            'all', otherwise this must be provided
 
         Warning
         -------
@@ -274,12 +276,35 @@ class LegendMetadata(TextDB):
         >>> channel.analysis.usability
         'on'
 
+        >>> channel = lmeta.channelmap(on=datetime.now(), system='cal').V05267B
+
+        >>> channel = lmeta.channelmap('p08 r005', system='cal').V05267B
+
         See Also
         --------
         .textdb.TextDB.on
         """
         if on is None:
             on = datetime.now()
+            if system is None:
+                system = "all"
+
+        if system is None:
+            msg = "Use of channelmap with an on arg but no system arg is deprecated and will raise an error in the future. Provide a value (e.g. 'all', 'cal', 'phy', etc.)"
+            log.warning(msg)
+            # msg = "System cannot be None. Provide a value (e.g. 'all', 'cal', 'phy', etc.)"
+            # raise ValueError(msg)
+
+        try:
+            pd, run = re.fullmatch("([pP][0-9]+)\\s*([rR][0-9]+)", on).group(1, 2)
+            runinfo = self.dataprod.runinfo[pd][run]
+            if system == "all":
+                on = next(iter(runinfo.values())).start_key
+            else:
+                on = runinfo[system].start_key
+        except (AttributeError, TypeError):
+            # on is not a period/run
+            pass
 
         chmap = self.hardware.configuration.channelmaps.on(
             on, pattern=None, system=system
