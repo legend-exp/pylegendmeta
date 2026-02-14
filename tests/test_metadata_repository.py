@@ -4,8 +4,6 @@ import copy
 import tempfile
 from pathlib import Path
 
-import pytest
-
 from legendmeta import HadesMetadata, LegendMetadata, MetadataRepository
 
 
@@ -90,4 +88,4 @@ def test_copy_hades_metadata():
 def test_legend_metadata_show_metadata_version():
     """Test that LegendMetadata has show_metadata_version method."""
     assert hasattr(LegendMetadata, "show_metadata_version")
-    assert callable(getattr(LegendMetadata, "show_metadata_version"))
+    assert callable(LegendMetadata.show_metadata_version)

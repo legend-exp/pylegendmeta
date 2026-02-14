@@ -54,7 +54,7 @@ class MetadataRepository(TextDB):
     default_dir_name
         default directory name for cloning in temp directory.
     **kwargs
-        further keyword arguments forwarded to :math:`TextDB.__init__`.
+        further keyword arguments forwarded to :class:`TextDB.__init__`.
     """
 
     def __init__(
@@ -277,7 +277,7 @@ class LegendMetadata(MetadataRepository):
         git-clone through SSH. If ``None``, legend-metadata will be cloned
         in a temporary directory (see :func:`tempfile.gettempdir`).
     **kwargs
-        further keyword arguments forwarded to :math:`TextDB.__init__`.
+        further keyword arguments forwarded to :class:`TextDB.__init__`.
     """
 
     def __init__(self, path: str | None = None, **kwargs) -> None:
@@ -395,7 +395,7 @@ class HadesMetadata(MetadataRepository):
         git-clone through SSH. If ``None``, hades-metadata will be cloned
         in a temporary directory (see :func:`tempfile.gettempdir`).
     **kwargs
-        further keyword arguments forwarded to :math:`TextDB.__init__`.
+        further keyword arguments forwarded to :class:`TextDB.__init__`.
     """
 
     def __init__(self, path: str | None = None, **kwargs) -> None:
