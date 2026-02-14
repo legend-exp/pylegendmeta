@@ -21,7 +21,7 @@ def query_runs(
     *,
     dataflow_config: Path | str | Mapping = "$REFPROD/dataflow-config.yaml",
     cycle_def: str = "experiment-period-run-datatype-starttime",
-    all_cycles: bool = False,
+    group_by: str | Collection[str] | None = None,
     sort_by: str | Collection[str] = "cycle",
     library: str = "ak",
 ):
@@ -59,8 +59,12 @@ def query_runs(
         - (default) ``experiment-period-run-datatype-cycle`` for a L200 cycle, e.g. ``l200-p03-r001-cal-19720101T000000Z``
         - ``experiment-det-datatype-run-starttime`` for a Hades cycle, e.g. ``char_data-V05268A-th_HS2_lat_psa-r001-20201008T122118Z``
 
-    all_cycles
-        return entry for each cycle in each directory instead of first cycle alphabetically
+    group_by
+        if ``None`` (default) return a flat array with all cycles. If one or more fields
+        are provided, group entries by these fields (using :meth:ak.run_lengths, so group
+        consecutive equal values; this is done after sorting, so be careful if sorting
+        changes order!) Fields that vary within groups will be un-flattened into 2-D ragged
+        arrays. Note that ``runs`` query acts on a cycle-by-cycle basis, before grouping.
 
     sort_by
         field by which to sort table, or list of fields in order by priority
@@ -121,9 +125,6 @@ def query_runs(
                 if bool(select_run):
                     records.append(record)
 
-                if not all_cycles:
-                    break
-
         # Format and return results
         records.sort(
             key=lambda rec: rec[sort_by]
@@ -131,6 +132,20 @@ def query_runs(
             else [rec[sb] for sb in sort_by]
         )
         result = ak.Array(records)
+
+        if group_by is not None:
+            if isinstance(group_by, str):
+                lengths = [np.cumsum(ak.run_lengths(result[group_by]))]
+            else:
+                lengths = [np.cumsum(ak.run_lengths(result[f])) for f in group_by]
+            lengths = np.unique(np.concatenate([0]+lengths))
+            result = ak.unflatten(result, lengths[1:] - lengths[:-1])
+            result = ak.Array( {
+                f: ak.firsts(result[f]) if ak.all(ak.all(result[f] == ak.firsts(result[f]), axis=1), axis=0)
+                   else result[f]
+                for f in result.fields
+            } )
+
         if library == "ak":
             return result
         if library == "pd":
@@ -151,10 +166,10 @@ def query_meta(
     *,
     dataflow_config: Path | str | Mapping = "$REFPROD/dataflow-config.yaml",
     tiers: Collection[str] | None = None,
-    by_run: bool = False,
     return_query_vals: bool = False,
     cycle_def: str = "experiment-period-run-datatype-starttime",
-    all_cycles: bool = False,
+    group_by: str | Collection[str] | None = None,
+    group_chans: bool = False,
     return_alias_map: bool = False,
     library: str = "ak",
 ):
@@ -244,9 +259,15 @@ def query_meta(
         search only provided tiers for pars. If ``None`` search all found tiers.
         Examples: ``["dsp", "hit"]`` or ``["psp", "pht"]``
 
-    by_run
-        if ``True``, return nested array grouped by run, with inner variable length arrays of
-        channel data
+    group_by
+        See :meth:`query_run`. If ``None`` (default) return an entry for each cycle.
+        Else, group cycles by the provided field(s). Note that parameters will be retrieved
+        for groups of cycles; this can speed the query up, but be careful that a single
+        group for each metadata parameter is sufficient!
+
+    group_chans
+        if ``True``, return one entry for each run or group of runs, with channel data
+        nested as ragged arrays. Else, return one entry for each channel/run.
 
     return_query_vals
         if ``True``, return values found in query as columns; else only return those in ``fields``
@@ -332,7 +353,7 @@ def query_meta(
             runs,
             dataflow_config=df_config,
             cycle_def=cycle_def,
-            all_cycles=all_cycles,
+            group_by=group_by,
         )
     else:
         run_records = ak.Array(runs)
@@ -344,18 +365,21 @@ def query_meta(
     records = []
     path_hits = {}  # count number of times a value is found to give more helpful errors
     eval_success = False  # track if the eval ever succeeds
+    run_par_dbs = {}
+    detlist = None
     for run_record in run_records:
         if isinstance(run_record, ak.Record):
             run_record = run_record.tolist()  # noqa: PLW2901
         time = run_record["starttime"]
+        while isinstance(time, list):
+            time = time[0]
 
-        if by_run:
+        if group_chans:
             record = copy(run_record)
 
         try:
-            detlist = meta.channelmap(
-                on=time,
-            )
+            if detlist is None or not detlist.is_valid(time):
+                detlist = meta.channelmap(on=time)
         except (AttributeError, KeyError, FileNotFoundError):
             detlist = [None]
 
@@ -381,10 +405,10 @@ def query_meta(
             path_hits[path] = cts
 
         # Get pars DBs corresponding to current run
-        run_par_dbs = {}
         for k, db in par_dbs.items():
             try:
-                run_par_dbs[k] = db.on(time)
+                if not k in run_par_dbs or not run_par_dbs[k].is_valid(time):
+                    run_par_dbs[k] = db.on(time)
             except RuntimeError:
                 # if there is no valid parameter database for this run...
                 continue
@@ -450,7 +474,7 @@ def query_meta(
             ch_ct += 1
 
             if keep_record:
-                if by_run:
+                if group_chans:
                     for alias, param in ch_record.items():
                         if alias not in run_record:
                             record.setdefault(alias, []).append(param)
@@ -459,7 +483,7 @@ def query_meta(
                         {k: v for k, v in (ch_record).items() if k in col_list}
                     )
 
-        if by_run and ch_ct > 0:
+        if group_chans and ch_ct > 0:
             records.append({k: v for k, v in record.items() if k in col_list})
 
     # if evaluating query was never successful...
@@ -478,8 +502,8 @@ def query_meta(
     elif library == "pd":
         result = ak.to_dataframe(result)
     elif library == "np":
-        if by_run:
-            msg = "library 'np' is not compatible with by_run=True"
+        if group_chans:
+            msg = "library 'np' is not compatible with group_chans=True"
             raise ValueError(msg)
 
         # recursively walk through fields to produce nested dict of np arrays
