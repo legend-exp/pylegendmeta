@@ -20,14 +20,16 @@ from __future__ import annotations
 from dbetto import str_to_datetime as to_datetime
 
 from ._version import version as __version__
-from .core import LegendMetadata
+from .core import HadesMetadata, LegendMetadata, MetadataRepository
 from .slowcontrol import LegendSlowControlDB
 
 __all__ = [
     "AttrsDict",
+    "HadesMetadata",
     "JsonDB",
     "LegendMetadata",
     "LegendSlowControlDB",
+    "MetadataRepository",
     "TextDB",
     "__version__",
     "to_datetime",

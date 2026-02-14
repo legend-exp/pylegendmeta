@@ -31,36 +31,51 @@ from packaging.version import Version
 log = logging.getLogger(__name__)
 
 
-class LegendMetadata(TextDB):
-    """LEGEND metadata.
+class MetadataRepository(TextDB):
+    """Base class for git-based metadata repositories.
 
-    Class representing the LEGEND metadata repository with utilities for fast
-    access.
+    Class representing a metadata repository with utilities for fast access
+    via git.
 
-    If no valid path to an existing legend-metadata directory is provided, will
-    attempt to clone https://github.com/legend-exp/legend-metadata via SSH and
-    git-checkout the latest stable tag (vM.m.p format).
+    If no valid path to an existing metadata directory is provided, will
+    attempt to clone the repository via SSH and git-checkout the latest
+    stable tag (vM.m.p format).
 
     Parameters
     ----------
     path
-        path to legend-metadata repository. If not existing, will attempt a
-        git-clone through SSH. If ``None``, legend-metadata will be cloned
+        path to metadata repository. If not existing, will attempt a
+        git-clone through SSH. If ``None``, metadata will be cloned
         in a temporary directory (see :func:`tempfile.gettempdir`).
+    repo_url
+        URL of the git repository to clone (e.g., "git@github.com:org/repo").
+    env_var
+        name of the environment variable to check for repository path.
+    default_dir_name
+        default directory name for cloning in temp directory.
     **kwargs
         further keyword arguments forwarded to :math:`TextDB.__init__`.
     """
 
-    def __init__(self, path: str | None = None, **kwargs) -> None:
+    def __init__(
+        self,
+        path: str | None = None,
+        repo_url: str = "",
+        env_var: str = "",
+        default_dir_name: str = "",
+        **kwargs,
+    ) -> None:
+        self.__repo_url__ = repo_url
+        self.__env_var__ = env_var
+        self.__default_dir_name__ = default_dir_name
+
         if isinstance(path, (str, Path)):
             self.__repo_path__ = path
         else:
-            self.__repo_path__ = os.getenv("LEGEND_METADATA", "")
+            self.__repo_path__ = os.getenv(env_var, "")
 
         if self.__repo_path__ == "":
-            self.__repo_path__ = str(
-                Path(gettempdir()) / ("legend-metadata-" + getuser())
-            )
+            self.__repo_path__ = str(Path(gettempdir()) / (default_dir_name + getuser()))
 
         self.__repo_path__ = Path(self.__repo_path__)
 
@@ -70,7 +85,7 @@ class LegendMetadata(TextDB):
         super().__init__(self.__repo_path__, **kwargs)
 
     def _init_metadata_repo(self) -> None:
-        """Clone legend-metadata, if not existing, and checkout latest stable tag."""
+        """Clone metadata repository, if not existing, and checkout latest stable tag."""
         exp_path = os.path.expandvars(self.__repo_path__)
         while self.__repo_path__ != exp_path:
             self.__repo_path__ = exp_path
@@ -84,7 +99,7 @@ class LegendMetadata(TextDB):
             raise ValueError(msg)
 
         if not self.__repo_path__.exists() or not any(self.__repo_path__.iterdir()):
-            msg = f"Cloning git@github.com:legend-exp/legend-metadata in {self.__repo_path__}..."
+            msg = f"Cloning {self.__repo_url__} in {self.__repo_path__}..."
             # set logging level as warning (default logging level), so it's
             # always printed and the user knows why it takes so long to initialize
             log.warning(msg)
@@ -95,12 +110,12 @@ class LegendMetadata(TextDB):
                 Path(self.__repo_path__).mkdir()
 
             self.__repo__ = Repo.clone_from(
-                "git@github.com:legend-exp/legend-metadata",
+                self.__repo_url__,
                 self.__repo_path__,
                 multi_options=["--recurse-submodules"],
             )
 
-            # checkout legend-metadata at its latest stable tag
+            # checkout metadata at its latest stable tag
             if self.latest_stable_tag is not None:
                 msg = (
                     f"Checking out the latest stable tag ({self.latest_stable_tag})..."
@@ -120,13 +135,13 @@ class LegendMetadata(TextDB):
         except InvalidGitRepositoryError:
             self.__repo__ = None
 
-    def __copy__(self) -> LegendMetadata:
+    def __copy__(self) -> MetadataRepository:
         cls = self.__class__
         new_obj = cls.__new__(cls)
         new_obj.__dict__.update(self.__dict__)
         return new_obj
 
-    def __deepcopy__(self, memo: dict[int, object]) -> LegendMetadata:
+    def __deepcopy__(self, memo: dict[int, object]) -> MetadataRepository:
         cls = self.__class__
         new_obj = cls.__new__(cls)
         memo[id(self)] = new_obj
@@ -162,7 +177,7 @@ class LegendMetadata(TextDB):
 
     @property
     def latest_stable_tag(self) -> Version | None:
-        """Latest stable legend-metadata tag (i.e. strictly numeric vM.m.p)"""
+        """Latest stable metadata tag (i.e. strictly numeric vM.m.p)"""
         self._except_if_not_git_repo()
 
         tag_list = [tag.name for tag in self.__repo__.tags]
@@ -183,7 +198,7 @@ class LegendMetadata(TextDB):
         return version_tags[-1]
 
     def checkout(self, git_ref: str | Version, rescan: bool = True) -> None:
-        """Select a legend-metadata version."""
+        """Select a metadata repository version."""
         self._except_if_not_git_repo()
 
         if isinstance(git_ref, Version):
@@ -202,7 +217,7 @@ class LegendMetadata(TextDB):
 
     @property
     def __version__(self) -> str:
-        """legend-metadata version.
+        """Metadata repository version.
 
         Calculated with ``git describe``, looking for the closest tag with a
         name based on semantic versioning.
@@ -215,7 +230,7 @@ class LegendMetadata(TextDB):
 
     @property
     def __closest_tag__(self) -> Version:
-        """legend-metadata Git tag closest to the current commit.
+        """Metadata repository Git tag closest to the current commit.
 
         Calculated with ``git describe``, looking for the closest tag with a
         name based on semantic versioning.
@@ -226,6 +241,50 @@ class LegendMetadata(TextDB):
             self.__repo__.git.describe(
                 "--tags", "--always", "--match=v[0-9]*[0-9]*[0-9]*", "--abbrev=0"
             )
+        )
+
+    def _except_if_not_git_repo(self) -> None:
+        if self.__repo__ is None:
+            msg = f"{self.__repo_path__} is not a Git repository (.git folder missing)"
+            raise InvalidGitRepositoryError(msg)
+
+        try:
+            self.__repo__.git.rev_parse("HEAD")
+        except GitCommandError as e:
+            if "fatal: detected dubious ownership" in e.stderr:
+                msg = f"git raised dubious ownership error. Automatically called 'git config --global --add safe.directory {self.__repo_path__}`"
+                log.warning(msg)
+                with self.__repo__.config_writer("global") as c:
+                    c.add_value("safe", "directory", str(self.__repo_path__))
+
+
+class LegendMetadata(MetadataRepository):
+    """LEGEND metadata.
+
+    Class representing the LEGEND metadata repository with utilities for fast
+    access.
+
+    If no valid path to an existing legend-metadata directory is provided, will
+    attempt to clone https://github.com/legend-exp/legend-metadata via SSH and
+    git-checkout the latest stable tag (vM.m.p format).
+
+    Parameters
+    ----------
+    path
+        path to legend-metadata repository. If not existing, will attempt a
+        git-clone through SSH. If ``None``, legend-metadata will be cloned
+        in a temporary directory (see :func:`tempfile.gettempdir`).
+    **kwargs
+        further keyword arguments forwarded to :math:`TextDB.__init__`.
+    """
+
+    def __init__(self, path: str | None = None, **kwargs) -> None:
+        super().__init__(
+            path=path,
+            repo_url="git@github.com:legend-exp/legend-metadata",
+            env_var="LEGEND_METADATA",
+            default_dir_name="legend-metadata-",
+            **kwargs,
         )
 
     def show_metadata_version(self) -> None:
@@ -316,16 +375,32 @@ class LegendMetadata(TextDB):
 
         return chmap
 
-    def _except_if_not_git_repo(self) -> None:
-        if self.__repo__ is None:
-            msg = f"{self.__repo_path__} is not a Git repository (.git folder missing)"
-            raise InvalidGitRepositoryError(msg)
 
-        try:
-            self.__repo__.git.rev_parse("HEAD")
-        except GitCommandError as e:
-            if "fatal: detected dubious ownership" in e.stderr:
-                msg = f"git raised dubious ownership error. Automatically called 'git config --global --add safe.directory {self.__repo_path__}`"
-                log.warning(msg)
-                with self.__repo__.config_writer("global") as c:
-                    c.add_value("safe", "directory", str(self.__repo_path__))
+class HadesMetadata(MetadataRepository):
+    """HADES metadata.
+
+    Class representing the HADES metadata repository with utilities for fast
+    access.
+
+    If no valid path to an existing hades-metadata directory is provided, will
+    attempt to clone https://github.com/legend-exp/hades-metadata via SSH and
+    git-checkout the latest stable tag (vM.m.p format).
+
+    Parameters
+    ----------
+    path
+        path to hades-metadata repository. If not existing, will attempt a
+        git-clone through SSH. If ``None``, hades-metadata will be cloned
+        in a temporary directory (see :func:`tempfile.gettempdir`).
+    **kwargs
+        further keyword arguments forwarded to :math:`TextDB.__init__`.
+    """
+
+    def __init__(self, path: str | None = None, **kwargs) -> None:
+        super().__init__(
+            path=path,
+            repo_url="git@github.com:legend-exp/hades-metadata",
+            env_var="HADES_METADATA",
+            default_dir_name="hades-metadata-",
+            **kwargs,
+        )
