@@ -75,7 +75,9 @@ class MetadataRepository(TextDB):
             self.__repo_path__ = os.getenv(env_var, "")
 
         if self.__repo_path__ == "":
-            self.__repo_path__ = str(Path(gettempdir()) / (default_dir_name + getuser()))
+            self.__repo_path__ = str(
+                Path(gettempdir()) / (default_dir_name + getuser())
+            )
 
         self.__repo_path__ = Path(self.__repo_path__)
 
