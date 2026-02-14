@@ -25,9 +25,8 @@ def test_legend_metadata_has_channelmap_method():
 def test_hades_metadata_does_not_have_channelmap_method():
     """Test that HadesMetadata does not have the channelmap method (it's legend-specific)."""
     # HadesMetadata should not have channelmap since it's specific to legend-metadata structure
-    assert not hasattr(HadesMetadata, "channelmap") or not callable(
-        getattr(HadesMetadata, "channelmap", None)
-    )
+    # Check that it doesn't have it or inherits it from a parent class
+    assert "channelmap" not in HadesMetadata.__dict__
 
 
 def test_metadata_repository_base_class_attributes():

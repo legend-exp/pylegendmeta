@@ -41,6 +41,12 @@ class MetadataRepository(TextDB):
     attempt to clone the repository via SSH and git-checkout the latest
     stable tag (vM.m.p format).
 
+    Note
+    ----
+    This class is designed to be subclassed, not instantiated directly.
+    Derived classes should provide the required repository configuration
+    (repo_url, env_var, default_dir_name) via ``super().__init__()``.
+
     Parameters
     ----------
     path
