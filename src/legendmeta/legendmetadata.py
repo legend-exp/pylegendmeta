@@ -56,7 +56,10 @@ class LegendMetadata(MetadataRepository):
         )
 
     def channelmap(
-        self, on: str | datetime | None = None, system: str = "all"
+        self,
+        on: str | datetime | None = None,
+        system: str = "all",
+        skip_version_check: bool = False,
     ) -> AttrsDict:
         """Get a LEGEND channel map.
 
@@ -72,6 +75,10 @@ class LegendMetadata(MetadataRepository):
             pattern ``YYYYmmddTHHMMSSZ``.
         system: 'all', 'phy', 'cal', 'lar', ...
             query only a data taking "system".
+        skip_version_check
+            if ``True``, skip the git version check and assume the latest
+            metadata structure. This is useful when working with non-git
+            repositories (e.g., test data).
 
         Warning
         -------
@@ -101,7 +108,10 @@ class LegendMetadata(MetadataRepository):
         )
 
         # get analysis metadata
-        if self.__closest_tag__ < Version("v0.5.9") or self.__version__ == "v0.5.9":
+        if skip_version_check:
+            # assume latest structure (post v0.5.9)
+            anamap = self.datasets.statuses.on(on, pattern=None, system=system)
+        elif self.__closest_tag__ < Version("v0.5.9") or self.__version__ == "v0.5.9":
             anamap = self.dataprod.config.on(on, pattern=None, system=system).analysis
         else:
             anamap = self.datasets.statuses.on(on, pattern=None, system=system)
