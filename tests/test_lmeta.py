@@ -127,7 +127,6 @@ def test_channelmap(metadb):
     assert "analysis" in channel
 
 
-
 def test_pickle_legend_metadata_roundtrip(metadb):
     payload = pickle.dumps(metadb)
     metadb2 = pickle.loads(payload)
@@ -161,4 +160,3 @@ def test_channelmap_skip_version_check(metadb):
     if "V02160A" in chmap:
         channel = chmap.V02160A
         assert isinstance(channel, AttrsDict)
-
