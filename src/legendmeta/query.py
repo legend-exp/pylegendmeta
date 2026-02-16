@@ -5,7 +5,9 @@ import os
 import re
 from collections import OrderedDict
 from collections.abc import Collection, Mapping
+from concurrent.futures import Executor, ProcessPoolExecutor
 from copy import copy
+from itertools import batched, repeat
 from pathlib import Path
 
 import awkward as ak
@@ -171,6 +173,8 @@ def query_meta(
     group_by: str | Collection[str] | None = None,
     group_chans: bool = False,
     return_alias_map: bool = False,
+    processes: int = None,
+    executor: Executor = None,
     library: str = "ak",
 ):
     """
@@ -277,6 +281,15 @@ def query_meta(
         normal output of this function and alias_map is a mapping from alias
         names to database paths
 
+    processes:
+        number of processes. If ``None``, use number equal to threads available
+        to ``executor`` (if provided), or else do not parallelize
+
+    executor:
+        :class:`concurrent.futures.Executor` object for managing parallelism.
+        If ``None``, create a :class:`concurrent.futures.`ProcessPoolExecutor`
+        with number of processes equal to ``processes``.
+
     library
         format of returned table. Can be ``ak`` (default), ``pd`` or ``np``
     """
@@ -361,6 +374,82 @@ def query_meta(
         msg = "no run records were found"
         raise ValueError(msg)
 
+    if processes is None and executor is None:
+        records, eval_success, path_hits = _query_loop(
+            run_records, col_list, channels, meta, runinfo, par_dbs, col_name_map, group_chans
+        )
+    else:
+        if processes is None:
+            processes = executor._max_workers
+        if executor is None:
+            executor = ProcessPoolExecutor(processes)
+
+        records = []
+        eval_success=False
+        path_hits = {}
+        for rec, es, ph in executor.map(
+            _query_loop,
+            batched(run_records, int(np.ceil(len(run_records)/processes))),
+            repeat(col_list, processes),
+            repeat(channels, processes),
+            repeat(meta, processes),
+            repeat(runinfo, processes),
+            repeat(par_dbs, processes),
+            repeat(col_name_map, processes),
+            repeat(group_chans, processes),
+        ):
+            records += rec
+            eval_success |= es
+            for path, hits in ph.items():
+                path_hits[path] = path_hits.get(path, 0) + hits
+
+    # if evaluating query was never successful...
+    if not eval_success:
+        msg = "Could not interpret channel query for any runs/channels:"
+        msg += f"\n  {channels}"
+        for path, cts in path_hits.items():
+            if cts == 0:
+                msg += f"\n{path} was not found for any run"
+        raise ValueError(msg)
+
+    # Format and return results
+    result = ak.Array(records)
+    if library == "ak":
+        pass
+    elif library == "pd":
+        result = ak.to_dataframe(result)
+    elif library == "np":
+        if group_chans:
+            msg = "library 'np' is not compatible with group_chans=True"
+            raise ValueError(msg)
+
+        # recursively walk through fields to produce nested dict of np arrays
+        def ak_to_np(ak_tab):
+            if len(ak_tab.fields) == 0:
+                return ak.to_numpy(ak_tab)
+            return {f: ak_to_np(ak_tab[f]) for f in ak_tab.fields}
+
+        result = ak_to_np(result)
+    else:
+        msg = "library must be 'ak', 'pd' or 'np'"
+        raise ValueError(msg)
+
+    if return_alias_map:
+        return (result, col_name_map)
+    return result
+
+
+
+def _query_loop(
+    run_records: Collection,
+    col_list: set,
+    channels: str,
+    meta: LegendMetadata,
+    runinfo: dict,
+    par_dbs: dict[str, TextDB],
+    col_name_map: dict,
+    group_chans: bool,
+):
     # Now loop through the runs, perform channel queries, and fetch fields
     records = []
     path_hits = {}  # count number of times a value is found to give more helpful errors
@@ -378,7 +467,7 @@ def query_meta(
             record = copy(run_record)
 
         try:
-            if detlist is None or not detlist.is_valid(time):
+            if True or detlist is None or not detlist.is_valid(time):
                 detlist = meta.channelmap(on=time)
         except (AttributeError, KeyError, FileNotFoundError):
             detlist = [None]
@@ -407,7 +496,7 @@ def query_meta(
         # Get pars DBs corresponding to current run
         for k, db in par_dbs.items():
             try:
-                if not k in run_par_dbs or not run_par_dbs[k].is_valid(time):
+                if True or not k in run_par_dbs or not run_par_dbs[k].is_valid(time):
                     run_par_dbs[k] = db.on(time)
             except RuntimeError:
                 # if there is no valid parameter database for this run...
@@ -486,40 +575,7 @@ def query_meta(
         if group_chans and ch_ct > 0:
             records.append({k: v for k, v in record.items() if k in col_list})
 
-    # if evaluating query was never successful...
-    if not eval_success:
-        msg = "Could not interpret channel query for any runs/channels:"
-        msg += f"\n  {channels}"
-        for path, cts in path_hits.items():
-            if cts == 0:
-                msg += f"\n{path} was not found for any run"
-        raise ValueError(msg)
-
-    # Format and return results
-    result = ak.Array(records)
-    if library == "ak":
-        pass
-    elif library == "pd":
-        result = ak.to_dataframe(result)
-    elif library == "np":
-        if group_chans:
-            msg = "library 'np' is not compatible with group_chans=True"
-            raise ValueError(msg)
-
-        # recursively walk through fields to produce nested dict of np arrays
-        def ak_to_np(ak_tab):
-            if len(ak_tab.fields) == 0:
-                return ak.to_numpy(ak_tab)
-            return {f: ak_to_np(ak_tab[f]) for f in ak_tab.fields}
-
-        result = ak_to_np(result)
-    else:
-        msg = "library must be 'ak', 'pd' or 'np'"
-        raise ValueError(msg)
-
-    if return_alias_map:
-        return (result, col_name_map)
-    return result
+    return records, eval_success, path_hits
 
 
 def parse_query_paths(expr: str, fullmatch: bool = False) -> tuple[str, str]:
