@@ -140,13 +140,16 @@ def query_runs(
                 lengths = [np.cumsum(ak.run_lengths(result[group_by]))]
             else:
                 lengths = [np.cumsum(ak.run_lengths(result[f])) for f in group_by]
-            lengths = np.unique(np.concatenate([0]+lengths))
+            lengths = np.unique(np.concatenate([0] + lengths))
             result = ak.unflatten(result, lengths[1:] - lengths[:-1])
-            result = ak.Array( {
-                f: ak.firsts(result[f]) if ak.all(ak.all(result[f] == ak.firsts(result[f]), axis=1), axis=0)
-                   else result[f]
-                for f in result.fields
-            } )
+            result = ak.Array(
+                {
+                    f: ak.firsts(result[f])
+                    if ak.all(ak.all(result[f] == ak.firsts(result[f]), axis=1), axis=0)
+                    else result[f]
+                    for f in result.fields
+                }
+            )
 
         if library == "ak":
             return result
@@ -376,7 +379,14 @@ def query_meta(
 
     if processes is None and executor is None:
         records, eval_success, path_hits = _query_loop(
-            run_records, col_list, channels, meta, runinfo, par_dbs, col_name_map, group_chans
+            run_records,
+            col_list,
+            channels,
+            meta,
+            runinfo,
+            par_dbs,
+            col_name_map,
+            group_chans,
         )
     else:
         if processes is None:
@@ -385,11 +395,11 @@ def query_meta(
             executor = ProcessPoolExecutor(processes)
 
         records = []
-        eval_success=False
+        eval_success = False
         path_hits = {}
         for rec, es, ph in executor.map(
             _query_loop,
-            batched(run_records, int(np.ceil(len(run_records)/processes))),
+            batched(run_records, int(np.ceil(len(run_records) / processes))),
             repeat(col_list, processes),
             repeat(channels, processes),
             repeat(meta, processes),
@@ -437,7 +447,6 @@ def query_meta(
     if return_alias_map:
         return (result, col_name_map)
     return result
-
 
 
 def _query_loop(
@@ -496,7 +505,7 @@ def _query_loop(
         # Get pars DBs corresponding to current run
         for k, db in par_dbs.items():
             try:
-                if True or not k in run_par_dbs or not run_par_dbs[k].is_valid(time):
+                if True or k not in run_par_dbs or not run_par_dbs[k].is_valid(time):
                     run_par_dbs[k] = db.on(time)
             except RuntimeError:
                 # if there is no valid parameter database for this run...
