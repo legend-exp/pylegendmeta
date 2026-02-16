@@ -140,3 +140,23 @@ def test_pickle_legend_metadata_roundtrip(metadb):
     # Ensure the repo handle was restored and basic git-derived properties work.
     assert isinstance(metadb2.__version__, str)
     assert len(metadb2.__version__) > 0
+
+
+def test_channelmap_skip_version_check(metadb):
+    """Test that channelmap works with skip_version_check=True.
+
+    This is especially useful for non-git repositories like test data.
+    """
+    date = datetime(2024, 7, 1)
+    metadb.checkout("63b789e")
+    metadb.scan()
+
+    # Get channelmap with skip_version_check=True
+    # This should assume the latest structure without checking git version
+    chmap = metadb.channelmap(on=date, skip_version_check=True)
+    assert isinstance(chmap, AttrsDict)
+
+    # Verify it contains the expected data
+    if "V02160A" in chmap:
+        channel = chmap.V02160A
+        assert isinstance(channel, AttrsDict)
