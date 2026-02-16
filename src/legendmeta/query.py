@@ -3,11 +3,15 @@ from __future__ import annotations
 import keyword
 import os
 import re
+import sys
 from collections import OrderedDict
 from collections.abc import Collection, Mapping
 from concurrent.futures import Executor, ProcessPoolExecutor
 from copy import copy
-from itertools import batched, repeat
+if sys.version_info >= (3, 12):
+    from itertools import batched, repeat
+else:
+    from itertools import islice, repeat
 from pathlib import Path
 
 import awkward as ak
@@ -399,7 +403,8 @@ def query_meta(
         path_hits = {}
         for rec, es, ph in executor.map(
             _query_loop,
-            batched(run_records, int(np.ceil(len(run_records) / processes))),
+            batched(run_records, int(np.ceil(len(run_records) / processes))) if sys.version_info >= (3, 12) else
+                [run_records[i*int(np.ceil(len(run_records) / processes)):(i+1)*int(np.ceil(len(run_records) / processes))] for i in range(processes)],
             repeat(col_list, processes),
             repeat(channels, processes),
             repeat(meta, processes),
