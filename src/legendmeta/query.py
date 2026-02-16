@@ -476,7 +476,7 @@ def _query_loop(
             record = copy(run_record)
 
         try:
-            if True or detlist is None or not detlist.is_valid(time):
+            if detlist is None or not detlist.is_valid(time):
                 detlist = meta.channelmap(on=time)
         except (AttributeError, KeyError, FileNotFoundError):
             detlist = [None]
@@ -505,7 +505,7 @@ def _query_loop(
         # Get pars DBs corresponding to current run
         for k, db in par_dbs.items():
             try:
-                if True or k not in run_par_dbs or not run_par_dbs[k].is_valid(time):
+                if k not in run_par_dbs or not run_par_dbs[k].is_valid(time):
                     run_par_dbs[k] = db.on(time)
             except RuntimeError:
                 # if there is no valid parameter database for this run...
