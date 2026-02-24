@@ -3,15 +3,16 @@ from __future__ import annotations
 import keyword
 import os
 import re
+import string
 import sys
-from collections import OrderedDict
 from collections.abc import Collection, Mapping
 from concurrent.futures import Executor, ProcessPoolExecutor
 from copy import copy
+
 if sys.version_info >= (3, 12):
     from itertools import batched, repeat
 else:
-    from itertools import islice, repeat
+    from itertools import repeat
 from pathlib import Path
 
 import awkward as ak
@@ -19,33 +20,41 @@ import numpy as np
 import pandas as pd
 from dbetto import Props, TextDB
 
-from . import LegendMetadata
+import legendmeta
+
+from . import MetadataRepository
 
 
 def query_runs(
     runs: str | None = None,
     *,
     dataflow_config: Path | str | Mapping = "$REFPROD/dataflow-config.yaml",
-    cycle_def: str = "experiment-period-run-datatype-starttime",
     group_by: str | Collection[str] | None = None,
     sort_by: str | Collection[str] = "cycle",
     library: str = "ak",
+    cycle_def: str | None = None,
+    rundb_tier: str | None = None,
+    ignored_cycles: str | None = None,
 ):
     """
-    Query runs by walking through directory tree. Return a table containing
-    one entry for each run (directory), with a list of cycles and data extracted
-    from cycle names defined by ``cycle_def``. Optionally select runs to
+    Query runs and return a table containing one entry for each cycle and data
+    extracted from cycle names. Optionally apply a boolean selection of runs to
     include using an expression ``runs``.
+
+    Run DB is built by recursively cycling through directories in one of the
+    data tiers (using a list of excluded files from metadata). The fields are
+    parsed from the hyphen-separated elements of cycle names (as defined by
+    the `cycle-def` arg below).
 
     Parameters
     ----------
     runs
-        python boolean expression for selecting runs, using column names defined
-        in ``cycle_def`` as variables. See :meth:query_runs
+        boolean python expression for selecting runs, using column names defined
+        in ``cycle_def`` as variables.
 
         Examples:
 
-        - select calibration data from periods 6, 7 and 8 (assuming default cycle names)::
+        - select calibration data from periods 6, 7 and 8 (assuming l200-style cycle names)::
 
             "period>='p06' and period<='p08' and datatype=='cal'"
 
@@ -58,25 +67,34 @@ def query_runs(
         config file of reference production. If not provided, use the environment
         variable ``$REFPROD`` as a directory, and find file ``dataflow-config.yaml``
 
-    cycle_def
-        hyphen-separated names of fields in cycle names; names will be used for columns
-
-        Examples:
-        - (default) ``experiment-period-run-datatype-cycle`` for a L200 cycle, e.g. ``l200-p03-r001-cal-19720101T000000Z``
-        - ``experiment-det-datatype-run-starttime`` for a Hades cycle, e.g. ``char_data-V05268A-th_HS2_lat_psa-r001-20201008T122118Z``
-
     group_by
         if ``None`` (default) return a flat array with all cycles. If one or more fields
         are provided, group entries by these fields (using :meth:ak.run_lengths, so group
         consecutive equal values; this is done after sorting, so be careful if sorting
         changes order!) Fields that vary within groups will be un-flattened into 2-D ragged
-        arrays. Note that ``runs`` query acts on a cycle-by-cycle basis, before grouping.
+        arrays. Note that ``runs`` query cannot act collectively on grouped cycles.
 
     sort_by
         field by which to sort table, or list of fields in order by priority
 
     library
         format of returned table. Can be ``ak`` (default), ``pd`` or ``np``
+
+    cycle_def
+        hyphen-separated names of fields in cycle names; names will be used for columns.
+        By default get from dataflow-config.
+
+        Examples:
+        - ``experiment-period-run-datatype-cycle`` for a L200 cycle, e.g. ``l200-p03-r001-cal-19720101T000000Z``
+        - ``experiment-chan-datatype-run-starttime`` for a Hades cycle, e.g. ``char_data-V05268A-th_HS2_lat_psa-r001-20201008T122118Z``
+
+    rundb_tier
+        name of tier (e.g. ``raw``) used to walk through directories to populate run DB.
+        By default get from dataflow-config, or set to ``raw``
+
+    ignored_cycles
+        path in metadata to list of ignored cycles. By default get from dataflow-config,
+        or else do not skip any cycles.
     """
     if isinstance(dataflow_config, (Path, str)):
         df_config = Props.read_from(
@@ -87,25 +105,35 @@ def query_runs(
     else:
         msg = "dataflow_config must be a str, Path, or Mapping"
         raise ValueError(msg)
-    df_paths = df_config["paths"]
+    df_paths = df_config.get("paths")
+    query_config = df_config.get("query", {})
+
+    if cycle_def is None:
+        if "cycle_def" not in query_config:
+            msg = "cycle_def must be provided either as kwarg or in dataflow_config"
+            raise ValueError(msg)
+        cycle_def = query_config["cycle_def"]
+
+    if rundb_tier is None:
+        rundb_tier = query_config.get("rundb_tier", "raw")
+
+    if ignored_cycles is None:
+        ignored_cycles = query_config.get("ignored_cycles", None)
 
     cwd = Path.cwd()
 
     try:
-        os.chdir(df_paths["tier_raw"])
+        os.chdir(df_paths[f"tier_{rundb_tier}"])
 
         # Get list of removed cycles if it exists
-        try:
-            removed = set(
-                Props.read_from(
-                    f"{df_paths['detector_status']}/ignored_daq_cycles.yaml"
-                )["removed"]
-            )
-        except (FileNotFoundError, KeyError):
+        if ignored_cycles is not None:
+            meta = TextDB(df_paths["metadata"], lazy=True)
+            removed = set(meta[ignored_cycles])
+        else:
             removed = {}
 
         # parser to identify data files
-        parse_cycle = re.compile("(.*)-tier_raw\\.lh5")
+        parse_cycle = re.compile(f"(.*)-tier_{rundb_tier}\\.lh5")
         col_names = cycle_def.split("-")
         records = []
 
@@ -144,7 +172,7 @@ def query_runs(
                 lengths = [np.cumsum(ak.run_lengths(result[group_by]))]
             else:
                 lengths = [np.cumsum(ak.run_lengths(result[f])) for f in group_by]
-            lengths = np.unique(np.concatenate([0] + lengths))
+            lengths = np.unique(np.concatenate([0, *lengths]))
             result = ak.unflatten(result, lengths[1:] - lengths[:-1])
             result = ak.Array(
                 {
@@ -174,49 +202,51 @@ def query_meta(
     channels: str,
     *,
     dataflow_config: Path | str | Mapping = "$REFPROD/dataflow-config.yaml",
-    tiers: Collection[str] | None = None,
-    return_query_vals: bool = False,
-    cycle_def: str = "experiment-period-run-datatype-starttime",
-    group_by: str | Collection[str] | None = None,
     group_chans: bool = False,
+    tiers: Collection[str] | None = None,
+    metadata: str | type | MetadataRepository = None,
+    chan_db: str | None = None,
+    meta_dbs: Mapping | None = None,
+    return_query_vals: bool = False,
     return_alias_map: bool = False,
-    processes: int = None,
-    executor: Executor = None,
+    processes: int | None = None,
+    executor: Executor | None = None,
     library: str = "ak",
+    **query_run_kwargs,
 ):
     """
-    Query the metadata and pars data for a reference production. Return
-    a table containing one entry for each run/channel with the requested
-    data fields. Can also provide selections based on data from runs table,
-    as well as information found in metadata and parameter databases.
-    Values will be returned in a tabular format denoted by ``library``
-    (default ``awkward.Array``) Values from databases are accessed using:
+    Query the metadata and pars data, returning a table containing one entry
+    for each run/channel with the requested data fields. Can also provide
+    boolean expression to select cycles based on data from runs table,
+    and a boolean expression to select based on information about runs and
+    channels found in metadata and parameter databases.
+
+    Values from databases are referenced using:
 
         [alias]@db_name.par_path
 
     where:
 
-    - alias: optional alias to use as column name in returned table. If
+    - ``alias``: optional alias to use as column name in returned table. If
       not provided, column name will be ``db_name_par_path``, replacing
       periods with underscores
-    - @db_name: name of data source. Data sources are found on disk using
-      information in the dataflow config file (see `dataflow_conifg`):
+    - ``@db_name``: name of data source. Data sources are found on disk using
+      information in the dataflow config file (see ``dataflow_config``):
 
-        - ``@det``: detector database from ``metadata.channel_map()``
-        - ``@run``: run info database from ``metadata.datasets.runinfo``
-        - ``@par[_tier]``: parameter database from specified tier. If no
-            tier is provided, search all tiers in reverse order.
+        - ``@chan``: channel database from ``metadata.channel_map()``
+        - ``@par[_tier]``: parameter database from specified tier.
+        - Additional data sources defined using the ``meta_dbs`` arg or
+          ``meta_dbs`` entry in ``dataflow_config``
 
-    - par_path: path in database to par, using periods to separate fields
+    - ``par_path``: path in database to par, using periods to separate fields
 
     Examples:
 
-    - ``@det.name``: name of detector; will be named ``det_name``
-    - ``rid@det.daq.raw_id``: DAQ id of channel; will be named ``rid``
-    - ``lt@run.livetime_in_s``: livetime from runinfo; named ``lt``
+    - ``@chan.name``: name of channel; will be aliased to ``chan_name``
+    - ``rid@chan.daq.raw_id``: DAQ id of channel; aliased to ``rid``
+    - ``lt@run.livetime_in_s``: livetime from runinfo; aliased to ``lt``
     -  ``aoe_lo@par_hit.pars.operations.AoE_Low_Cut.parameters.a``: cut value
-        for low A/E cut from hit tier. Note if just ``par`` is used, it will
-        be taken from ``pht`` tier instead.
+        for low A/E cut from hit tier
 
     Parameters
     ----------
@@ -226,15 +256,15 @@ def query_meta(
 
         Example::
 
-            ["@det.daq.rawid", "@run.livetime", "aoe_low_cut@par.pars.operations.AoE_Low_Cut.parameters.a"]
+            ["@chan.daq.rawid", "@run.livetime", "aoe_low_cut@par_hit.pars.operations.AoE_Low_Cut.parameters.a"]
 
     runs
-        python boolean expression for selecting runs, using column names defined
-        in ``cycle_def`` as variables. See :meth:query_runs
+        boolean python expression for selecting runs, using column names defined
+        in ``cycle_def`` as variables. See :meth:`query_runs`
 
         Examples:
 
-        - select calibration data from periods 6, 7 and 8 (assuming default cycle names)::
+        - select calibration data from periods 6, 7 and 8 (assuming l200-style cycle names)::
 
             "period>='p06' and period<='p08' and datatype=='cal'"
 
@@ -245,21 +275,22 @@ def query_meta(
 
     channels
         expression used to select channels for each run. Expression can
-        access values from all databases, as well as the run table.
+        access values from channel, metadata, and parameter databases (with
+        the channel database ``@chan`` likely being the most useful)
 
         Examples:
 
-        - select all ICPC detectors for each run that are marked as usable::
+        - select all ICPC channels for each run that are marked as usable::
 
-            "@det.system=='geds' and @det.type=='icpc' and @det.analysis.usability=='on'"``
+            "@chan.type=='icpc' and @chan.analysis.usability=='on'"
 
-        - selects SiPM channel 10 and will only include runs where it is can be processed::
+        - select SiPM channel 10 and will only include runs where it is can be processed::
 
-            "@det.name=='S010' and @det.analysis.processible"
+            "@chan.name=='S010' and @chan.analysis.processible"
 
         Note: if a parameter does not exist for a channel, it will evaluate to ``None``.
         If this causes an error to be thrown, this expression will evaluate to ``False``,
-        excluding the channel. If an parameter always evaluates to False, it will raise
+        excluding the channel. If an parameter always evaluates to None, it will raise
         an Exception.
 
     dataflow_config
@@ -268,13 +299,44 @@ def query_meta(
 
     tiers
         search only provided tiers for pars. If ``None`` search all found tiers.
-        Examples: ``["dsp", "hit"]`` or ``["psp", "pht"]``
+        By default, get from dataflow-config.
 
-    group_by
-        See :meth:`query_run`. If ``None`` (default) return an entry for each cycle.
-        Else, group cycles by the provided field(s). Note that parameters will be retrieved
-        for groups of cycles; this can speed the query up, but be careful that a single
-        group for each metadata parameter is sufficient!
+        Examples: ``["raw", "dsp", "hit"]`` or ``["raw", "psp", "pht", "evt"]``
+
+    metadata
+        class or name of class to use to construct metadata
+
+    chan_db
+        format string for path in metadata to list of channels for a given cycle.
+        Format string may reference values from the run DB. By default, get from
+        dataflow-config or call :meth:`LegendMetadata.channelmap(starttime)`.
+
+    meta_dbs
+        mapping from database name (i.e. the thing after ``@``) to mapping of configuration
+        parameters. Parameters are as follows:
+
+            - path: path to root of database relative to root of metadata
+            - cycle_entry [optional]: sub-path to entry for a given cycle. May be a format
+              string with references to run DB fields. If not provided
+              use :meth:`dbetto.TextDB.on(starttime)` to find the cycle entry
+            - channel_entry [optional]: sub-sub-path to entry for a given channel. May be
+              a format string with references to run DB and channel DB fields. If not
+              provided and group_cycle is ``False``, use ``@chan.name``
+
+        Examples::
+
+            meta_dbs = {
+                "runinfo": {
+                    "path": "path/to/runinfo",
+                    "cycle_entry": "{period}/{run}/{datatype}",
+                },
+                "chaninfo": {
+                    "path": "path/to/chaninfo",
+                    "cycle_entry": None, # use chaninfo.on(starttime)
+                    "channel_entry": "@chan.name"
+                }
+                ...
+            }
 
     group_chans
         if ``True``, return one entry for each run or group of runs, with channel data
@@ -299,6 +361,9 @@ def query_meta(
 
     library
         format of returned table. Can be ``ak`` (default), ``pd`` or ``np``
+
+    query_run_kwargs
+        see :meth:`query_run`
     """
     if isinstance(dataflow_config, (Path, str)):
         df_config = Props.read_from(
@@ -309,25 +374,45 @@ def query_meta(
     else:
         msg = "dataflow_config must be a str, Path, or Mapping"
         raise ValueError(msg)
-
     df_paths = df_config["paths"]
-    meta = LegendMetadata(df_paths["metadata"])
+    query_config = df_config.get("query", {})
 
-    try:
-        runinfo = meta.datasets.runinfo
-    except AttributeError:
-        runinfo = None
+    # Query (or convert) run_records
+    if runs is None or isinstance(runs, str):
+        run_records = query_runs(
+            runs,
+            dataflow_config=df_config,
+            **query_run_kwargs,
+        )
+    else:
+        run_records = ak.Array(runs)
+    if len(run_records) == 0:
+        msg = "no run records were found"
+        raise ValueError(msg)
 
-    # get the paths and groups corresponding to our query
-    par_dbs = OrderedDict(
-        [
-            (key, TextDB(path, lazy=True))
-            for key, path in df_paths.items()
-            if key[:4] == "par_"
-            and Path(f"{path}/validity.yaml").exists()
-            and (tiers is None or key[4:] in tiers)
-        ]
-    )
+    # setup metadata object
+    if metadata is None:
+        if "metadata" not in query_config:
+            msg = "metadata must be provided either as kwarg or in dataflow_config"
+        metadata = query_config["metadata"]
+    if isinstance(metadata, str):
+        meta = getattr(legendmeta, metadata)(df_paths["metadata"])
+    elif isinstance(metadata, type):
+        meta = metadata()
+    elif isinstance(metadata, MetadataRepository):
+        meta = metadata
+
+    if not isinstance(meta, MetadataRepository):
+        msg = "metadata must be a MetadataRepository derived class"
+
+    # if using a string for chan_db, get it set up
+    if chan_db is None:
+        chan_db = query_config.get("chan_db", None)
+    if chan_db is not None and not all(
+        v in run_records.fields for v in _format_vars(chan_db)
+    ):
+        msg = "chan_db must only reference values from run_db"
+        raise ValueError(msg)
 
     # get list of fields needed and build mapping to column names
     col_name_map = {}
@@ -368,27 +453,91 @@ def query_meta(
         if return_query_vals:
             col_list.add(alias)
 
-    if isinstance(runs, str):
-        run_records = query_runs(
-            runs,
-            dataflow_config=df_config,
-            cycle_def=cycle_def,
-            group_by=group_by,
-        )
-    else:
-        run_records = ak.Array(runs)
-    if len(run_records) == 0:
-        msg = "no run records were found"
+    if return_query_vals:
+        for f in run_records.fields:
+            col_list.add(f)
+
+    if meta_dbs is None:
+        meta_dbs = query_config.get("meta_dbs", {})
+
+    if tiers is None:
+        tiers = query_config.get("tiers", [])
+
+    # Build list of dbs to read from and perform checks on meta_var configuration
+    db_list = {}
+    for key, info in meta_dbs.items():
+        if not any(v.split(".")[0] == f"@{key}" for v in col_name_map):
+            continue
+
+        path = info["path"]
+        try:
+            info["db"] = _get_recursive(meta, path)
+        except (KeyError, AttributeError) as e:
+            msg = f"{path} not found in metadata"
+            raise ValueError(msg) from e
+
+        if info.get("cycle_entry"):
+            if not all(
+                v in run_records.fields for v in _format_vars(info["cycle_entry"])
+            ):
+                msg = f"cycle_entry {info['cycle_entry']} for {key} references values not found in run DB"
+                raise ValueError(msg)
+        elif "validity" not in info["db"]:
+            msg = f"path {path} for {key} in metadata does not have validity file"
+            raise ValueError(msg)
+
+        if info.get("channel_entry") and not all(
+            v in run_records.fields or v[:4] == "@chan"
+            for v in _format_vars(info["channel_entry"])
+        ):
+            msg = f"channel_entry {info['channel_entry']} for {key} references values not found in run DB or channel DB"
+            raise ValueError(msg)
+
+        db_list[f"@{key}"] = info | {"db": _get_recursive(meta, path)}
+
+    # get the paths and groups corresponding to our query
+    par_db_config = query_config.get("par_db", {"channel_entry": "{@chan.name}"})
+    if "channel_entry" in par_db_config and not all(
+        v in run_records.fields or v[:5] == "@chan"
+        for v in _format_vars(par_db_config["channel_entry"])
+    ):
+        msg = f"channel_entry {par_db_config['channel_entry']} for par_db references values not found in run DB or channel DB"
         raise ValueError(msg)
 
+    for key, path in df_paths.items():
+        if not any(v.split(".")[0] == f"@{key}" for v in col_name_map):
+            continue
+
+        if key[:4] != "par_":
+            continue
+        if tiers is not None and key[4:] not in tiers:
+            continue
+
+        db = TextDB(path, lazy=True)
+        # if not par_db_config.get("cycle_entry") and not "validity" in db:
+        #    continue
+
+        db_list[f"@{key}"] = par_db_config | {"db": db}
+
+    # Check that all parameters we try to read have a valid source
+    for path in col_name_map:
+        if path in run_records.fields:
+            continue
+        db_name = path.split(".")[0]
+        if db_name != "@chan" and db_name not in db_list:
+            msg = f"Could not find meta database for {path}. Available dbs:\n"
+            msg += "@chan " + " ".join(db_list.keys())
+            raise ValueError(msg)
+
+    # Now run the query...
     if processes is None and executor is None:
         records, eval_success, path_hits = _query_loop(
             run_records,
             col_list,
             channels,
             meta,
-            runinfo,
-            par_dbs,
+            chan_db,
+            db_list,
             col_name_map,
             group_chans,
         )
@@ -403,13 +552,20 @@ def query_meta(
         path_hits = {}
         for rec, es, ph in executor.map(
             _query_loop,
-            batched(run_records, int(np.ceil(len(run_records) / processes))) if sys.version_info >= (3, 12) else
-                [run_records[i*int(np.ceil(len(run_records) / processes)):(i+1)*int(np.ceil(len(run_records) / processes))] for i in range(processes)],
+            batched(run_records, int(np.ceil(len(run_records) / processes)))
+            if sys.version_info >= (3, 12)
+            else [
+                run_records[
+                    i * int(np.ceil(len(run_records) / processes)) : (i + 1)
+                    * int(np.ceil(len(run_records) / processes))
+                ]
+                for i in range(processes)
+            ],
             repeat(col_list, processes),
             repeat(channels, processes),
             repeat(meta, processes),
-            repeat(runinfo, processes),
-            repeat(par_dbs, processes),
+            repeat(chan_db, processes),
+            repeat(db_list, processes),
             repeat(col_name_map, processes),
             repeat(group_chans, processes),
         ):
@@ -419,12 +575,14 @@ def query_meta(
                 path_hits[path] = path_hits.get(path, 0) + hits
 
     # if evaluating query was never successful...
-    if not eval_success:
-        msg = "Could not interpret channel query for any runs/channels:"
-        msg += f"\n  {channels}"
-        for path, cts in path_hits.items():
-            if cts == 0:
-                msg += f"\n{path} was not found for any run"
+    missing_params = [path for path, cts in path_hits.items() if cts == 0]
+    if not eval_success or len(missing_params) > 0:
+        msg = ""
+        if not eval_success:
+            msg = "Could not interpret channel query for any runs/channels:\n"
+            msg += f"  {channels}\n"
+        for path in missing_params:
+            msg += f"{path} was not found for any run\n"
         raise ValueError(msg)
 
     # Format and return results
@@ -458,18 +616,20 @@ def _query_loop(
     run_records: Collection,
     col_list: set,
     channels: str,
-    meta: LegendMetadata,
-    runinfo: dict,
-    par_dbs: dict[str, TextDB],
+    meta: MetadataRepository,
+    chan_db: str | None,
+    db_list: dict[str, TextDB],
     col_name_map: dict,
     group_chans: bool,
 ):
     # Now loop through the runs, perform channel queries, and fetch fields
     records = []
-    path_hits = {}  # count number of times a value is found to give more helpful errors
+    path_hits = dict.fromkeys(
+        col_name_map, 0
+    )  # count number of times a value is found to give more helpful errors
     eval_success = False  # track if the eval ever succeeds
-    run_par_dbs = {}
-    detlist = None
+    cycle_dbs = {}
+    chanlist = None
     for run_record in run_records:
         if isinstance(run_record, ak.Record):
             run_record = run_record.tolist()  # noqa: PLW2901
@@ -480,93 +640,72 @@ def _query_loop(
         if group_chans:
             record = copy(run_record)
 
-        try:
-            if detlist is None or not detlist.is_valid(time):
-                detlist = meta.channelmap(on=time)
-        except (AttributeError, KeyError, FileNotFoundError):
-            detlist = [None]
+        # Get pars DBs corresponding to current run
+        for k, db_info in db_list.items():
+            try:
+                if "cycle_entry" not in db_info:
+                    if cycle_dbs.get(k) is None or not cycle_dbs[k].is_valid(time):
+                        cycle_dbs[k] = db_info["db"].on(time)
+                else:
+                    cycle_dbs[k] = _get_recursive(
+                        db_info["db"], db_info["cycle_entry"].format(**run_record)
+                    )
+            except RuntimeError:
+                # if there is no valid parameter database for this run...
+                cycle_dbs[k] = None
+
+        if not chan_db:
+            if chanlist is None or not chanlist.is_valid(time):
+                chanlist = meta.channelmap(on=time)
+        else:
+            chanlist = meta[chan_db.config(run_record)]
 
         # Get run DB entry corresponding to current run and get @run values
         for path, alias in col_name_map.items():
-            cts = path_hits.setdefault(path, 0)
-            db = path.split(".")[0]
-            if db == "@run":
-                if runinfo is None:
-                    msg = "runinfo database not found"
-                    raise ValueError(msg)
-                try:
-                    run_record[alias] = eval(
-                        f"run.{run_record['period']}.{run_record['run']}.{run_record['datatype']}{path[4:]}",
-                        {},
-                        {"run": runinfo},
-                    )
-                    cts += 1
-                except AttributeError:
-                    run_record[alias] = None
-            elif path in run_record:
-                cts += 1
-            path_hits[path] = cts
-
-        # Get pars DBs corresponding to current run
-        for k, db in par_dbs.items():
-            try:
-                if k not in run_par_dbs or not run_par_dbs[k].is_valid(time):
-                    run_par_dbs[k] = db.on(time)
-            except RuntimeError:
-                # if there is no valid parameter database for this run...
+            # if it's in the run DB, it's already there
+            if path in run_record:
+                path_hits[path] += 1
                 continue
 
+            db_name = path.split(".")[0]
+            if db_name == "@chan":
+                continue
+            db_info = db_list[db_name]
+
+            if db_info.get("channel_entry"):
+                continue
+
+            try:
+                run_record[alias] = eval(
+                    path[1:], {}, {db_name[1:]: cycle_dbs[db_name]}
+                )
+                path_hits[path] += 1
+            except (TypeError, KeyError, AttributeError):
+                run_record[alias] = None
+
         ch_ct = 0
-        for det in detlist.values():
+        for chan in chanlist.values():
             ch_record = copy(run_record)
 
             # Read values from database paths
             for path, alias in col_name_map.items():
-                cts = path_hits.setdefault(path, 0)
-                db = path.split(".")[0]
-                param = None
-                if db == "@run" or path in run_record:
-                    # these cases handled above
+                if path in run_record or alias in run_record:
                     continue
-                if db == "@det":
-                    if det is None:
-                        msg = "channelmap not found"
-                        raise ValueError(msg)
-                    try:
-                        param = eval(path[1:], {}, {"det": det})
-                        cts += 1
-                    except (KeyError, AttributeError):
-                        param = None
-                elif "@par_" in db:
-                    try:
-                        name = db[1:]
-                        par_db = run_par_dbs[name]
-                        if det is not None:
-                            par_db = par_db[det.name]
 
-                        param = eval(path[1:], {}, {"par": par_db})
-                        cts += 1
-                    except (KeyError, AttributeError):
-                        param = None
-                elif db == "@par":
-                    # search for the param in any of the tiers
-                    # Return the first value found matching the path
-                    for par_db in reversed(run_par_dbs.values()):
-                        try:
-                            if det is not None:
-                                par_db = par_db[det.name]  # noqa: PLW2901
+                db_name = path.split(".")[0]
+                try:
+                    if db_name == "@chan":
+                        ch_db = chan
+                    else:
+                        ch_path = db_list[db_name]["channel_entry"].replace("@", "")
+                        ch_db = _get_recursive(
+                            cycle_dbs[db_name], ch_path.format(chan=chan, **run_record)
+                        )
 
-                            param = eval(path[1:], {}, {"par": par_db})
-                            cts += 1
-                        except (KeyError, AttributeError):
-                            param = None
-                            continue
-                        break
-                else:
-                    msg = f"could not find metadata location {db}. Options are '@par', '@par_[tier]', '@det', '@run'"
-                    raise ValueError(msg)
-                ch_record[alias] = param
-                path_hits[path] = cts
+                    ch_record[alias] = eval(path[1:], {}, {db_name[1:]: ch_db})
+                    path_hits[path] += 1
+                except (TypeError, KeyError, AttributeError):
+                    ch_record[alias] = None
 
             # Evaluate the channel expression on the found values
             try:
@@ -574,9 +713,9 @@ def _query_loop(
             except Exception:
                 continue
             eval_success = True
-            ch_ct += 1
 
             if keep_record:
+                ch_ct += 1
                 if group_chans:
                     for alias, param in ch_record.items():
                         if alias not in run_record:
@@ -590,6 +729,20 @@ def _query_loop(
             records.append({k: v for k, v in record.items() if k in col_list})
 
     return records, eval_success, path_hits
+
+
+def _get_recursive(db: TextDB, path: str):
+    """Helper to recursively access values from nested dict-likes"""
+    fields = re.split("[,/]", path)
+    ret = db
+    for f in fields:
+        ret = ret[f]
+    return ret
+
+
+def _format_vars(fstring: str):
+    """Helper to get list of variables referenced in format string"""
+    return [v[1] for v in string.Formatter().parse(fstring) if v[1]]
 
 
 def parse_query_paths(expr: str, fullmatch: bool = False) -> tuple[str, str]:
