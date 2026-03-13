@@ -35,6 +35,8 @@ dependencies = [
     "packaging",
     "dbetto>=1.2.2",
     "GitPython",
+    "numpy",
+    "awkward",
     "pandas",
     "pyyaml",
     "psycopg2-binary<=2.9.9; python_version<'3.10' and platform_system=='Darwin'",
