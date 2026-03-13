@@ -34,7 +34,7 @@ def query_runs(
     library: str = "ak",
     cycle_def: str | None = None,
     rundb_tier: str | None = None,
-    ignored_cycles: str | None = None,
+    ignored_cycles: str | Collection[str] | None = None,
 ):
     """
     Query runs and return a table containing one entry for each cycle and data
@@ -93,7 +93,7 @@ def query_runs(
         By default get from dataflow-config, or set to ``raw``
 
     ignored_cycles
-        path in metadata to list of ignored cycles. By default get from dataflow-config,
+        path(s) in metadata to list(s) of ignored cycles. By default get from dataflow-config,
         or else do not skip any cycles.
     """
     if isinstance(dataflow_config, (Path, str)):
@@ -127,8 +127,12 @@ def query_runs(
 
         # Get list of removed cycles if it exists
         if ignored_cycles is not None:
+            if isinstance(ignored_cycles, str):
+                ignored_cycles = [ignored_cycles]
             meta = TextDB(df_paths["metadata"], lazy=True)
-            removed = set(meta[ignored_cycles])
+            removed = set()
+            for iclist in ignored_cycles:
+                removed |= set(_get_recursive(meta, iclist))
         else:
             removed = {}
 
@@ -745,7 +749,7 @@ def _format_vars(fstring: str):
     return [v[1] for v in string.Formatter().parse(fstring) if v[1]]
 
 
-def parse_query_paths(expr: str, fullmatch: bool = False) -> tuple[str, str]:
+def parse_query_paths(expr: str, fullmatch: bool = False) -> tuple[str, str | None, str]:
     """
     Parse input string for variable names of the form::
 
