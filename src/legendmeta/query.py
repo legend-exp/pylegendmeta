@@ -749,7 +749,9 @@ def _format_vars(fstring: str):
     return [v[1] for v in string.Formatter().parse(fstring) if v[1]]
 
 
-def parse_query_paths(expr: str, fullmatch: bool = False) -> tuple[str, str | None, str]:
+def parse_query_paths(
+    expr: str, fullmatch: bool = False
+) -> tuple[str, str | None, str]:
     """
     Parse input string for variable names of the form::
 
