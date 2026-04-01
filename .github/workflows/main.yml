@@ -89,7 +89,7 @@ jobs:
         run: |
           python -m pytest --cov=legendmeta --cov-report=xml --runxfail -m "not needs_slowcontrol"
       - name: Upload Coverage to codecov.io
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
 
