@@ -452,10 +452,47 @@ def _get_overridden_runs(
     return overridden
 
 
+def _check_cal_override_runs(
+    file: str,
+    overridden_runs: set[tuple[str, str]],
+    verbose: bool = True,
+) -> bool:
+    """Check that no overridden run appears in a cal_groupings file.
+
+    Parameters
+    ----------
+    file
+        Path to the cal_groupings YAML file.
+    overridden_runs
+        Set of (period, run) pairs that must not appear in the file.
+    verbose
+        If False, suppress error output.
+    """
+    data = utils.load_dict(file)
+    valid = True
+    for name, groups in data.items():
+        if not isinstance(groups, dict):
+            continue
+        for group, periods in groups.items():
+            if not isinstance(periods, dict):
+                continue
+            for period, runs in periods.items():
+                period_str = str(period)
+                for run in expand_runs(runs):
+                    if (period_str, run) in overridden_runs:
+                        if verbose:
+                            print(  # noqa: T201
+                                f"ERROR: '{file}': '{name}/{group}/{period}/{run}'"
+                                " is overridden in run_override and must not"
+                                f" appear in '{file}'"
+                            )
+                        valid = False
+    return valid
+
+
 def _validate_groupings_file(
     file: str,
     group_prefix: str,
-    overridden_runs: set[tuple[str, str]] | None = None,
     verbose: bool = True,
 ) -> bool:
     """Shared validation logic for cal/phy groupings files.
@@ -466,8 +503,6 @@ def _validate_groupings_file(
         Path to the groupings YAML file.
     group_prefix
         Expected prefix for group names (e.g. 'calgroup' or 'phygroup').
-    overridden_runs
-        Optional set of (period, run) pairs that must not appear in the file.
     verbose
         If False, suppress error output.
     """
@@ -576,19 +611,6 @@ def _validate_groupings_file(
                             )
                         valid = False
 
-                # run_override check: no overridden run may appear here
-                # (only relevant for cal_groupings; overridden_runs is empty for phy)
-                if overridden_runs:
-                    for run in expand_runs(runs):
-                        if (period_str, run) in overridden_runs:
-                            if verbose:
-                                print(  # noqa: T201
-                                    f"ERROR: '{file}': '{name}/{group}/{period}/{run}'"
-                                    " is overridden in run_override and must not"
-                                    f" appear in '{file}'"
-                                )
-                            valid = False
-
             # for non-default entries, the group dict must not exactly
             # replicate the corresponding default entry (redundant override)
             if name != "default" and group in default and periods == default[group]:
@@ -635,7 +657,9 @@ def validate_cal_groupings() -> None:
             if not runinfo_path.exists():
                 print(f"WARNING: '{runinfo_path}' not found, skipping override check")  # noqa: T201
 
-        valid &= _validate_groupings_file(file, "calgroup", overridden_runs=overridden)
+        valid &= _validate_groupings_file(file, "calgroup")
+        if overridden:
+            valid &= _check_cal_override_runs(file, overridden)
 
     if not valid:
         sys.exit(1)

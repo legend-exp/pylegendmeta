@@ -264,15 +264,11 @@ def test_groupings_run_list_sorted(tmp_path):
 def test_groupings_overridden_run_flagged(tmp_path):
     f = _write(tmp_path, "cal_groupings.yaml", _GOOD_CAL_GROUPINGS)
     overridden = {("p03", "r002")}
-    assert not police._validate_groupings_file(
-        f, "calgroup", overridden_runs=overridden, verbose=False
-    )
+    assert not police._check_cal_override_runs(f, overridden, verbose=False)
 
 
 def test_groupings_overridden_run_not_present_passes(tmp_path):
     f = _write(tmp_path, "cal_groupings.yaml", _GOOD_CAL_GROUPINGS)
     # p09/r005 is overridden but p09 doesn't appear in the file at all
     overridden = {("p09", "r005")}
-    assert police._validate_groupings_file(
-        f, "calgroup", overridden_runs=overridden, verbose=False
-    )
+    assert police._check_cal_override_runs(f, overridden, verbose=False)
