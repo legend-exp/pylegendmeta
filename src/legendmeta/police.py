@@ -577,6 +577,7 @@ def _validate_groupings_file(
                         valid = False
 
                 # run_override check: no overridden run may appear here
+                # (only relevant for cal_groupings; overridden_runs is empty for phy)
                 if overridden_runs:
                     for run in expand_runs(runs):
                         if (period_str, run) in overridden_runs:
@@ -584,7 +585,7 @@ def _validate_groupings_file(
                                 print(  # noqa: T201
                                     f"ERROR: '{file}': '{name}/{group}/{period}/{run}'"
                                     " is overridden in run_override and must not"
-                                    " appear in cal_groupings"
+                                    f" appear in '{file}'"
                                 )
                             valid = False
 
