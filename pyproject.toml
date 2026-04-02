@@ -76,8 +76,11 @@ test = [
 ]
 
 [project.scripts]
+validate-cal-groupings = "legendmeta.police:validate_cal_groupings"
 validate-legend-chmaps = "legendmeta.police:validate_legend_channel_map"
 validate-legend-detdb = "legendmeta.police:validate_legend_detector_db"
+validate-phy-groupings = "legendmeta.police:validate_phy_groupings"
+validate-statuses = "legendmeta.police:validate_statuses"
 validate-validity = "legendmeta.police:validate_validity"
 
 [tool.setuptools]
