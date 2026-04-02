@@ -351,6 +351,11 @@ def validate_statuses() -> None:
                     ):
                         print(f"ERROR: '{ch}' at '{ts}': missing 'psd/status' dict")  # noqa: T201
                         valid = False
+                    elif not isinstance(entry["psd"]["status"], dict):
+                        print(  # noqa: T201
+                            f"ERROR: '{ch}' at '{ts}': 'psd/status' must be a dict"
+                        )
+                        valid = False
                     else:
                         for k, v in entry["psd"]["status"].items():
                             if v not in _VALID_PSD_STATUS:
