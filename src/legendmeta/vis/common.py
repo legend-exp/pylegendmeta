@@ -34,7 +34,9 @@ def expand_run_list(value: list | str) -> list[str]:
             s = str(item)
             if ".." in s:
                 start, end = s.split("..")
-                result.extend([f"r{n:03d}" for n in range(int(start[1:]), int(end[1:]) + 1)])
+                result.extend(
+                    [f"r{n:03d}" for n in range(int(start[1:]), int(end[1:]) + 1)]
+                )
             else:
                 result.append(s)
         return result
@@ -68,7 +70,9 @@ def hex_to_rgb01(h: str) -> tuple:
     return tuple(int(h[i : i + 2], 16) / 255 for i in (0, 2, 4))
 
 
-def build_period_run_map(partition_dict: dict, min_part: int, skip_single: bool = False) -> dict:
+def build_period_run_map(
+    partition_dict: dict, min_part: int, skip_single: bool = False
+) -> dict:
     """Flatten a default-block dict into {(period, run): partition_name}."""
     result = {}
     for part, period_runs in partition_dict.items():
@@ -83,7 +87,9 @@ def build_period_run_map(partition_dict: dict, min_part: int, skip_single: bool 
     return result
 
 
-def merge_with_defaults(hpge_partitions: dict, default_partitions: dict, min_part: int) -> dict:
+def merge_with_defaults(
+    hpge_partitions: dict, default_partitions: dict, min_part: int
+) -> dict:
     """Merge a detector's partition overrides with the defaults.
     Returns {(period, run): partition_name} for all valid runs."""
     all_partitions = {
@@ -121,7 +127,7 @@ def cmap_hex(cmap_name: str, n: int) -> list[str]:
     """Sample *n* evenly-spaced colours from a matplotlib colormap, returning hex strings."""
     cmap = plt.get_cmap(cmap_name)
     return [
-        "{:02X}{:02X}{:02X}".format(int(r * 255), int(g * 255), int(b * 255))
+        f"{int(r * 255):02X}{int(g * 255):02X}{int(b * 255):02X}"
         for r, g, b, _ in (cmap(i / max(n - 1, 1)) for i in range(n))
     ]
 
@@ -156,12 +162,19 @@ def _build_run_layout(period: str, run: str, type: str) -> dict:
         if "psd" in analysis:
             psd_map[hpge] = analysis["psd"]
 
-    return {"str_pos": str_pos, "usab_map": usab_map, "psd_map": psd_map,
-            "period": period, "run": run}
+    return {
+        "str_pos": str_pos,
+        "usab_map": usab_map,
+        "psd_map": psd_map,
+        "period": period,
+        "run": run,
+    }
 
 
-def _render_run(layout: dict, hpge_maps: dict, cell_colours, output: str | None) -> None:
-    """Render a single-run 2D spatial array (strings × positions).
+def _render_run(
+    layout: dict, hpge_maps: dict, cell_colours, output: str | None
+) -> None:
+    """Render a single-run 2D spatial array (strings x positions).
 
     ``cell_colours(hpge, part_map) -> (fill_hex, label)``
     """
@@ -203,7 +216,9 @@ def _render_run(layout: dict, hpge_maps: dict, cell_colours, output: str | None)
                     cell.fill = xl_fill(fill_hex)
                     cell.value = f"{hpge}\n{lbl}" if lbl else hpge
                     cell.font = Font(name=FONT, size=8)
-                    cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+                    cell.alignment = Alignment(
+                        horizontal="center", vertical="center", wrap_text=True
+                    )
                 else:
                     cell.fill = xl_fill("EEEEEE")
 
@@ -223,28 +238,61 @@ def _render_run(layout: dict, hpge_maps: dict, cell_colours, output: str | None)
         ax.axis("off")
 
         for col_i, string_num in enumerate(strings):
-            ax.text(col_i + 0.5, -0.3, f"Str {string_num}",
-                    ha="center", va="bottom", fontsize=7, fontweight="bold")
+            ax.text(
+                col_i + 0.5,
+                -0.3,
+                f"Str {string_num}",
+                ha="center",
+                va="bottom",
+                fontsize=7,
+                fontweight="bold",
+            )
             for pos in range(1, max_pos + 1):
                 hpge = grid[string_num].get(pos)
                 row_i = pos - 1
                 if hpge:
                     fill_hex, lbl = cell_colours(hpge, hpge_maps.get(hpge, {}))
-                    ax.add_patch(mpatches.Rectangle(
-                        (col_i, row_i), 1, 1,
-                        facecolor=hex_to_rgb01(fill_hex), edgecolor="#888888", linewidth=0.5,
-                    ))
-                    ax.text(col_i + 0.5, row_i + 0.35, hpge,
-                            ha="center", va="center", fontsize=4.5,
-                            fontfamily="monospace", fontweight="bold")
+                    ax.add_patch(
+                        mpatches.Rectangle(
+                            (col_i, row_i),
+                            1,
+                            1,
+                            facecolor=hex_to_rgb01(fill_hex),
+                            edgecolor="#888888",
+                            linewidth=0.5,
+                        )
+                    )
+                    ax.text(
+                        col_i + 0.5,
+                        row_i + 0.35,
+                        hpge,
+                        ha="center",
+                        va="center",
+                        fontsize=4.5,
+                        fontfamily="monospace",
+                        fontweight="bold",
+                    )
                     if lbl:
-                        ax.text(col_i + 0.5, row_i + 0.65, lbl,
-                                ha="center", va="center", fontsize=5, color="#333333")
+                        ax.text(
+                            col_i + 0.5,
+                            row_i + 0.65,
+                            lbl,
+                            ha="center",
+                            va="center",
+                            fontsize=5,
+                            color="#333333",
+                        )
                 else:
-                    ax.add_patch(mpatches.Rectangle(
-                        (col_i, row_i), 1, 1,
-                        facecolor=hex_to_rgb01("EEEEEE"), edgecolor="#CCCCCC", linewidth=0.3,
-                    ))
+                    ax.add_patch(
+                        mpatches.Rectangle(
+                            (col_i, row_i),
+                            1,
+                            1,
+                            facecolor=hex_to_rgb01("EEEEEE"),
+                            edgecolor="#CCCCCC",
+                            linewidth=0.3,
+                        )
+                    )
 
         period = layout.get("period", "")
         run = layout.get("run", "")
@@ -272,12 +320,17 @@ def _build_layout(key: str, type: str) -> dict:
     meta = LegendMetadata()
     chmap = meta.channelmap("20250828T033011Z")
     str_pos = {
-        ged: {"string": item["location"]["string"], "position": item["location"]["position"]}
+        ged: {
+            "string": item["location"]["string"],
+            "position": item["location"]["position"],
+        }
         for ged, item in chmap.items()
         if item["system"] == "geds"
     }
 
-    hpges = sorted(str_pos, key=lambda d: (str_pos[d]["string"], str_pos[d]["position"]))
+    hpges = sorted(
+        str_pos, key=lambda d: (str_pos[d]["string"], str_pos[d]["position"])
+    )
     string_groups: dict[int, list] = {}
     for hpge in hpges:
         string_groups.setdefault(str_pos[hpge]["string"], []).append(hpge)
@@ -293,14 +346,18 @@ def _build_layout(key: str, type: str) -> dict:
         for period, runs_spec in runlists[key][type].items():
             runs = expand_run_list(runs_spec)
             if runs:
-                period_max[period] = max(period_max.get(period, 0), max(int(r[1:]) for r in runs))
+                period_max[period] = max(
+                    period_max.get(period, 0), *(int(r[1:]) for r in runs)
+                )
 
     sorted_cols = sorted(
         [(p, f"r{r:03d}") for p, mx in period_max.items() for r in range(mx + 1)],
         key=col_sort_key,
     )
     periods = sorted({p for p, _ in sorted_cols}, key=lambda p: int(p[1:]))
-    period_colour_map = dict(zip(periods, cmap_hex(PERIOD_CMAP, max(len(periods), 1))))
+    period_colour_map = dict(
+        zip(periods, cmap_hex(PERIOD_CMAP, max(len(periods), 1)), strict=False)
+    )
     period_groups: dict[str, list] = {}
     for period, run in sorted_cols:
         period_groups.setdefault(period, []).append((period, run))
@@ -372,7 +429,9 @@ def _render(layout: dict, hpge_maps: dict, cell_colours, output: str | None) -> 
 
         ws.row_dimensions[HEADER_ROW].height = 70
         hdr_dark = xl_fill("2F4F7F")
-        for col, label in enumerate(["String", "Detector"] + [f"{p}_{r}" for p, r in sorted_cols], 1):
+        for col, label in enumerate(
+            ["String", "Detector"] + [f"{p}_{r}" for p, r in sorted_cols], 1
+        ):
             c = ws.cell(HEADER_ROW, col, label)
             c.fill = hdr_dark
             c.font = Font(bold=True, name=FONT, size=9, color="FFFFFF")
@@ -406,7 +465,8 @@ def _render(layout: dict, hpge_maps: dict, cell_colours, output: str | None) -> 
                 ca = ws.cell(row, 1)
                 ca.fill = xl_fill(bg)
                 ca.border = Border(
-                    left=THICK, right=NORMAL,
+                    left=THICK,
+                    right=NORMAL,
                     top=THICK if is_first else None,
                     bottom=THICK if is_last else None,
                 )
@@ -423,14 +483,17 @@ def _render(layout: dict, hpge_maps: dict, cell_colours, output: str | None) -> 
                     cell.border = Border(
                         left=THICK if col in p_first_col.values() else HAIR,
                         right=THICK if col == last_col else None,
-                        top=top, bottom=bottom,
+                        top=top,
+                        bottom=bottom,
                     )
                     fill_hex, lbl = cell_colours(hpge, period, run, hpge_maps[hpge])
                     cell.fill = xl_fill(fill_hex)
                     if lbl:
                         cell.value = lbl
                         cell.font = Font(name=FONT, size=8)
-                        cell.alignment = Alignment(horizontal="center", vertical="center")
+                        cell.alignment = Alignment(
+                            horizontal="center", vertical="center"
+                        )
 
                 current_row += 1
 
@@ -440,7 +503,9 @@ def _render(layout: dict, hpge_maps: dict, cell_colours, output: str | None) -> 
             c.value = f"String {string_num}"
             c.font = Font(bold=True, name=FONT, size=10)
             c.fill = xl_fill(bg)
-            c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            c.alignment = Alignment(
+                horizontal="center", vertical="center", wrap_text=True
+            )
 
         ws.column_dimensions["A"].width = 7
         ws.column_dimensions["B"].width = 10
@@ -494,7 +559,10 @@ def _render(layout: dict, hpge_maps: dict, cell_colours, output: str | None) -> 
         cell_in = 0.28
 
         fig, ax = plt.subplots(
-            figsize=((STR_W + DET_W + n_cols) * cell_in + 0.2, (HDR_H + n_det) * cell_in + 0.3)
+            figsize=(
+                (STR_W + DET_W + n_cols) * cell_in + 0.2,
+                (HDR_H + n_det) * cell_in + 0.3,
+            )
         )
         ax.set_xlim(x_str0 - 0.05, n_cols + 0.05)
         ax.set_ylim(n_det, -HDR_H)
@@ -503,72 +571,164 @@ def _render(layout: dict, hpge_maps: dict, cell_colours, output: str | None) -> 
         for string_num in strings:
             start = string_row_start[string_num]
             size = len(string_groups[string_num])
-            ax.add_patch(mpatches.Rectangle(
-                (x_str0, start), n_cols - x_str0, size,
-                facecolor=hex_to_rgb01(string_shade_map[string_num]), edgecolor="none", zorder=0,
-            ))
+            ax.add_patch(
+                mpatches.Rectangle(
+                    (x_str0, start),
+                    n_cols - x_str0,
+                    size,
+                    facecolor=hex_to_rgb01(string_shade_map[string_num]),
+                    edgecolor="none",
+                    zorder=0,
+                )
+            )
 
         for row_i in range(n_det):
             for col_i in range(n_cols):
-                ax.add_patch(mpatches.Rectangle(
-                    (col_i, row_i), 1, 1,
-                    facecolor=color_grid[row_i, col_i], edgecolor="#CCCCCC", linewidth=0.3, zorder=1,
-                ))
+                ax.add_patch(
+                    mpatches.Rectangle(
+                        (col_i, row_i),
+                        1,
+                        1,
+                        facecolor=color_grid[row_i, col_i],
+                        edgecolor="#CCCCCC",
+                        linewidth=0.3,
+                        zorder=1,
+                    )
+                )
                 lbl = label_grid[row_i][col_i]
                 if lbl:
-                    ax.text(col_i + 0.5, row_i + 0.5, lbl,
-                            ha="center", va="center", fontsize=5.5, color="#333333", zorder=2)
+                    ax.text(
+                        col_i + 0.5,
+                        row_i + 0.5,
+                        lbl,
+                        ha="center",
+                        va="center",
+                        fontsize=5.5,
+                        color="#333333",
+                        zorder=2,
+                    )
 
         for row_i, det in enumerate(hpges):
-            ax.add_patch(mpatches.Rectangle(
-                (x_det0, row_i), DET_W, 1,
-                facecolor="none", edgecolor="#AAAAAA", linewidth=0.3, zorder=1,
-            ))
-            ax.text(x_det0 + DET_W / 2, row_i + 0.5, det,
-                    ha="center", va="center", fontsize=6, fontweight="bold",
-                    fontfamily="monospace", zorder=2)
+            ax.add_patch(
+                mpatches.Rectangle(
+                    (x_det0, row_i),
+                    DET_W,
+                    1,
+                    facecolor="none",
+                    edgecolor="#AAAAAA",
+                    linewidth=0.3,
+                    zorder=1,
+                )
+            )
+            ax.text(
+                x_det0 + DET_W / 2,
+                row_i + 0.5,
+                det,
+                ha="center",
+                va="center",
+                fontsize=6,
+                fontweight="bold",
+                fontfamily="monospace",
+                zorder=2,
+            )
 
         for string_num in strings:
             start = string_row_start[string_num]
             size = len(string_groups[string_num])
-            ax.add_patch(mpatches.Rectangle(
-                (x_str0, start), STR_W, size,
-                facecolor="none", edgecolor="#555555", linewidth=0.8, zorder=3,
-            ))
-            ax.text(x_str0 + STR_W / 2, start + size / 2, f"Str\n{string_num}",
-                    ha="center", va="center", fontsize=6.5, fontweight="bold", zorder=4)
+            ax.add_patch(
+                mpatches.Rectangle(
+                    (x_str0, start),
+                    STR_W,
+                    size,
+                    facecolor="none",
+                    edgecolor="#555555",
+                    linewidth=0.8,
+                    zorder=3,
+                )
+            )
+            ax.text(
+                x_str0 + STR_W / 2,
+                start + size / 2,
+                f"Str\n{string_num}",
+                ha="center",
+                va="center",
+                fontsize=6.5,
+                fontweight="bold",
+                zorder=4,
+            )
 
         for sb in string_boundaries:
-            ax.plot([x_str0, n_cols], [sb, sb], color="#333333", linewidth=1.2, zorder=5)
+            ax.plot(
+                [x_str0, n_cols], [sb, sb], color="#333333", linewidth=1.2, zorder=5
+            )
         for pb in period_boundaries:
             ax.plot([pb, pb], [0, n_det], color="#333333", linewidth=1.2, zorder=5)
 
         bar_y0 = -(RUN_LBL_H + PER_BAR_H)
         bar_y_mid = bar_y0 + PER_BAR_H / 2
         for col_i, (_, run) in enumerate(sorted_cols):
-            ax.text(col_i + 0.5, 0, run, ha="center", va="bottom",
-                    fontsize=5.5, rotation=90, color="#222222", zorder=4)
+            ax.text(
+                col_i + 0.5,
+                0,
+                run,
+                ha="center",
+                va="bottom",
+                fontsize=5.5,
+                rotation=90,
+                color="#222222",
+                zorder=4,
+            )
 
         for period in periods:
             runs = period_groups.get(period, [])
             if not runs:
                 continue
             sc = period_col_start[period]
-            ax.add_patch(mpatches.Rectangle(
-                (sc, bar_y0), len(runs), PER_BAR_H,
-                facecolor=hex_to_rgb01(period_colour_map[period]),
-                edgecolor="#555555", linewidth=0.8, zorder=3,
-            ))
-            ax.text(sc + len(runs) / 2, bar_y_mid, f"{period}  ({runs[0][1]}-{runs[-1][1]})",
-                    ha="center", va="center", fontsize=7, fontweight="bold", zorder=4)
+            ax.add_patch(
+                mpatches.Rectangle(
+                    (sc, bar_y0),
+                    len(runs),
+                    PER_BAR_H,
+                    facecolor=hex_to_rgb01(period_colour_map[period]),
+                    edgecolor="#555555",
+                    linewidth=0.8,
+                    zorder=3,
+                )
+            )
+            ax.text(
+                sc + len(runs) / 2,
+                bar_y_mid,
+                f"{period}  ({runs[0][1]}-{runs[-1][1]})",
+                ha="center",
+                va="center",
+                fontsize=7,
+                fontweight="bold",
+                zorder=4,
+            )
 
         for x0, w, label in [(x_str0, STR_W, "String"), (x_det0, DET_W, "Detector")]:
-            ax.add_patch(mpatches.Rectangle(
-                (x0, bar_y0), w, PER_BAR_H,
-                facecolor=hex_to_rgb01("2F4F7F"), edgecolor="#333333", linewidth=0.8, zorder=3,
-            ))
-            ax.text(x0 + w / 2, bar_y_mid, label,
-                    ha="center", va="center", fontsize=7, fontweight="bold", color="white", zorder=4)
+            ax.add_patch(
+                mpatches.Rectangle(
+                    (x0, bar_y0),
+                    w,
+                    PER_BAR_H,
+                    facecolor=hex_to_rgb01("2F4F7F"),
+                    edgecolor="#333333",
+                    linewidth=0.8,
+                    zorder=3,
+                )
+            )
+            ax.text(
+                x0 + w / 2,
+                bar_y_mid,
+                label,
+                ha="center",
+                va="center",
+                fontsize=7,
+                fontweight="bold",
+                color="white",
+                zorder=4,
+            )
 
         plt.tight_layout(pad=0.2)
         if output is None:

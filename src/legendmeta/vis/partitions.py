@@ -19,13 +19,8 @@ from .common import (
 )
 
 
-def _load_groupings(grouping: str, str_pos: dict, sorted_cols: list | None = None) -> tuple[dict, dict]:
-    """Load grouping YAML and build hpge_maps + label_colour_map.
-
-    When ``sorted_cols`` is None (single-run mode) hpge_maps values are
-    ``{part_name: ...}`` keyed by bare partition name for lookup by the caller.
-    In multi-run mode they are ``{(period, run): part_name}``.
-    """
+def _load_groupings(grouping: str, str_pos: dict) -> tuple[dict, dict]:
+    """Load grouping YAML and build hpge_maps + label_colour_map."""
     groupings = Props.read_from(GROUPING_YAML_MAP[grouping])
     defaults = groupings["default"]
     default_map = build_period_run_map(defaults, min_part=0)
@@ -48,8 +43,8 @@ def _load_groupings(grouping: str, str_pos: dict, sorted_cols: list | None = Non
 def plot_partition_groupings_run(
     period: str,
     run: str,
-    grouping: str,
-    type: str = "cal",
+    grouping: str = "cal",
+    datatype: str = "cal",
     output: str | None = None,
 ) -> None:
     """Plot partition groupings for a single run as a 2D array layout.
@@ -62,12 +57,12 @@ def plot_partition_groupings_run(
         Run string e.g. 'r003'.
     grouping
         Which grouping yaml: 'cal', 'phy', 'escale', or 'psd'.
-    type
+    datatype
         'cal' or 'phy'.
     output
         Output file path (.pdf or .xlsx). If None, shows the plot interactively.
     """
-    layout = _build_run_layout(period, run, type)
+    layout = _build_run_layout(period, run, datatype)
     usab_map = layout["usab_map"]
     hpge_maps, label_colour_map = _load_groupings(grouping, layout["str_pos"])
 
@@ -87,8 +82,8 @@ def plot_partition_groupings_run(
 
 def plot_partition_groupings(
     key: str,
-    grouping: str,
-    type: str = "cal",
+    grouping: str = "cal",
+    datatype: str = "cal",
     output: str | None = None,
 ) -> None:
     """Plot partition groupings with usability overlays.
@@ -99,16 +94,18 @@ def plot_partition_groupings(
         Runlist key (e.g. 'napoli26') or a period (e.g. 'p16').
     grouping
         Which grouping yaml: 'cal', 'phy', 'escale', or 'psd'.
-    type
+    datatype
         'cal' or 'phy'.
     output
         Output file path (.pdf or .xlsx). If None, shows the plot interactively.
     """
-    layout = _build_layout(key, type)
+    layout = _build_layout(key, datatype)
     usab_map = layout["usab_map"]
     hpge_maps, label_colour_map = _load_groupings(grouping, layout["str_pos"])
 
-    def cell_colours(hpge: str, period: str, run: str, part_map: dict) -> tuple[str, str]:
+    def cell_colours(
+        hpge: str, period: str, run: str, part_map: dict
+    ) -> tuple[str, str]:
         part = part_map.get((period, run))
         status = usab_map.get((period, run, hpge))
         lbl = partition_label(part) if part else ""
