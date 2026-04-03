@@ -40,7 +40,7 @@ def expand_run_list(value: list | str) -> list[str]:
         for item in value:
             s = str(item)
             if ".." in s:
-                start, end = s.split("..")
+                start, end = s.split("..", 1)
                 result.extend(
                     [f"r{n:03d}" for n in range(int(start[1:]), int(end[1:]) + 1)]
                 )
@@ -49,7 +49,7 @@ def expand_run_list(value: list | str) -> list[str]:
         return result
     s = str(value)
     if ".." in s:
-        start, end = s.split("..")
+        start, end = s.split("..", 1)
         return [f"r{n:03d}" for n in range(int(start[1:]), int(end[1:]) + 1)]
     return [s]
 
@@ -87,7 +87,7 @@ def build_period_run_map(
             continue
         for period, runs in period_runs.items():
             expanded = expand_run_list(runs)
-            if not runs or (skip_single and len(expanded) == 1):
+            if not expanded or (skip_single and len(expanded) == 1):
                 continue
             for run in expanded:
                 result[(period, run)] = part
@@ -167,7 +167,9 @@ def _build_run_layout(period: str, run: str, type: str) -> dict:
         analysis = item.get("analysis")
         if not analysis:
             continue
-        usab_map[hpge] = analysis["usability"]
+        usability = analysis.get("usability")
+        if usability is not None:
+            usab_map[hpge] = usability
         if "psd" in analysis:
             psd_map[hpge] = analysis["psd"]
 
@@ -195,7 +197,13 @@ def _render_run(
         grid.setdefault(loc["string"], {})[loc["position"]] = hpge
 
     strings = sorted(grid)
-    max_pos = max(p for s in grid.values() for p in s)
+    max_pos = max((p for s in grid.values() for p in s), default=0)
+    if not grid or not max_pos:
+        return
+
+    if output is not None and not output.endswith((".xlsx", ".pdf")):
+        msg = f"Unsupported output format: {output!r}. Use '.xlsx' or '.pdf'."
+        raise ValueError(msg)
 
     if output is not None and output.endswith(".xlsx"):
         wb = openpyxl.Workbook()
@@ -313,6 +321,7 @@ def _render_run(
             plt.show()
         else:
             fig.savefig(output, bbox_inches="tight")
+            plt.close(fig)
 
 
 def _build_layout(key: str, type: str) -> dict:
@@ -327,24 +336,6 @@ def _build_layout(key: str, type: str) -> dict:
     runlists = Props.read_from("runlists.yaml") if not is_period_key else None
 
     meta = LegendMetadata()
-    chmap = meta.channelmap("20250828T033011Z")
-    str_pos = {
-        ged: {
-            "string": item["location"]["string"],
-            "position": item["location"]["position"],
-        }
-        for ged, item in chmap.items()
-        if item["system"] == "geds"
-    }
-
-    hpges = sorted(
-        str_pos, key=lambda d: (str_pos[d]["string"], str_pos[d]["position"])
-    )
-    string_groups: dict[int, list] = {}
-    for hpge in hpges:
-        string_groups.setdefault(str_pos[hpge]["string"], []).append(hpge)
-    strings = sorted(string_groups)
-    string_shade_map = {s: STRING_CELL_SHADES[i % 2] for i, s in enumerate(strings)}
 
     period_max: dict[str, int] = {}
     if is_period_key:
@@ -371,17 +362,54 @@ def _build_layout(key: str, type: str) -> dict:
     for period, run in sorted_cols:
         period_groups.setdefault(period, []).append((period, run))
 
+    # Build str_pos as a union across periods; the channelmap is stable within a period
+    # so we use the first valid run of each period to get its layout.
+    str_pos = {}
+    for period in periods:
+        period_info = runinfo.get(period, {})
+        first_run = min(
+            (r for r in period_info if type in period_info[r]),
+            key=lambda r: int(r[1:]),
+            default=None,
+        )
+        if first_run is None:
+            continue
+        timestamp = runinfo[period][first_run][type]["start_key"]
+        period_chmap = meta.channelmap(timestamp)
+        for ged, item in period_chmap.items():
+            if item["system"] == "geds" and ged not in str_pos:
+                str_pos[ged] = {
+                    "string": item["location"]["string"],
+                    "position": item["location"]["position"],
+                }
+
+    hpges = sorted(
+        str_pos, key=lambda d: (str_pos[d]["string"], str_pos[d]["position"])
+    )
+    string_groups: dict[int, list] = {}
+    for hpge in hpges:
+        string_groups.setdefault(str_pos[hpge]["string"], []).append(hpge)
+    strings = sorted(string_groups)
+    string_shade_map = {s: STRING_CELL_SHADES[i % 2] for i, s in enumerate(strings)}
+
     usab_map = {}
     psd_map = {}
     for period, run in sorted_cols:
+        if run not in runinfo.get(period, {}) or type not in runinfo[period][run]:
+            continue
         timestamp = runinfo[period][run][type]["start_key"]
         run_chmap = meta.channelmap(timestamp)
         for hpge, item in run_chmap.items():
-            if item["system"] == "geds":
-                analysis = item["analysis"]
-                usab_map[(period, run, hpge)] = analysis["usability"]
-                if "psd" in analysis:
-                    psd_map[(period, run, hpge)] = analysis["psd"]
+            if item["system"] != "geds":
+                continue
+            analysis = item.get("analysis")
+            if not analysis:
+                continue
+            usability = analysis.get("usability")
+            if usability is not None:
+                usab_map[(period, run, hpge)] = usability
+            if "psd" in analysis:
+                psd_map[(period, run, hpge)] = analysis["psd"]
 
     return {
         "meta": meta,
@@ -409,6 +437,10 @@ def _render(layout: dict, hpge_maps: dict, cell_colours, output: str | None) -> 
     periods = layout["periods"]
     period_colour_map = layout["period_colour_map"]
     period_groups = layout["period_groups"]
+
+    if output is not None and not output.endswith((".xlsx", ".pdf")):
+        msg = f"Unsupported output format: {output!r}. Use '.xlsx' or '.pdf'."
+        raise ValueError(msg)
 
     # ── xlsx ──────────────────────────────────────────────────────────────────
 
@@ -744,3 +776,4 @@ def _render(layout: dict, hpge_maps: dict, cell_colours, output: str | None) -> 
             plt.show()
         else:
             fig.savefig(output, bbox_inches="tight")
+            plt.close(fig)

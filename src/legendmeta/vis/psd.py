@@ -26,7 +26,7 @@ def _bb_like_colour(psd: dict) -> tuple[str, str]:
     if not expr or expr == "missing":
         return EMPTY_COLOR, ""
     fields = [f.strip() for f in expr.split("&")]
-    statuses = {psd["status"].get(f, "missing") for f in fields}
+    statuses = {psd.get("status", {}).get(f, "missing") for f in fields}
     if "missing" in statuses:
         colour = OFF_COLOR
     elif "present" in statuses:

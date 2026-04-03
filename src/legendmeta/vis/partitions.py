@@ -21,6 +21,11 @@ from .common import (
 
 def _load_groupings(grouping: str, str_pos: dict) -> tuple[dict, dict]:
     """Load grouping YAML and build hpge_maps + label_colour_map."""
+    if grouping not in GROUPING_YAML_MAP:
+        msg = (
+            f"Unknown grouping {grouping!r}. Valid options: {sorted(GROUPING_YAML_MAP)}"
+        )
+        raise ValueError(msg)
     groupings = Props.read_from(GROUPING_YAML_MAP[grouping])
     defaults = groupings["default"]
     default_map = build_period_run_map(defaults, min_part=0)
