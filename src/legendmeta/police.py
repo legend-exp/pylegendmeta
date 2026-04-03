@@ -308,7 +308,7 @@ def validate_statuses() -> None:
                 if not isinstance(entry, dict):
                     continue
 
-                is_ge = ch.startswith(_GE_PREFIXES)
+                is_ge = ch.startswith(_GE_PREFIXES) and not ch.startswith("PMT")
                 is_sipm = ch.startswith(_SIPM_PREFIXES)
 
                 if not is_ge and not is_sipm:
