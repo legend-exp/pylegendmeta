@@ -157,7 +157,9 @@ def _build_run_layout(period: str, run: str, type: str) -> dict:
             "string": item["location"]["string"],
             "position": item["location"]["position"],
         }
-        analysis = item["analysis"]
+        analysis = item.get("analysis")
+        if not analysis:
+            continue
         usab_map[hpge] = analysis["usability"]
         if "psd" in analysis:
             psd_map[hpge] = analysis["psd"]
