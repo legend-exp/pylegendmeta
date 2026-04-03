@@ -37,8 +37,7 @@ dependencies = [
     "GitPython",
     "pandas",
     "pyyaml",
-    "psycopg2-binary<=2.9.9; python_version<'3.10' and platform_system=='Darwin'",
-    "psycopg2-binary; python_version>='3.10' or platform_system!='Darwin'",
+    "psycopg2-binary",
     "sqlalchemy>=2",
 ]
 dynamic = [
@@ -54,13 +53,13 @@ text = "GPL-3.0"
 
 [project.urls]
 Homepage = "https://github.com/legend-exp/pylegendmeta"
-"Bug Tracker" = "https://github.com/legend-exp/pylegedmeta/issues"
-Discussions = "https://github.com/legend-exp/pylegedmeta/discussions"
-Changelog = "https://github.com/legend-exp/pylegedmeta/releases"
+"Bug Tracker" = "https://github.com/legend-exp/pylegendmeta/issues"
+Discussions = "https://github.com/legend-exp/pylegendmeta/discussions"
+Changelog = "https://github.com/legend-exp/pylegendmeta/releases"
 
 [project.optional-dependencies]
 all = [
-    "pylegendmeta[docs,test]",
+    "pylegendmeta[docs,test,vis]",
 ]
 docs = [
     "furo",
@@ -68,6 +67,11 @@ docs = [
     "sphinx>=7.2.2",
     "sphinx-copybutton",
     "sphinx-inline-tabs",
+]
+vis = [
+    "matplotlib",
+    "numpy",
+    "openpyxl",
 ]
 test = [
     "pre-commit",
