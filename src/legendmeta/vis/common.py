@@ -25,6 +25,13 @@ NORMAL = Side(style="thin", color="888888")
 HAIR = Side(style="hair", color="CCCCCC")
 FONT = "Arial"
 
+GROUPING_YAML_MAP: dict[str, str] = {
+    "cal": "dataprod/config/partitions/cal_groupings.yaml",
+    "phy": "dataprod/config/partitions/phy_groupings.yaml",
+    "escale": "dataprod/config/partitions/escale_groupings.yaml",
+    "psd": "dataprod/config/partitions/psd_groupings.yaml",
+}
+
 
 def expand_run_list(value: list | str) -> list[str]:
     """Expand a YAML run value to a flat list of run strings."""
