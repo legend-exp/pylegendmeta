@@ -130,6 +130,134 @@ def xl_fill(h: str) -> PatternFill:
     return PatternFill("solid", fgColor=h)
 
 
+def _build_run_layout(period: str, run: str, type: str) -> dict:
+    """Load metadata for a single run.
+
+    Returns a dict with keys: str_pos, usab_map, psd_map, period, run.
+    """
+    runinfo = Props.read_from("runinfo.yaml")
+    timestamp = runinfo[period][run][type]["start_key"]
+
+    meta = LegendMetadata()
+    run_chmap = meta.channelmap(timestamp)
+
+    str_pos = {}
+    usab_map = {}
+    psd_map = {}
+    for hpge, item in run_chmap.items():
+        if item["system"] != "geds":
+            continue
+        str_pos[hpge] = {
+            "string": item["location"]["string"],
+            "position": item["location"]["position"],
+        }
+        analysis = item["analysis"]
+        usab_map[hpge] = analysis["usability"]
+        if "psd" in analysis:
+            psd_map[hpge] = analysis["psd"]
+
+    return {"str_pos": str_pos, "usab_map": usab_map, "psd_map": psd_map,
+            "period": period, "run": run}
+
+
+def _render_run(layout: dict, hpge_maps: dict, cell_colours, output: str | None) -> None:
+    """Render a single-run 2D spatial array (strings × positions).
+
+    ``cell_colours(hpge, part_map) -> (fill_hex, label)``
+    """
+    str_pos = layout["str_pos"]
+
+    # {string: {position: hpge}}
+    grid: dict[int, dict[int, str]] = {}
+    for hpge, loc in str_pos.items():
+        grid.setdefault(loc["string"], {})[loc["position"]] = hpge
+
+    strings = sorted(grid)
+    max_pos = max(p for s in grid.values() for p in s)
+
+    if output is not None and output.endswith(".xlsx"):
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Array"
+
+        # header row: string numbers
+        for col_i, string_num in enumerate(strings, 2):
+            c = ws.cell(1, col_i, f"Str {string_num}")
+            c.fill = xl_fill("2F4F7F")
+            c.font = Font(bold=True, name=FONT, size=9, color="FFFFFF")
+            c.alignment = Alignment(horizontal="center", vertical="center")
+
+        # header column: position numbers
+        for pos in range(1, max_pos + 1):
+            c = ws.cell(pos + 1, 1, pos)
+            c.font = Font(bold=True, name=FONT, size=9)
+            c.alignment = Alignment(horizontal="center", vertical="center")
+
+        for col_i, string_num in enumerate(strings, 2):
+            for pos in range(1, max_pos + 1):
+                hpge = grid[string_num].get(pos)
+                row = pos + 1
+                cell = ws.cell(row, col_i)
+                if hpge:
+                    fill_hex, lbl = cell_colours(hpge, hpge_maps.get(hpge, {}))
+                    cell.fill = xl_fill(fill_hex)
+                    cell.value = f"{hpge}\n{lbl}" if lbl else hpge
+                    cell.font = Font(name=FONT, size=8)
+                    cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+                else:
+                    cell.fill = xl_fill("EEEEEE")
+
+        for col_i in range(1, len(strings) + 2):
+            ws.column_dimensions[get_column_letter(col_i)].width = 11
+        for row in range(1, max_pos + 2):
+            ws.row_dimensions[row].height = 30
+
+        wb.save(output)
+
+    if output is None or output.endswith(".pdf"):
+        n_str = len(strings)
+        cell_w = 1.0
+        fig, ax = plt.subplots(figsize=(n_str * cell_w + 0.5, max_pos * cell_w + 0.5))
+        ax.set_xlim(-0.05, n_str + 0.05)
+        ax.set_ylim(max_pos + 0.05, -0.05)
+        ax.axis("off")
+
+        for col_i, string_num in enumerate(strings):
+            ax.text(col_i + 0.5, -0.3, f"Str {string_num}",
+                    ha="center", va="bottom", fontsize=7, fontweight="bold")
+            for pos in range(1, max_pos + 1):
+                hpge = grid[string_num].get(pos)
+                row_i = pos - 1
+                if hpge:
+                    fill_hex, lbl = cell_colours(hpge, hpge_maps.get(hpge, {}))
+                    ax.add_patch(mpatches.Rectangle(
+                        (col_i, row_i), 1, 1,
+                        facecolor=hex_to_rgb01(fill_hex), edgecolor="#888888", linewidth=0.5,
+                    ))
+                    ax.text(col_i + 0.5, row_i + 0.35, hpge,
+                            ha="center", va="center", fontsize=4.5,
+                            fontfamily="monospace", fontweight="bold")
+                    if lbl:
+                        ax.text(col_i + 0.5, row_i + 0.65, lbl,
+                                ha="center", va="center", fontsize=5, color="#333333")
+                else:
+                    ax.add_patch(mpatches.Rectangle(
+                        (col_i, row_i), 1, 1,
+                        facecolor=hex_to_rgb01("EEEEEE"), edgecolor="#CCCCCC", linewidth=0.3,
+                    ))
+
+        period = layout.get("period", "")
+        run = layout.get("run", "")
+        if period and run:
+            ax.set_title(f"{period} {run}", fontsize=9, fontweight="bold")
+
+        plt.tight_layout(pad=0.3)
+        if output is None:
+            plt.show()
+        else:
+            fig.savefig(output, bbox_inches="tight")
+
+
 def _build_layout(key: str, type: str) -> dict:
     """Load metadata and compute the common layout structures used by all plot functions.
 

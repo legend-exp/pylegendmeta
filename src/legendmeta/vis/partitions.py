@@ -9,12 +9,80 @@ from .common import (
     OFF_COLOR,
     PART_CMAP,
     _build_layout,
+    _build_run_layout,
     _render,
+    _render_run,
     build_period_run_map,
     cmap_hex,
     merge_with_defaults,
     partition_label,
 )
+
+
+def _load_groupings(grouping: str, str_pos: dict, sorted_cols: list | None = None) -> tuple[dict, dict]:
+    """Load grouping YAML and build hpge_maps + label_colour_map.
+
+    When ``sorted_cols`` is None (single-run mode) hpge_maps values are
+    ``{part_name: ...}`` keyed by bare partition name for lookup by the caller.
+    In multi-run mode they are ``{(period, run): part_name}``.
+    """
+    groupings = Props.read_from(GROUPING_YAML_MAP[grouping])
+    defaults = groupings["default"]
+    default_map = build_period_run_map(defaults, min_part=0)
+    hpge_maps = {
+        hpge: merge_with_defaults(groupings[hpge], defaults, min_part=0)
+        if hpge in groupings
+        else default_map
+        for hpge in str_pos
+    }
+    all_short_labels = sorted(
+        {partition_label(part) for m in hpge_maps.values() for part in m.values()}
+    )
+    label_colour_map = {
+        lbl: cmap_hex(PART_CMAP, max(len(all_short_labels), 1))[i]
+        for i, lbl in enumerate(all_short_labels)
+    }
+    return hpge_maps, label_colour_map
+
+
+def plot_partition_groupings_run(
+    period: str,
+    run: str,
+    grouping: str,
+    type: str = "cal",
+    output: str | None = None,
+) -> None:
+    """Plot partition groupings for a single run as a 2D array layout.
+
+    Parameters
+    ----------
+    period
+        Period string e.g. 'p16'.
+    run
+        Run string e.g. 'r003'.
+    grouping
+        Which grouping yaml: 'cal', 'phy', 'escale', or 'psd'.
+    type
+        'cal' or 'phy'.
+    output
+        Output file path (.pdf or .xlsx). If None, shows the plot interactively.
+    """
+    layout = _build_run_layout(period, run, type)
+    usab_map = layout["usab_map"]
+    hpge_maps, label_colour_map = _load_groupings(grouping, layout["str_pos"])
+
+    def cell_colours(hpge: str, part_map: dict) -> tuple[str, str]:
+        part = part_map.get((period, run))
+        status = usab_map.get(hpge)
+        lbl = partition_label(part) if part else ""
+        base_hex = label_colour_map.get(lbl, "CCCCCC") if part else EMPTY_COLOR
+        if status == "off":
+            return OFF_COLOR, lbl
+        if status == "ac":
+            return AC_COLOR, lbl
+        return base_hex, lbl
+
+    _render_run(layout, hpge_maps, cell_colours, output)
 
 
 def plot_partition_groupings(
@@ -38,24 +106,7 @@ def plot_partition_groupings(
     """
     layout = _build_layout(key, type)
     usab_map = layout["usab_map"]
-    str_pos = layout["str_pos"]
-
-    groupings = Props.read_from(GROUPING_YAML_MAP[grouping])
-    defaults = groupings["default"]
-    default_map = build_period_run_map(defaults, min_part=0)
-    hpge_maps = {
-        hpge: merge_with_defaults(groupings[hpge], defaults, min_part=0)
-        if hpge in groupings
-        else default_map
-        for hpge in str_pos
-    }
-    all_short_labels = sorted(
-        {partition_label(part) for m in hpge_maps.values() for part in m.values()}
-    )
-    label_colour_map = {
-        lbl: cmap_hex(PART_CMAP, max(len(all_short_labels), 1))[i]
-        for i, lbl in enumerate(all_short_labels)
-    }
+    hpge_maps, label_colour_map = _load_groupings(grouping, layout["str_pos"])
 
     def cell_colours(hpge: str, period: str, run: str, part_map: dict) -> tuple[str, str]:
         part = part_map.get((period, run))
