@@ -16,3 +16,24 @@
   language: python
   files: (.*\/)?validity\..+$
   types_or: [yaml, json]
+
+- id: validate-statuses
+  name: check LEGEND status files format
+  entry: validate-statuses
+  language: python
+  files: (.*\/)?validity\..+$
+  types_or: [yaml, json]
+
+- id: validate-cal-groupings
+  name: check LEGEND calibration groupings format
+  entry: validate-cal-groupings
+  language: python
+  files: (.*\/)?cal_groupings\..+$
+  types: [yaml]
+
+- id: validate-phy-groupings
+  name: check LEGEND physics groupings format
+  entry: validate-phy-groupings
+  language: python
+  files: (.*\/)?phy_groupings\..+$
+  types: [yaml]
