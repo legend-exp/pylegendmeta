@@ -308,7 +308,7 @@ def test_chmap_key_name_mismatch_fails():
 
 
 def _write_status_files(tmp_path: Path, status_content: str) -> Path:
-    """Create a minimal status validity file and data file in *tmp_path*."""
+    """Create a minimal status validity file and data file in ``tmp_path``."""
     validity = textwrap.dedent("""\
         - valid_from: "20230101T000000Z"
           apply:
