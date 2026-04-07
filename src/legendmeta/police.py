@@ -377,7 +377,7 @@ def validate_statuses() -> None:
 
 def _run_sort_key(spec: str) -> str:
     """Sort key for a run spec (individual or range): the starting run string."""
-    return spec.split("..")[0]
+    return spec.split("..", maxsplit=1)[0]
 
 
 def _validate_run_spec(runs: object, location: str, verbose: bool = True) -> bool:
