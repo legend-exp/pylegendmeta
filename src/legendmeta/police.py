@@ -120,11 +120,7 @@ def validate_legend_channel_map() -> bool:
                         )
                         continue
 
-                    if "name" in v and v["name"] != k:
-                        print(  # noqa: T201
-                            f"ERROR: '{k}': key does not match 'name' field '{v['name']}'"
-                        )
-                        valid *= False
+                    valid *= _check_chmap_key_name(k, v)
 
                     valid *= validate_dict_schema(
                         v,
@@ -136,6 +132,17 @@ def validate_legend_channel_map() -> bool:
 
         if not valid:
             sys.exit(1)
+
+
+def _check_chmap_key_name(key: str, entry: dict, verbose: bool = True) -> bool:
+    """Return True if entry's 'name' field is absent or matches the dict key."""
+    if "name" in entry and entry["name"] != key:
+        if verbose:
+            print(  # noqa: T201
+                f"ERROR: '{key}': key does not match 'name' field '{entry['name']}'"
+            )
+        return False
+    return True
 
 
 def validate_dict_schema(

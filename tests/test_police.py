@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import sys
 import textwrap
 from copy import deepcopy
 from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from legendmeta import police
 
@@ -272,3 +276,102 @@ def test_groupings_overridden_run_not_present_passes(tmp_path):
     # p09/r005 is overridden but p09 doesn't appear in the file at all
     overridden = {("p09", "r005")}
     assert police._check_cal_override_runs(f, overridden, verbose=False)
+
+
+# ---------------------------------------------------------------------------
+# _check_chmap_key_name — channel map key vs name field
+# ---------------------------------------------------------------------------
+
+
+def test_chmap_key_name_absent_passes():
+    """Entry without a 'name' field is always valid."""
+    assert police._check_chmap_key_name("V01234A", {"system": "geds"})
+
+
+def test_chmap_key_name_match_passes():
+    """Entry whose 'name' matches the key is valid."""
+    assert police._check_chmap_key_name(
+        "V01234A", {"name": "V01234A", "system": "geds"}
+    )
+
+
+def test_chmap_key_name_mismatch_fails():
+    """Entry whose 'name' differs from the key is invalid."""
+    assert not police._check_chmap_key_name(
+        "V01234A", {"name": "V99999Z", "system": "geds"}, verbose=False
+    )
+
+
+# ---------------------------------------------------------------------------
+# validate_statuses — status key membership in channel map
+# ---------------------------------------------------------------------------
+
+
+def _write_status_files(tmp_path: Path, status_content: str) -> Path:
+    """Create a minimal status validity file and data file in *tmp_path*."""
+    validity = textwrap.dedent("""\
+        - valid_from: "20230101T000000Z"
+          apply:
+            - status.yaml
+    """)
+    (tmp_path / "validity.yaml").write_text(validity)
+    (tmp_path / "status.yaml").write_text(status_content)
+    return tmp_path / "validity.yaml"
+
+
+def test_validate_statuses_key_not_in_chmap(tmp_path, monkeypatch):
+    """validate_statuses fails when a status key is absent from the channel map."""
+    # "ch_missing" is not a GE/SiPM channel, so only the chmap check fires.
+    validity_file = _write_status_files(
+        tmp_path,
+        textwrap.dedent("""\
+            ch_missing:
+              flag: true
+        """),
+    )
+
+    mock_meta = MagicMock()
+    mock_meta.hardware.configuration.channelmaps.on.return_value = {}
+
+    monkeypatch.setattr(sys, "argv", ["validate-statuses", str(validity_file)])
+    with (
+        patch("legendmeta.police.LegendMetadata", return_value=mock_meta),
+        pytest.raises(SystemExit),
+    ):
+        police.validate_statuses()
+
+
+def test_validate_statuses_key_in_chmap(tmp_path, monkeypatch):
+    """validate_statuses passes when every status key is present in the channel map."""
+    validity_file = _write_status_files(
+        tmp_path,
+        textwrap.dedent("""\
+            ch_present:
+              flag: true
+        """),
+    )
+
+    mock_meta = MagicMock()
+    mock_meta.hardware.configuration.channelmaps.on.return_value = {"ch_present": {}}
+
+    monkeypatch.setattr(sys, "argv", ["validate-statuses", str(validity_file)])
+    with patch("legendmeta.police.LegendMetadata", return_value=mock_meta):
+        police.validate_statuses()  # should not raise
+
+
+def test_validate_statuses_chmap_unavailable_skips_check(tmp_path, monkeypatch):
+    """When the channel map cannot be loaded the membership check is silently skipped."""
+    validity_file = _write_status_files(
+        tmp_path,
+        textwrap.dedent("""\
+            ch_anything:
+              flag: true
+        """),
+    )
+
+    mock_meta = MagicMock()
+    mock_meta.hardware.configuration.channelmaps.on.side_effect = Exception("no repo")
+
+    monkeypatch.setattr(sys, "argv", ["validate-statuses", str(validity_file)])
+    with patch("legendmeta.police.LegendMetadata", return_value=mock_meta):
+        police.validate_statuses()  # chmap unavailable → no error
