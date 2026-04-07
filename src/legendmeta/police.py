@@ -314,7 +314,7 @@ def validate_statuses() -> None:
                 continue
 
             try:
-                chmap = meta.channelmap(ts)
+                chmap = meta.hardware.configuration.channelmaps.on(ts)
             except Exception as e:
                 print(f"WARNING: could not load channel map at '{ts}': {e}")  # noqa: T201
                 chmap = None
