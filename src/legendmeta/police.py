@@ -25,6 +25,7 @@ import yaml
 from dbetto import Props, TextDB, utils
 from dbetto.catalog import Catalog
 
+from .legendmetadata import LegendMetadata
 from .utils import _RUN_RANGE_PATTERN, expand_runs
 
 templates = resources.files("legendmeta") / "templates"
@@ -91,7 +92,7 @@ def validate_legend_channel_map() -> bool:
     args = parser.parse_args()
 
     dict_temp = {}
-    for typ in ("geds", "spms"):
+    for typ in ("geds", "spms", "pmts", "auxs", "bsln", "puls"):
         dict_temp[typ] = utils.load_dict(templates / f"{typ}-channel.yaml")
 
     for d in {Path(f).parent for f in args.files}:
@@ -118,6 +119,12 @@ def validate_legend_channel_map() -> bool:
                             f"WARNING: '{k}': no template for system '{v['system']}' entry"
                         )
                         continue
+
+                    if "name" in v and v["name"] != k:
+                        print(  # noqa: T201
+                            f"ERROR: '{k}': key does not match 'name' field '{v['name']}'"
+                        )
+                        valid *= False
 
                     valid *= validate_dict_schema(
                         v,
@@ -289,6 +296,8 @@ def validate_statuses() -> None:
     parser.add_argument("files", nargs="+", help="validity files")
     args = parser.parse_args()
 
+    meta = LegendMetadata()
+
     valid = True
     for validity_file in args.files:
         d = Path(validity_file).parent
@@ -304,9 +313,19 @@ def validate_statuses() -> None:
                 valid = False
                 continue
 
+            try:
+                chmap = meta.channelmap(ts)
+            except Exception as e:
+                print(f"WARNING: could not load channel map at '{ts}': {e}")  # noqa: T201
+                chmap = None
+
             for ch, entry in state.items():
                 if not isinstance(entry, dict):
                     continue
+
+                if chmap is not None and ch not in chmap:
+                    print(f"ERROR: '{ch}' at '{ts}': key not found in channel map")  # noqa: T201
+                    valid = False
 
                 is_ge = ch.startswith(_GE_PREFIXES) and not ch.startswith("PMT")
                 is_sipm = ch.startswith(_SIPM_PREFIXES)
