@@ -340,6 +340,12 @@ def validate_statuses() -> None:
                     if "reason" not in entry:
                         print(f"ERROR: '{ch}' at '{ts}': missing 'reason' field")  # noqa: T201
                         valid = False
+                    elif entry.get("usability") != "on" and not entry["reason"]:
+                        print(  # noqa: T201
+                            f"ERROR: '{ch}' at '{ts}': 'reason' must be non-empty"
+                            f" when usability is '{entry.get('usability')}'"
+                        )
+                        valid = False
 
                     # psd/status
                     if "psd" not in entry:
