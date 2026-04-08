@@ -19,21 +19,21 @@
 
 - id: validate-statuses
   name: check LEGEND status files format
-  entry: validate-statuses
+  entry: validate-statuses --fix
   language: python
   files: (.*\/)?validity\..+$
   types_or: [yaml, json]
 
 - id: validate-cal-groupings
   name: check LEGEND calibration groupings format
-  entry: validate-cal-groupings
+  entry: validate-cal-groupings --fix
   language: python
   files: (.*\/)?cal_groupings\..+$
   types: [yaml]
 
 - id: validate-phy-groupings
   name: check LEGEND physics groupings format
-  entry: validate-phy-groupings
+  entry: validate-phy-groupings --fix
   language: python
   files: (.*\/)?phy_groupings\..+$
   types: [yaml]

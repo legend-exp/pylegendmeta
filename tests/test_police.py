@@ -8,6 +8,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+import yaml
+
 from legendmeta import police
 
 
@@ -375,3 +377,309 @@ def test_validate_statuses_chmap_unavailable_skips_check(tmp_path, monkeypatch):
     monkeypatch.setattr(sys, "argv", ["validate-statuses", str(validity_file)])
     with patch("legendmeta.police.LegendMetadata", return_value=mock_meta):
         police.validate_statuses()  # chmap unavailable → no error
+# _needs_reorder
+# ---------------------------------------------------------------------------
+
+
+def test_needs_reorder_same_order():
+    assert not police._needs_reorder({"a": 1, "b": 2}, {"a": 1, "b": 2})
+
+
+def test_needs_reorder_different_order():
+    assert police._needs_reorder({"b": 2, "a": 1}, {"a": 1, "b": 2})
+
+
+def test_needs_reorder_nested_same():
+    a = {"x": {"b": 2, "a": 1}}
+    b = {"x": {"b": 2, "a": 1}}
+    assert not police._needs_reorder(a, b)
+
+
+def test_needs_reorder_nested_different():
+    a = {"x": {"b": 2, "a": 1}}
+    b = {"x": {"a": 1, "b": 2}}
+    assert police._needs_reorder(a, b)
+
+
+def test_needs_reorder_non_dict_values_ignored():
+    # Only key order matters; non-dict values are not compared
+    assert not police._needs_reorder({"a": [3, 1, 2]}, {"a": [1, 2, 3]})
+
+
+# ---------------------------------------------------------------------------
+# _sort_status_entry
+# ---------------------------------------------------------------------------
+
+_FULL_ENTRY_SORTED = {
+    "reason": "",
+    "usability": "on",
+    "processable": True,
+    "is_blinded": True,
+    "psd": {
+        "is_bb_like": "low_aoe & high_aoe",
+        "status": {"low_aoe": "valid", "high_aoe": "valid"},
+    },
+}
+
+
+def test_sort_status_entry_already_sorted():
+    result = police._sort_status_entry(_FULL_ENTRY_SORTED)
+    assert list(result.keys()) == list(_FULL_ENTRY_SORTED.keys())
+    assert list(result["psd"].keys()) == list(_FULL_ENTRY_SORTED["psd"].keys())
+
+
+def test_sort_status_entry_reorders_keys():
+    scrambled = {
+        "processable": True,
+        "is_blinded": True,
+        "usability": "on",
+        "reason": "",
+        "psd": {
+            "status": {"low_aoe": "valid"},
+            "is_bb_like": "low_aoe",
+        },
+    }
+    result = police._sort_status_entry(scrambled)
+    assert list(result.keys()) == [
+        "reason",
+        "usability",
+        "processable",
+        "is_blinded",
+        "psd",
+    ]
+    assert list(result["psd"].keys()) == ["is_bb_like", "status"]
+
+
+def test_sort_status_entry_missing_keys():
+    # Entries without psd/is_blinded/reason (e.g. early SiPM entries)
+    entry = {"processable": True, "usability": "on"}
+    result = police._sort_status_entry(entry)
+    assert list(result.keys()) == ["usability", "processable"]
+
+
+def test_sort_status_entry_extra_keys_appended():
+    entry = {"extra": 42, "usability": "on", "processable": True}
+    result = police._sort_status_entry(entry)
+    # canonical keys come first, then unknown extras
+    assert list(result.keys()) == ["usability", "processable", "extra"]
+
+
+def test_sort_status_entry_psd_extra_keys_appended():
+    entry = {
+        "usability": "on",
+        "processable": True,
+        "psd": {
+            "status": {"low_aoe": "valid"},
+            "unknown_psd_key": True,
+            "is_bb_like": "low_aoe",
+        },
+    }
+    result = police._sort_status_entry(entry)
+    assert list(result["psd"].keys()) == ["is_bb_like", "status", "unknown_psd_key"]
+
+
+# ---------------------------------------------------------------------------
+# _sort_groupings_data
+# ---------------------------------------------------------------------------
+
+
+def test_sort_groupings_data_default_first():
+    data = {
+        "Z_detector": {"calgroup001a": {"p03": "r000..r001"}},
+        "default": {"calgroup001a": {"p03": "r000..r005"}},
+        "A_detector": {"calgroup001a": {"p03": "r000..r002"}},
+    }
+    result = police._sort_groupings_data(data)
+    keys = list(result.keys())
+    assert keys[0] == "default"
+    assert keys[1:] == sorted(["A_detector", "Z_detector"])
+
+
+def test_sort_groupings_data_groups_sorted():
+    data = {
+        "default": {
+            "calgroup002a": {"p06": "r000..r005"},
+            "calgroup001a": {"p03": "r000..r005"},
+        }
+    }
+    result = police._sort_groupings_data(data)
+    assert list(result["default"].keys()) == ["calgroup001a", "calgroup002a"]
+
+
+def test_sort_groupings_data_periods_sorted():
+    data = {
+        "default": {
+            "calgroup001a": {"p06": "r000..r005", "p03": "r000..r004"},
+        }
+    }
+    result = police._sort_groupings_data(data)
+    assert list(result["default"]["calgroup001a"].keys()) == ["p03", "p06"]
+
+
+def test_sort_groupings_data_run_list_sorted():
+    data = {
+        "default": {
+            "calgroup001a": {"p09": ["r003", "r001", "r005"]},
+        }
+    }
+    result = police._sort_groupings_data(data)
+    assert result["default"]["calgroup001a"]["p09"] == ["r001", "r003", "r005"]
+
+
+def test_sort_groupings_data_run_range_unchanged():
+    data = {"default": {"calgroup001a": {"p03": "r000..r005"}}}
+    result = police._sort_groupings_data(data)
+    assert result["default"]["calgroup001a"]["p03"] == "r000..r005"
+
+
+# ---------------------------------------------------------------------------
+# _fix_groupings_file
+# ---------------------------------------------------------------------------
+
+_SORTED_GROUPINGS = textwrap.dedent("""\
+    default:
+      calgroup001a:
+        p03: r000..r005
+      calgroup002a:
+        p06: r000..r005
+    B00002A:
+      calgroup001a:
+        p03: r000..r003
+    V08682A:
+      calgroup002a:
+        p06: r001..r005
+""")
+
+_UNSORTED_GROUPINGS = textwrap.dedent("""\
+    default:
+      calgroup002a:
+        p06: r000..r005
+      calgroup001a:
+        p03: r000..r005
+    V08682A:
+      calgroup002a:
+        p06: r001..r005
+    B00002A:
+      calgroup001a:
+        p03: r000..r003
+""")
+
+
+def test_fix_groupings_file_already_sorted(tmp_path):
+    f = _write(tmp_path, "cal_groupings.yaml", _SORTED_GROUPINGS)
+    assert not police._fix_groupings_file(f)
+    assert Path(f).read_text() == _SORTED_GROUPINGS
+
+
+def test_fix_groupings_file_unsorted_returns_true(tmp_path):
+    f = _write(tmp_path, "cal_groupings.yaml", _UNSORTED_GROUPINGS)
+    assert police._fix_groupings_file(f)
+
+
+def test_fix_groupings_file_result_passes_validation(tmp_path):
+    f = _write(tmp_path, "cal_groupings.yaml", _UNSORTED_GROUPINGS)
+    police._fix_groupings_file(f)
+    assert police._validate_groupings_file(f, "calgroup", verbose=False)
+
+
+def test_fix_groupings_file_data_preserved(tmp_path):
+    f = _write(tmp_path, "cal_groupings.yaml", _UNSORTED_GROUPINGS)
+    police._fix_groupings_file(f)
+    fixed = yaml.safe_load(Path(f).read_text())
+    original = yaml.safe_load(_UNSORTED_GROUPINGS)
+    assert fixed == original
+
+
+# ---------------------------------------------------------------------------
+# _fix_status_files
+# ---------------------------------------------------------------------------
+
+_SORTED_STATUS = {
+    "V02160A": {
+        "reason": "",
+        "usability": "on",
+        "processable": True,
+        "psd": {"is_bb_like": "low_aoe", "status": {"low_aoe": "valid"}},
+    }
+}
+
+_UNSORTED_STATUS = {
+    "V02160A": {
+        "processable": True,
+        "usability": "on",
+        "reason": "",
+        "psd": {"status": {"low_aoe": "valid"}, "is_bb_like": "low_aoe"},
+    }
+}
+
+
+def _write_status_dir(tmp_path: Path, files: dict[str, dict]) -> Path:
+    """Write a mock status directory with a validity.yaml and the given data files."""
+    (tmp_path / "validity.yaml").write_text(
+        "- valid_from: '20240101T000000Z'\n  apply: []\n"
+    )
+    for name, data in files.items():
+        with (tmp_path / name).open("w") as fh:
+            yaml.dump(data, fh, default_flow_style=False, sort_keys=False)
+    return tmp_path / "validity.yaml"
+
+
+def test_fix_status_files_already_sorted(tmp_path):
+    validity = _write_status_dir(tmp_path, {"status.yaml": _SORTED_STATUS})
+    assert not police._fix_status_files(str(validity))
+
+
+def test_fix_status_files_unsorted_returns_true(tmp_path):
+    validity = _write_status_dir(tmp_path, {"status.yaml": _UNSORTED_STATUS})
+    assert police._fix_status_files(str(validity))
+
+
+def test_fix_status_files_key_order_after_fix(tmp_path):
+    validity = _write_status_dir(tmp_path, {"status.yaml": _UNSORTED_STATUS})
+    police._fix_status_files(str(validity))
+    fixed = yaml.safe_load((tmp_path / "status.yaml").read_text())
+    assert list(fixed["V02160A"].keys()) == [
+        "reason",
+        "usability",
+        "processable",
+        "psd",
+    ]
+    assert list(fixed["V02160A"]["psd"].keys()) == ["is_bb_like", "status"]
+
+
+def test_fix_status_files_data_preserved(tmp_path):
+    validity = _write_status_dir(tmp_path, {"status.yaml": _UNSORTED_STATUS})
+    police._fix_status_files(str(validity))
+    fixed = yaml.safe_load((tmp_path / "status.yaml").read_text())
+    # values must be identical to original, only key order changes
+    assert fixed == yaml.safe_load(yaml.dump(_UNSORTED_STATUS))
+
+
+def test_fix_status_files_skips_validity_yaml(tmp_path):
+    # validity.yaml itself must never be touched
+    validity = _write_status_dir(tmp_path, {})
+    original_validity = validity.read_text()
+    police._fix_status_files(str(validity))
+    assert validity.read_text() == original_validity
+
+
+def test_fix_status_files_multiple_files(tmp_path):
+    validity = _write_status_dir(
+        tmp_path,
+        {
+            "a.yaml": _UNSORTED_STATUS,
+            "b.yaml": _SORTED_STATUS,
+        },
+    )
+    assert police._fix_status_files(str(validity))
+    fixed_a = yaml.safe_load((tmp_path / "a.yaml").read_text())
+    # a.yaml was fixed
+    assert list(fixed_a["V02160A"].keys()) == [
+        "reason",
+        "usability",
+        "processable",
+        "psd",
+    ]
+    # b.yaml was already sorted — data unchanged
+    fixed_b = yaml.safe_load((tmp_path / "b.yaml").read_text())
+    assert fixed_b == _SORTED_STATUS

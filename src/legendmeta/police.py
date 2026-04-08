@@ -301,9 +301,19 @@ def validate_statuses() -> None:
         prog="validate-statuses", description="Validate LEGEND status files"
     )
     parser.add_argument("files", nargs="+", help="validity files")
+    parser.add_argument(
+        "--fix",
+        action="store_true",
+        help="sort status entry keys in place instead of reporting errors",
+    )
     args = parser.parse_args()
 
     meta = LegendMetadata()
+
+    modified = False
+    if args.fix:
+        for validity_file in args.files:
+            modified |= _fix_status_files(validity_file)
 
     valid = True
     for validity_file in args.files:
@@ -397,8 +407,130 @@ def validate_statuses() -> None:
                                 )
                                 valid = False
 
-    if not valid:
+    if modified or not valid:
         sys.exit(1)
+
+
+_STATUS_KEY_ORDER = ("reason", "usability", "processable", "is_blinded", "psd")
+_PSD_KEY_ORDER = ("is_bb_like", "status")
+
+
+def _sort_status_entry(entry: dict) -> dict:
+    """Return a copy of a channel status entry with keys in canonical order."""
+    result = {}
+    for key in _STATUS_KEY_ORDER:
+        if key not in entry:
+            continue
+        if key == "psd" and isinstance(entry[key], dict):
+            psd = entry[key]
+            sorted_psd = {k: psd[k] for k in _PSD_KEY_ORDER if k in psd}
+            sorted_psd.update({k: v for k, v in psd.items() if k not in sorted_psd})
+            result[key] = sorted_psd
+        else:
+            result[key] = entry[key]
+    result.update({k: v for k, v in entry.items() if k not in result})
+    return result
+
+
+def _needs_reorder(a: dict, b: dict) -> bool:
+    """Return True if key order differs (recursively) between a and b."""
+    if list(a.keys()) != list(b.keys()):
+        return True
+    for k, v in a.items():
+        if (
+            isinstance(v, dict)
+            and isinstance(b.get(k), dict)
+            and _needs_reorder(v, b[k])
+        ):
+            return True
+    return False
+
+
+def _sort_groupings_groups(groups: dict) -> dict:
+    """Return a copy of a groups dict with groups and periods/runs sorted."""
+    result = {}
+    for group in sorted(groups):
+        periods = groups[group]
+        if not isinstance(periods, dict):
+            result[group] = periods
+            continue
+        sorted_periods = {}
+        for period in sorted(str(p) for p in periods):
+            runs = periods[period]
+            sorted_periods[period] = (
+                sorted(runs, key=_run_sort_key) if isinstance(runs, list) else runs
+            )
+        result[group] = sorted_periods
+    return result
+
+
+def _sort_groupings_data(data: dict) -> dict:
+    """Return a copy of groupings data with all keys sorted, default first."""
+    result = {}
+    if "default" in data:
+        val = data["default"]
+        result["default"] = (
+            _sort_groupings_groups(val) if isinstance(val, dict) else val
+        )
+    for key in sorted(k for k in data if k != "default"):
+        val = data[key]
+        result[key] = _sort_groupings_groups(val) if isinstance(val, dict) else val
+    return result
+
+
+def _fix_groupings_file(file: str) -> bool:
+    """Sort a groupings file in place. Returns True if the file was modified."""
+    data = utils.load_dict(file)
+    sorted_data = _sort_groupings_data(data)
+    if not _needs_reorder(data, sorted_data):
+        return False
+    with Path(file).open("w") as f:
+        yaml.dump(
+            sorted_data,
+            f,
+            default_flow_style=False,
+            sort_keys=False,
+            allow_unicode=True,
+        )
+    print(f"Fixed: sorted keys in '{file}'")  # noqa: T201
+    return True
+
+
+def _fix_status_files(validity_file: str) -> bool:
+    """Sort channel entry keys in all status YAML files beside the validity file.
+
+    Returns True if any file was modified.
+    """
+    d = Path(validity_file).parent
+    modified = False
+    for yaml_file in sorted(d.glob("*.yaml")):
+        if yaml_file.name == "validity.yaml":
+            continue
+        data = utils.load_dict(str(yaml_file))
+        if not isinstance(data, dict):
+            continue
+        sorted_data = {}
+        changed = False
+        for ch, entry in data.items():
+            if isinstance(entry, dict):
+                sorted_entry = _sort_status_entry(entry)
+                sorted_data[ch] = sorted_entry
+                if _needs_reorder(entry, sorted_entry):
+                    changed = True
+            else:
+                sorted_data[ch] = entry
+        if changed:
+            with yaml_file.open("w") as f:
+                yaml.dump(
+                    sorted_data,
+                    f,
+                    default_flow_style=False,
+                    sort_keys=False,
+                    allow_unicode=True,
+                )
+            print(f"Fixed: sorted keys in '{yaml_file}'")  # noqa: T201
+            modified = True
+    return modified
 
 
 def _run_sort_key(spec: str) -> str:
@@ -667,10 +799,19 @@ def validate_cal_groupings() -> None:
         description="Validate LEGEND calibration groupings files",
     )
     parser.add_argument("files", nargs="+", help="cal_groupings files")
+    parser.add_argument(
+        "--fix",
+        action="store_true",
+        help="sort groupings files in place instead of reporting errors",
+    )
     args = parser.parse_args()
 
+    modified = False
     valid = True
     for file in args.files:
+        if args.fix:
+            modified |= _fix_groupings_file(file)
+
         d = Path(file).parent
         run_override_path = d / "run_override.yaml"
         runinfo_path = d / "runinfo.yaml"
@@ -693,7 +834,7 @@ def validate_cal_groupings() -> None:
         if overridden:
             valid &= _check_cal_override_runs(file, overridden)
 
-    if not valid:
+    if modified or not valid:
         sys.exit(1)
 
 
@@ -707,11 +848,19 @@ def validate_phy_groupings() -> None:
         description="Validate LEGEND physics groupings files",
     )
     parser.add_argument("files", nargs="+", help="phy_groupings files")
+    parser.add_argument(
+        "--fix",
+        action="store_true",
+        help="sort groupings files in place instead of reporting errors",
+    )
     args = parser.parse_args()
 
+    modified = False
     valid = True
     for file in args.files:
+        if args.fix:
+            modified |= _fix_groupings_file(file)
         valid &= _validate_groupings_file(file, "phygroup")
 
-    if not valid:
+    if modified or not valid:
         sys.exit(1)
