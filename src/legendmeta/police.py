@@ -864,3 +864,103 @@ def validate_phy_groupings() -> None:
 
     if modified or not valid:
         sys.exit(1)
+
+
+def _iter_string_values(obj: object):
+    """Yield all string leaf values from a nested dict/list structure."""
+    if isinstance(obj, str):
+        yield obj
+    elif isinstance(obj, dict):
+        for v in obj.values():
+            yield from _iter_string_values(v)
+    elif isinstance(obj, list):
+        for item in obj:
+            yield from _iter_string_values(item)
+
+
+def _check_dataflow_config_paths(
+    state: object,
+    db_dir: Path,
+    timestamp: str,
+    category: str,
+    verbose: bool = True,
+) -> bool:
+    """Check that all concrete (non-wildcard) path strings in *state* exist on disk.
+
+    Parameters
+    ----------
+    state
+        Loaded database state (nested dict/list/str).
+    db_dir
+        The directory that ``$_`` was expanded to (the TextDB root).
+    timestamp
+        Timestamp string used in the query (for error messages).
+    category
+        Category string used in the query (for error messages).
+    verbose
+        If False, suppress error output.
+    """
+    valid = True
+    db_dir_str = str(db_dir)
+    for value in _iter_string_values(state):
+        if not value.startswith(db_dir_str):
+            continue
+        # Skip wildcard patterns — they are not concrete file paths
+        if "%" in value:
+            continue
+        if not Path(value).is_file():
+            if verbose:
+                print(  # noqa: T201
+                    f"ERROR: '{timestamp}' (category '{category}'):"
+                    f" path does not exist: '{value}'"
+                )
+            valid = False
+    return valid
+
+
+def validate_dataflow_config() -> None:
+    """Validate LEGEND dataflow configuration files.
+
+    Invoked in CLI. Accepts validity files; for each unique (timestamp, category)
+    in the validity loads the database and checks that all concrete (non-wildcard)
+    path values point to files that exist.
+    """
+    parser = argparse.ArgumentParser(
+        prog="validate-dataflow-config",
+        description="Validate LEGEND dataflow configuration files",
+    )
+    parser.add_argument("files", nargs="+", help="validity files")
+    args = parser.parse_args()
+
+    valid = True
+    for validity_file in args.files:
+        d = Path(validity_file).parent
+        db = TextDB(d)
+
+        valid_dic = Props.read_from(str(validity_file))
+
+        # Collect unique (timestamp, category) pairs to check
+        seen: set[tuple[str, str]] = set()
+        for dic in valid_dic:
+            ts = str(dic["valid_from"])
+            categories = dic.get("category", "all")
+            if isinstance(categories, str):
+                categories = [categories]
+            for cat in categories:
+                seen.add((ts, str(cat)))
+
+        for ts, cat in sorted(seen):
+            try:
+                state = db.on(ts, system=cat)
+            except Exception as e:
+                print(  # noqa: T201
+                    f"ERROR: could not load dataflow config at '{ts}'"
+                    f" (category '{cat}'): {e}"
+                )
+                valid = False
+                continue
+
+            valid &= _check_dataflow_config_paths(state, d, ts, cat)
+
+    if not valid:
+        sys.exit(1)

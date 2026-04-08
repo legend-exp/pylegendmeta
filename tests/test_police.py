@@ -684,3 +684,91 @@ def test_fix_status_files_multiple_files(tmp_path):
     # b.yaml was already sorted — data unchanged
     fixed_b = yaml.safe_load((tmp_path / "b.yaml").read_text())
     assert fixed_b == _SORTED_STATUS
+
+
+# ---------------------------------------------------------------------------
+# _iter_string_values
+# ---------------------------------------------------------------------------
+
+
+def test_iter_string_values_flat_dict():
+    assert set(police._iter_string_values({"a": "x", "b": "y"})) == {"x", "y"}
+
+
+def test_iter_string_values_nested():
+    obj = {"a": {"b": "deep"}, "c": ["list_item"]}
+    assert set(police._iter_string_values(obj)) == {"deep", "list_item"}
+
+
+def test_iter_string_values_non_string_leaves_ignored():
+    assert list(police._iter_string_values({"a": 1, "b": None, "c": True})) == []
+
+
+def test_iter_string_values_bare_string():
+    assert list(police._iter_string_values("hello")) == ["hello"]
+
+
+# ---------------------------------------------------------------------------
+# _check_dataflow_config_paths
+# ---------------------------------------------------------------------------
+
+
+def _make_dataflow_dir(tmp_path: Path) -> Path:
+    """Create a minimal dataflow config directory with some real files."""
+    (tmp_path / "log").mkdir()
+    (tmp_path / "log" / "basic_logging.yaml").write_text("")
+    (tmp_path / "tier").mkdir()
+    (tmp_path / "tier" / "present.yaml").write_text("")
+    return tmp_path
+
+
+def test_check_dataflow_config_paths_all_present(tmp_path):
+    d = _make_dataflow_dir(tmp_path)
+    state = {
+        "options": {
+            "logging": str(d / "log" / "basic_logging.yaml"),
+            "tier": str(d / "tier" / "present.yaml"),
+        }
+    }
+    assert police._check_dataflow_config_paths(
+        state, d, "20220101T000000Z", "all", verbose=False
+    )
+
+
+def test_check_dataflow_config_paths_missing_file(tmp_path):
+    d = _make_dataflow_dir(tmp_path)
+    state = {"inputs": {"config": str(d / "tier" / "missing.yaml")}}
+    assert not police._check_dataflow_config_paths(
+        state, d, "20220101T000000Z", "all", verbose=False
+    )
+
+
+def test_check_dataflow_config_paths_wildcard_skipped(tmp_path):
+    d = _make_dataflow_dir(tmp_path)
+    # Path contains % — not a concrete path, must not be checked even if file doesn't exist
+    state = {"inputs": {"config": str(d / "tier" / "l200-p%-r%-T%-config.yaml")}}
+    assert police._check_dataflow_config_paths(
+        state, d, "20220101T000000Z", "all", verbose=False
+    )
+
+
+def test_check_dataflow_config_paths_non_db_paths_ignored(tmp_path):
+    d = _make_dataflow_dir(tmp_path)
+    # Strings that don't start with the db directory are not path checks
+    state = {"key": "just a label", "num": 42}
+    assert police._check_dataflow_config_paths(
+        state, d, "20220101T000000Z", "all", verbose=False
+    )
+
+
+def test_check_dataflow_config_paths_list_values(tmp_path):
+    d = _make_dataflow_dir(tmp_path)
+    state = {
+        "inputs": [
+            str(d / "log" / "basic_logging.yaml"),
+            str(d / "tier" / "missing.yaml"),
+        ]
+    }
+    assert not police._check_dataflow_config_paths(
+        state, d, "20220101T000000Z", "all", verbose=False
+    )
