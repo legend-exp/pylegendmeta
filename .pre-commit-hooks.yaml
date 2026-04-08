@@ -17,6 +17,13 @@
   files: (.*\/)?validity\..+$
   types_or: [yaml, json]
 
+- id: validate-dataflow-config
+  name: check LEGEND dataflow config files
+  entry: validate-dataflow-config
+  language: python
+  files: (.*\/)?validity\..+$
+  types_or: [yaml, json]
+
 - id: validate-statuses
   name: check LEGEND status files format
   entry: validate-statuses --fix
