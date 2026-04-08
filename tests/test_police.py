@@ -7,7 +7,6 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 import yaml
 
 from legendmeta import police
@@ -377,6 +376,8 @@ def test_validate_statuses_chmap_unavailable_skips_check(tmp_path, monkeypatch):
     monkeypatch.setattr(sys, "argv", ["validate-statuses", str(validity_file)])
     with patch("legendmeta.police.LegendMetadata", return_value=mock_meta):
         police.validate_statuses()  # chmap unavailable → no error
+
+
 # _needs_reorder
 # ---------------------------------------------------------------------------
 
