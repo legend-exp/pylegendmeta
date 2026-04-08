@@ -482,7 +482,7 @@ def _fix_groupings_file(file: str) -> bool:
     """Sort a groupings file in place. Returns True if the file was modified."""
     data = utils.load_dict(file)
     sorted_data = _sort_groupings_data(data)
-    if not _needs_reorder(data, sorted_data):
+    if not (_needs_reorder(data, sorted_data) or data != sorted_data):
         return False
     with Path(file).open("w") as f:
         yaml.dump(
