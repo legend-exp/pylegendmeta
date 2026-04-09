@@ -1107,7 +1107,11 @@ def test_fix_hit_config_file_result_passes_validation(tmp_path):
 def test_fix_hit_config_file_data_preserved(tmp_path):
     unsorted = {
         "operations": {
-            "op": {"lgdo_attrs": {"unit": "keV"}, "parameters": {"a": 1}, "expression": "x * a"}
+            "op": {
+                "lgdo_attrs": {"unit": "keV"},
+                "parameters": {"a": 1},
+                "expression": "x * a",
+            }
         },
         "outputs": ["op"],
     }
@@ -1160,7 +1164,11 @@ def test_validate_dsp_proc_chain_valid(tmp_path):
 
 
 def test_validate_dsp_proc_chain_only_processors(tmp_path):
-    data = {"processors": {"bl": {"module": "numpy", "function": "mean", "args": ["wf", "bl"]}}}
+    data = {
+        "processors": {
+            "bl": {"module": "numpy", "function": "mean", "args": ["wf", "bl"]}
+        }
+    }
     f = _write_dsp(tmp_path, "proc_chain.yaml", data)
     assert police._validate_dsp_proc_chain_file(f, verbose=False)
 
@@ -1179,7 +1187,12 @@ def test_validate_dsp_proc_chain_unexpected_top_key(tmp_path):
 
 
 def test_validate_dsp_proc_chain_wrong_top_order(tmp_path):
-    data = {"processors": {"bl": {"module": "numpy", "function": "mean", "args": ["wf", "bl"]}}, "outputs": ["bl"]}
+    data = {
+        "processors": {
+            "bl": {"module": "numpy", "function": "mean", "args": ["wf", "bl"]}
+        },
+        "outputs": ["bl"],
+    }
     f = _write_dsp(tmp_path, "proc_chain.yaml", data)
     assert not police._validate_dsp_proc_chain_file(f, verbose=False)
 
@@ -1191,7 +1204,16 @@ def test_validate_dsp_proc_chain_outputs_not_list(tmp_path):
 
 
 def test_validate_dsp_proc_chain_unexpected_processor_key(tmp_path):
-    data = {"processors": {"bl": {"module": "numpy", "function": "mean", "args": ["wf", "bl"], "extra": True}}}
+    data = {
+        "processors": {
+            "bl": {
+                "module": "numpy",
+                "function": "mean",
+                "args": ["wf", "bl"],
+                "extra": True,
+            }
+        }
+    }
     f = _write_dsp(tmp_path, "proc_chain.yaml", data)
     assert not police._validate_dsp_proc_chain_file(f, verbose=False)
 
@@ -1233,7 +1255,9 @@ def test_validate_dsp_proc_chain_prereqs_before_args(tmp_path):
 
 def test_sort_dsp_proc_chain_top_level_order():
     data = {
-        "processors": {"bl": {"module": "numpy", "function": "mean", "args": ["wf", "bl"]}},
+        "processors": {
+            "bl": {"module": "numpy", "function": "mean", "args": ["wf", "bl"]}
+        },
         "outputs": ["bl"],
     }
     result = police._sort_dsp_proc_chain(data)
@@ -1256,7 +1280,13 @@ def test_sort_dsp_proc_chain_processor_key_order():
     }
     result = police._sort_dsp_proc_chain(data)
     assert list(result["processors"]["energy"].keys()) == [
-        "description", "module", "function", "prereqs", "args", "defaults", "unit",
+        "description",
+        "module",
+        "function",
+        "prereqs",
+        "args",
+        "defaults",
+        "unit",
     ]
 
 
@@ -1278,7 +1308,9 @@ def test_fix_dsp_proc_chain_file_already_sorted(tmp_path):
 
 def test_fix_dsp_proc_chain_file_unsorted_returns_true(tmp_path):
     unsorted = {
-        "processors": {"bl": {"args": ["wf", "bl"], "function": "mean", "module": "numpy"}},
+        "processors": {
+            "bl": {"args": ["wf", "bl"], "function": "mean", "module": "numpy"}
+        },
         "outputs": ["bl"],
     }
     f = _write_dsp(tmp_path, "proc_chain.yaml", unsorted)
@@ -1287,7 +1319,9 @@ def test_fix_dsp_proc_chain_file_unsorted_returns_true(tmp_path):
 
 def test_fix_dsp_proc_chain_file_result_passes_validation(tmp_path):
     unsorted = {
-        "processors": {"bl": {"args": ["wf", "bl"], "function": "mean", "module": "numpy"}},
+        "processors": {
+            "bl": {"args": ["wf", "bl"], "function": "mean", "module": "numpy"}
+        },
         "outputs": ["bl"],
     }
     f = _write_dsp(tmp_path, "proc_chain.yaml", unsorted)
