@@ -684,3 +684,142 @@ def test_fix_status_files_multiple_files(tmp_path):
     # b.yaml was already sorted — data unchanged
     fixed_b = yaml.safe_load((tmp_path / "b.yaml").read_text())
     assert fixed_b == _SORTED_STATUS
+
+
+# ---------------------------------------------------------------------------
+# _find_unreferenced_files
+# ---------------------------------------------------------------------------
+
+
+def _write_validity(tmp_path: Path, entries: list[dict]) -> Path:
+    """Write a validity.yaml file and return its path."""
+    p = tmp_path / "validity.yaml"
+    with p.open("w") as fh:
+        yaml.dump(entries, fh, default_flow_style=False)
+    return p
+
+
+def test_find_unreferenced_files_all_referenced(tmp_path):
+    """No unreferenced files when every data file is in apply."""
+    (tmp_path / "a.yaml").write_text("key: value\n")
+    (tmp_path / "b.json").write_text("{}\n")
+    _write_validity(
+        tmp_path,
+        [{"valid_from": "20230101T000000Z", "apply": ["a.yaml", "b.json"]}],
+    )
+    referenced = {"a.yaml", "b.json"}
+    result = police._find_unreferenced_files(
+        str(tmp_path / "validity.yaml"), referenced, verbose=False
+    )
+    assert result == []
+
+
+def test_find_unreferenced_files_detects_orphan(tmp_path):
+    """An unreferenced YAML file is detected."""
+    (tmp_path / "a.yaml").write_text("key: value\n")
+    (tmp_path / "orphan.yaml").write_text("key: value\n")
+    _write_validity(
+        tmp_path,
+        [{"valid_from": "20230101T000000Z", "apply": ["a.yaml"]}],
+    )
+    referenced = {"a.yaml"}
+    result = police._find_unreferenced_files(
+        str(tmp_path / "validity.yaml"), referenced, verbose=False
+    )
+    assert "orphan.yaml" in result
+
+
+def test_find_unreferenced_files_detects_orphan_json(tmp_path):
+    """An unreferenced JSON file is detected."""
+    (tmp_path / "a.yaml").write_text("key: value\n")
+    (tmp_path / "orphan.json").write_text("{}\n")
+    _write_validity(
+        tmp_path,
+        [{"valid_from": "20230101T000000Z", "apply": ["a.yaml"]}],
+    )
+    referenced = {"a.yaml"}
+    result = police._find_unreferenced_files(
+        str(tmp_path / "validity.yaml"), referenced, verbose=False
+    )
+    assert "orphan.json" in result
+
+
+def test_find_unreferenced_files_ignores_validity_yaml(tmp_path):
+    """validity.yaml itself is never flagged."""
+    _write_validity(
+        tmp_path,
+        [{"valid_from": "20230101T000000Z", "apply": []}],
+    )
+    referenced = set()
+    result = police._find_unreferenced_files(
+        str(tmp_path / "validity.yaml"), referenced, verbose=False
+    )
+    assert "validity.yaml" not in result
+    assert result == []
+
+
+def test_find_unreferenced_files_ignores_non_yaml_json(tmp_path):
+    """Non-YAML/JSON files are not flagged."""
+    (tmp_path / "readme.md").write_text("# hello\n")
+    (tmp_path / "data.txt").write_text("some data\n")
+    _write_validity(
+        tmp_path,
+        [{"valid_from": "20230101T000000Z", "apply": []}],
+    )
+    referenced = set()
+    result = police._find_unreferenced_files(
+        str(tmp_path / "validity.yaml"), referenced, verbose=False
+    )
+    assert result == []
+
+
+def test_find_unreferenced_files_skips_subdir_with_own_validity(tmp_path):
+    """Files in subdirectories with their own validity.yaml are skipped."""
+    subdir = tmp_path / "sub"
+    subdir.mkdir()
+    (subdir / "validity.yaml").write_text("[]\n")
+    (subdir / "managed_elsewhere.yaml").write_text("key: value\n")
+
+    _write_validity(
+        tmp_path,
+        [{"valid_from": "20230101T000000Z", "apply": []}],
+    )
+    referenced = set()
+    result = police._find_unreferenced_files(
+        str(tmp_path / "validity.yaml"), referenced, verbose=False
+    )
+    assert result == []
+
+
+def test_find_unreferenced_files_includes_subdir_without_validity(tmp_path):
+    """Files in subdirectories without their own validity.yaml are checked."""
+    subdir = tmp_path / "sub"
+    subdir.mkdir()
+    (subdir / "orphan.yaml").write_text("key: value\n")
+
+    _write_validity(
+        tmp_path,
+        [{"valid_from": "20230101T000000Z", "apply": []}],
+    )
+    referenced = set()
+    result = police._find_unreferenced_files(
+        str(tmp_path / "validity.yaml"), referenced, verbose=False
+    )
+    assert any("orphan.yaml" in r for r in result)
+
+
+def test_find_unreferenced_files_subdir_file_referenced(tmp_path):
+    """A file in a subdirectory that IS referenced passes."""
+    subdir = tmp_path / "sub"
+    subdir.mkdir()
+    (subdir / "data.yaml").write_text("key: value\n")
+
+    _write_validity(
+        tmp_path,
+        [{"valid_from": "20230101T000000Z", "apply": ["sub/data.yaml"]}],
+    )
+    referenced = {"sub/data.yaml"}
+    result = police._find_unreferenced_files(
+        str(tmp_path / "validity.yaml"), referenced, verbose=False
+    )
+    assert result == []

@@ -260,6 +260,59 @@ def len_nested(d: dict) -> int:
     return count
 
 
+def _find_unreferenced_files(
+    validity_file: str, referenced: set[str], verbose: bool = True
+) -> list[str]:
+    """Find YAML/JSON data files not referenced in the validity file.
+
+    Parameters
+    ----------
+    validity_file
+        Path to the validity YAML file.
+    referenced
+        Set of file paths (relative to the validity file's directory) that
+        are referenced in the validity file's ``apply`` entries.
+    verbose
+        If True, print error messages.
+
+    Returns
+    -------
+    list[str]
+        Relative paths of unreferenced data files.
+    """
+    parent = Path(validity_file).parent
+    unreferenced = []
+
+    for data_file in sorted(parent.rglob("*")):
+        if not data_file.is_file():
+            continue
+        if data_file.suffix not in (".yaml", ".json"):
+            continue
+        if data_file.name == "validity.yaml":
+            continue
+
+        rel = data_file.relative_to(parent)
+
+        # skip files in subdirectories that have their own validity.yaml
+        skip = False
+        for p in rel.parents:
+            if p != Path(".") and (parent / p / "validity.yaml").exists():
+                skip = True
+                break
+        if skip:
+            continue
+
+        rel_str = str(rel)
+        if rel_str not in referenced:
+            unreferenced.append(rel_str)
+            if verbose:
+                print(  # noqa: T201
+                    f" ERROR : {rel_str} not referenced in {validity_file}"
+                )
+
+    return unreferenced
+
+
 def validate_validity():
     parser = argparse.ArgumentParser(
         prog="validate-validity", description="Validate LEGEND validity files"
@@ -273,14 +326,21 @@ def validate_validity():
         Catalog.read_from(file)
         # check files in validity exist
         valid_dic = Props.read_from(str(file))
+        referenced_files = set()
         for dic in valid_dic:
             for f in dic["apply"]:
+                referenced_files.add(f)
                 full_path = Path(file).parent / f
                 if full_path.exists() is False:
                     print(  # noqa: T201
                         f" ERROR : no file {full_path}"
                     )
                     valid = False
+
+        # check for files not referenced in validity
+        if _find_unreferenced_files(file, referenced_files):
+            valid = False
+
     if not valid:
         sys.exit(1)
 
