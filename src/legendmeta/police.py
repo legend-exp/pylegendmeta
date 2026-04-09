@@ -368,7 +368,12 @@ def validate_statuses() -> None:
     )
     args = parser.parse_args()
 
-    meta = LegendMetadata()
+    try:
+        meta = LegendMetadata()
+    except Exception as e:
+        print(f"WARNING: could not initialize LegendMetadata: {e}")  # noqa: T201
+        print("WARNING: channel map cross-checks will be skipped")  # noqa: T201
+        meta = None
 
     modified = False
     if args.fix:
@@ -390,11 +395,11 @@ def validate_statuses() -> None:
                 valid = False
                 continue
 
-            try:
-                chmap = meta.hardware.configuration.channelmaps.on(ts)
-            except Exception as e:
-                print(f"WARNING: could not load channel map at '{ts}': {e}")  # noqa: T201
-                chmap = None
+            chmap = (
+                meta.hardware.configuration.channelmaps.on(ts)
+                if meta is not None
+                else None
+            )
 
             for ch, entry in state.items():
                 if not isinstance(entry, dict):
