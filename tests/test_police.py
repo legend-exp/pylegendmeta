@@ -361,7 +361,7 @@ def test_validate_statuses_key_in_chmap(tmp_path, monkeypatch):
 
 
 def test_validate_statuses_chmap_unavailable_skips_check(tmp_path, monkeypatch):
-    """When the channel map cannot be loaded the membership check is silently skipped."""
+    """When LegendMetadata() fails the channel map membership check is skipped."""
     validity_file = _write_status_files(
         tmp_path,
         textwrap.dedent("""\
@@ -370,12 +370,9 @@ def test_validate_statuses_chmap_unavailable_skips_check(tmp_path, monkeypatch):
         """),
     )
 
-    mock_meta = MagicMock()
-    mock_meta.hardware.configuration.channelmaps.on.side_effect = Exception("no repo")
-
     monkeypatch.setattr(sys, "argv", ["validate-statuses", str(validity_file)])
-    with patch("legendmeta.police.LegendMetadata", return_value=mock_meta):
-        police.validate_statuses()  # chmap unavailable → no error
+    with patch("legendmeta.police.LegendMetadata", side_effect=Exception("no SSH key")):
+        police.validate_statuses()  # metadata unavailable → no error
 
 
 # _needs_reorder
