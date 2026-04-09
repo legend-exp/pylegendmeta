@@ -495,7 +495,9 @@ def _validate_hit_config_file(file: str, verbose: bool = True) -> bool:
     # outputs: list of strings
     if "outputs" in data:
         outputs = data["outputs"]
-        if not isinstance(outputs, list) or not all(isinstance(s, str) for s in outputs):
+        if not isinstance(outputs, list) or not all(
+            isinstance(s, str) for s in outputs
+        ):
             if verbose:
                 print(f"ERROR: '{file}': 'outputs' must be a list of strings")  # noqa: T201
             valid = False
@@ -595,7 +597,13 @@ def _fix_hit_config_file(file: str) -> bool:
     if not _needs_reorder(data, sorted_data):
         return False
     with Path(file).open("w") as f:
-        yaml.dump(sorted_data, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
+        yaml.dump(
+            sorted_data,
+            f,
+            default_flow_style=False,
+            sort_keys=False,
+            allow_unicode=True,
+        )
     print(f"Fixed: sorted keys in '{file}'")  # noqa: T201
     return True
 
@@ -651,7 +659,9 @@ def _validate_dsp_proc_chain_file(file: str, verbose: bool = True) -> bool:
 
     if "outputs" in data:
         outputs = data["outputs"]
-        if not isinstance(outputs, list) or not all(isinstance(s, str) for s in outputs):
+        if not isinstance(outputs, list) or not all(
+            isinstance(s, str) for s in outputs
+        ):
             if verbose:
                 print(f"ERROR: '{file}': 'outputs' must be a list of strings")  # noqa: T201
             valid = False
@@ -701,11 +711,15 @@ def _fix_dsp_proc_chain_file(file: str) -> bool:
     if not _needs_reorder(data, sorted_data):
         return False
     with Path(file).open("w") as f:
-        yaml.dump(sorted_data, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
+        yaml.dump(
+            sorted_data,
+            f,
+            default_flow_style=False,
+            sort_keys=False,
+            allow_unicode=True,
+        )
     print(f"Fixed: sorted keys in '{file}'")  # noqa: T201
     return True
-
-
 
 
 def _sort_status_entry(entry: dict) -> dict:
