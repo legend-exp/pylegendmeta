@@ -684,3 +684,528 @@ def test_fix_status_files_multiple_files(tmp_path):
     # b.yaml was already sorted — data unchanged
     fixed_b = yaml.safe_load((tmp_path / "b.yaml").read_text())
     assert fixed_b == _SORTED_STATUS
+
+
+# ---------------------------------------------------------------------------
+# _iter_string_values
+# ---------------------------------------------------------------------------
+
+
+def test_iter_string_values_flat_dict():
+    assert set(police._iter_string_values({"a": "x", "b": "y"})) == {"x", "y"}
+
+
+def test_iter_string_values_nested():
+    obj = {"a": {"b": "deep"}, "c": ["list_item"]}
+    assert set(police._iter_string_values(obj)) == {"deep", "list_item"}
+
+
+def test_iter_string_values_non_string_leaves_ignored():
+    assert list(police._iter_string_values({"a": 1, "b": None, "c": True})) == []
+
+
+def test_iter_string_values_bare_string():
+    assert list(police._iter_string_values("hello")) == ["hello"]
+
+
+# ---------------------------------------------------------------------------
+# _check_dataflow_config_paths
+# ---------------------------------------------------------------------------
+
+
+def _make_dataflow_dir(tmp_path: Path) -> Path:
+    """Create a minimal dataflow config directory with some real files."""
+    (tmp_path / "log").mkdir()
+    (tmp_path / "log" / "basic_logging.yaml").write_text("")
+    (tmp_path / "tier").mkdir()
+    (tmp_path / "tier" / "hit").mkdir(parents=True)
+    (tmp_path / "tier" / "present.yaml").write_text("")
+    return tmp_path
+
+
+def test_check_dataflow_config_paths_all_present(tmp_path):
+    d = _make_dataflow_dir(tmp_path)
+    state = {
+        "options": {
+            "logging": str(d / "log" / "basic_logging.yaml"),
+            "tier": str(d / "tier" / "present.yaml"),
+        }
+    }
+    assert police._check_dataflow_config_paths(
+        state, d, "20220101T000000Z", "all", verbose=False
+    )
+
+
+def test_check_dataflow_config_paths_missing_file(tmp_path):
+    d = _make_dataflow_dir(tmp_path)
+    state = {"inputs": {"config": str(d / "tier" / "missing.yaml")}}
+    assert not police._check_dataflow_config_paths(
+        state, d, "20220101T000000Z", "all", verbose=False
+    )
+
+
+def test_check_dataflow_config_paths_wildcard_skipped(tmp_path):
+    d = _make_dataflow_dir(tmp_path)
+    # Path contains % — not a concrete path, must not be checked even if file doesn't exist
+    state = {"inputs": {"config": str(d / "tier" / "l200-p%-r%-T%-config.yaml")}}
+    assert police._check_dataflow_config_paths(
+        state, d, "20220101T000000Z", "all", verbose=False
+    )
+
+
+def test_check_dataflow_config_paths_non_db_paths_ignored(tmp_path):
+    d = _make_dataflow_dir(tmp_path)
+    # Strings that don't start with the db directory are not path checks
+    state = {"key": "just a label", "num": 42}
+    assert police._check_dataflow_config_paths(
+        state, d, "20220101T000000Z", "all", verbose=False
+    )
+
+
+def test_check_dataflow_config_paths_list_values(tmp_path):
+    d = _make_dataflow_dir(tmp_path)
+    state = {
+        "inputs": [
+            str(d / "log" / "basic_logging.yaml"),
+            str(d / "tier" / "missing.yaml"),
+        ]
+    }
+    assert not police._check_dataflow_config_paths(
+        state, d, "20220101T000000Z", "all", verbose=False
+    )
+
+
+# ---------------------------------------------------------------------------
+# _validate_hit_config_file
+# ---------------------------------------------------------------------------
+
+_GOOD_HIT = {
+    "outputs": ["energy", "is_valid"],
+    "operations": {
+        "energy": {
+            "description": "calibrated energy",
+            "expression": "daqenergy * a",
+            "parameters": {"a": 1.0},
+            "lgdo_attrs": {"unit": "keV"},
+        },
+        "is_valid": {
+            "expression": "energy > 0",
+        },
+    },
+    "aggregations": {
+        "quality_flag": {
+            "bit0": "is_valid",
+        }
+    },
+}
+
+
+def _write_hit(tmp_path: Path, name: str, data: dict) -> str:
+    p = tmp_path / name
+    with p.open("w") as fh:
+        yaml.dump(data, fh, default_flow_style=False, sort_keys=False)
+    return str(p)
+
+
+def test_validate_hit_config_valid(tmp_path):
+    f = _write_hit(tmp_path, "hit.yaml", _GOOD_HIT)
+    assert police._validate_hit_config_file(f, verbose=False)
+
+
+def test_validate_hit_config_only_operations(tmp_path):
+    # outputs and aggregations are optional
+    data = {"operations": {"flag": {"expression": "x > 0"}}}
+    f = _write_hit(tmp_path, "hit.yaml", data)
+    assert police._validate_hit_config_file(f, verbose=False)
+
+
+def test_validate_hit_config_unexpected_top_key(tmp_path):
+    data = deepcopy(_GOOD_HIT)
+    data["unknown"] = "bad"
+    f = _write_hit(tmp_path, "hit.yaml", data)
+    assert not police._validate_hit_config_file(f, verbose=False)
+
+
+def test_validate_hit_config_top_key_wrong_order(tmp_path):
+    # operations before outputs
+    data = {
+        "operations": {"flag": {"expression": "x > 0"}},
+        "outputs": ["flag"],
+    }
+    f = _write_hit(tmp_path, "hit.yaml", data)
+    assert not police._validate_hit_config_file(f, verbose=False)
+
+
+def test_validate_hit_config_outputs_not_list(tmp_path):
+    data = {"outputs": "not_a_list"}
+    f = _write_hit(tmp_path, "hit.yaml", data)
+    assert not police._validate_hit_config_file(f, verbose=False)
+
+
+def test_validate_hit_config_outputs_non_string_items(tmp_path):
+    data = {"outputs": ["ok", 42]}
+    f = _write_hit(tmp_path, "hit.yaml", data)
+    assert not police._validate_hit_config_file(f, verbose=False)
+
+
+def test_validate_hit_config_operation_missing_expression(tmp_path):
+    data = {"operations": {"op": {"description": "missing expr"}}}
+    f = _write_hit(tmp_path, "hit.yaml", data)
+    assert not police._validate_hit_config_file(f, verbose=False)
+
+
+def test_validate_hit_config_operation_expression_not_string(tmp_path):
+    data = {"operations": {"op": {"expression": 42}}}
+    f = _write_hit(tmp_path, "hit.yaml", data)
+    assert not police._validate_hit_config_file(f, verbose=False)
+
+
+def test_validate_hit_config_operation_parameters_not_dict(tmp_path):
+    data = {"operations": {"op": {"expression": "x", "parameters": "bad"}}}
+    f = _write_hit(tmp_path, "hit.yaml", data)
+    assert not police._validate_hit_config_file(f, verbose=False)
+
+
+def test_validate_hit_config_operation_unexpected_key(tmp_path):
+    data = {"operations": {"op": {"expression": "x", "extra": True}}}
+    f = _write_hit(tmp_path, "hit.yaml", data)
+    assert not police._validate_hit_config_file(f, verbose=False)
+
+
+def test_validate_hit_config_operation_wrong_key_order(tmp_path):
+    # parameters before expression
+    data = {
+        "operations": {
+            "op": {"parameters": {"a": 1}, "expression": "x * a"},
+        }
+    }
+    f = _write_hit(tmp_path, "hit.yaml", data)
+    assert not police._validate_hit_config_file(f, verbose=False)
+
+
+def test_validate_hit_config_aggregation_bad_key(tmp_path):
+    data = {"aggregations": {"flag": {"notabit": "x"}}}
+    f = _write_hit(tmp_path, "hit.yaml", data)
+    assert not police._validate_hit_config_file(f, verbose=False)
+
+
+def test_validate_hit_config_aggregation_non_string_value(tmp_path):
+    data = {"aggregations": {"flag": {"bit0": 42}}}
+    f = _write_hit(tmp_path, "hit.yaml", data)
+    assert not police._validate_hit_config_file(f, verbose=False)
+
+
+# ---------------------------------------------------------------------------
+# _sort_hit_config
+# ---------------------------------------------------------------------------
+
+
+def test_sort_hit_config_top_level_order():
+    data = {
+        "aggregations": {"flag": {"bit0": "x"}},
+        "outputs": ["x"],
+        "operations": {"op": {"expression": "x"}},
+    }
+    result = police._sort_hit_config(data)
+    assert list(result.keys()) == ["outputs", "operations", "aggregations"]
+
+
+def test_sort_hit_config_operation_key_order():
+    data = {
+        "operations": {
+            "op": {
+                "parameters": {"a": 1},
+                "lgdo_attrs": {"unit": "keV"},
+                "expression": "x * a",
+                "description": "test",
+            }
+        }
+    }
+    result = police._sort_hit_config(data)
+    assert list(result["operations"]["op"].keys()) == [
+        "description",
+        "expression",
+        "parameters",
+        "lgdo_attrs",
+    ]
+
+
+def test_sort_hit_config_already_sorted_no_reorder():
+    data = {
+        "outputs": ["x"],
+        "operations": {"op": {"expression": "x", "parameters": {"a": 1}}},
+    }
+    result = police._sort_hit_config(data)
+    assert not police._needs_reorder(data, result)
+
+
+# ---------------------------------------------------------------------------
+# _fix_hit_config_file
+# ---------------------------------------------------------------------------
+
+
+def test_fix_hit_config_file_already_sorted(tmp_path):
+    f = _write_hit(tmp_path, "hit.yaml", _GOOD_HIT)
+    assert not police._fix_hit_config_file(f)
+
+
+def test_fix_hit_config_file_unsorted_returns_true(tmp_path):
+    unsorted = {
+        "operations": {"op": {"parameters": {"a": 1}, "expression": "x * a"}},
+        "outputs": ["op"],
+    }
+    f = _write_hit(tmp_path, "hit.yaml", unsorted)
+    assert police._fix_hit_config_file(f)
+
+
+def test_fix_hit_config_file_result_passes_validation(tmp_path):
+    unsorted = {
+        "operations": {"op": {"parameters": {"a": 1}, "expression": "x * a"}},
+        "outputs": ["op"],
+    }
+    f = _write_hit(tmp_path, "hit.yaml", unsorted)
+    police._fix_hit_config_file(f)
+    assert police._validate_hit_config_file(f, verbose=False)
+
+
+def test_fix_hit_config_file_data_preserved(tmp_path):
+    unsorted = {
+        "operations": {
+            "op": {
+                "lgdo_attrs": {"unit": "keV"},
+                "parameters": {"a": 1},
+                "expression": "x * a",
+            }
+        },
+        "outputs": ["op"],
+    }
+    f = _write_hit(tmp_path, "hit.yaml", unsorted)
+    police._fix_hit_config_file(f)
+    fixed = yaml.safe_load(Path(f).read_text())
+    assert fixed == yaml.safe_load(yaml.dump(unsorted))
+
+
+# ---------------------------------------------------------------------------
+# _validate_dsp_proc_chain_file
+# ---------------------------------------------------------------------------
+
+_GOOD_DSP = {
+    "outputs": ["energy", "bl_mean"],
+    "processors": {
+        "bl_mean": {
+            "description": "baseline mean",
+            "module": "dspeed.processors",
+            "function": "mean",
+            "args": ["waveform", "bl_mean"],
+            "unit": "ADC",
+        },
+        "energy": {
+            "description": "trap energy",
+            "module": "dspeed.processors",
+            "function": "trap_norm",
+            "prereqs": ["bl_mean"],
+            "args": ["wf_blsub", "10*us", "3*us", "energy"],
+            "init_args": ["len(wf_blsub)", "10*us/wf_blsub.period"],
+            "kwargs": {"signature": "(n),()->()", "types": ["fi->f"]},
+            "defaults": {"db.etrap.rise": "10*us"},
+            "unit": "ADC",
+        },
+        "shorthand": "bl_mean * 2",
+    },
+}
+
+
+def _write_dsp(tmp_path: Path, name: str, data: dict) -> str:
+    p = tmp_path / name
+    with p.open("w") as fh:
+        yaml.dump(data, fh, default_flow_style=False, sort_keys=False)
+    return str(p)
+
+
+def test_validate_dsp_proc_chain_valid(tmp_path):
+    f = _write_dsp(tmp_path, "proc_chain.yaml", _GOOD_DSP)
+    assert police._validate_dsp_proc_chain_file(f, verbose=False)
+
+
+def test_validate_dsp_proc_chain_only_processors(tmp_path):
+    data = {
+        "processors": {
+            "bl": {"module": "numpy", "function": "mean", "args": ["wf", "bl"]}
+        }
+    }
+    f = _write_dsp(tmp_path, "proc_chain.yaml", data)
+    assert police._validate_dsp_proc_chain_file(f, verbose=False)
+
+
+def test_validate_dsp_proc_chain_string_shorthand(tmp_path):
+    data = {"processors": {"QDrift": "trapQftp*16"}}
+    f = _write_dsp(tmp_path, "proc_chain.yaml", data)
+    assert police._validate_dsp_proc_chain_file(f, verbose=False)
+
+
+def test_validate_dsp_proc_chain_unexpected_top_key(tmp_path):
+    data = deepcopy(_GOOD_DSP)
+    data["extra"] = "bad"
+    f = _write_dsp(tmp_path, "proc_chain.yaml", data)
+    assert not police._validate_dsp_proc_chain_file(f, verbose=False)
+
+
+def test_validate_dsp_proc_chain_wrong_top_order(tmp_path):
+    data = {
+        "processors": {
+            "bl": {"module": "numpy", "function": "mean", "args": ["wf", "bl"]}
+        },
+        "outputs": ["bl"],
+    }
+    f = _write_dsp(tmp_path, "proc_chain.yaml", data)
+    assert not police._validate_dsp_proc_chain_file(f, verbose=False)
+
+
+def test_validate_dsp_proc_chain_outputs_not_list(tmp_path):
+    data = {"outputs": "energy"}
+    f = _write_dsp(tmp_path, "proc_chain.yaml", data)
+    assert not police._validate_dsp_proc_chain_file(f, verbose=False)
+
+
+def test_validate_dsp_proc_chain_unexpected_processor_key(tmp_path):
+    data = {
+        "processors": {
+            "bl": {
+                "module": "numpy",
+                "function": "mean",
+                "args": ["wf", "bl"],
+                "extra": True,
+            }
+        }
+    }
+    f = _write_dsp(tmp_path, "proc_chain.yaml", data)
+    assert not police._validate_dsp_proc_chain_file(f, verbose=False)
+
+
+def test_validate_dsp_proc_chain_wrong_processor_key_order(tmp_path):
+    data = {
+        "processors": {
+            "energy": {
+                "args": ["wf", "energy"],
+                "function": "trap_norm",
+                "module": "dspeed.processors",
+            }
+        }
+    }
+    f = _write_dsp(tmp_path, "proc_chain.yaml", data)
+    assert not police._validate_dsp_proc_chain_file(f, verbose=False)
+
+
+def test_validate_dsp_proc_chain_prereqs_before_args(tmp_path):
+    # prereqs after args should fail order check
+    data = {
+        "processors": {
+            "energy": {
+                "module": "dspeed.processors",
+                "function": "trap_norm",
+                "args": ["wf", "energy"],
+                "prereqs": ["bl_mean"],
+            }
+        }
+    }
+    f = _write_dsp(tmp_path, "proc_chain.yaml", data)
+    assert not police._validate_dsp_proc_chain_file(f, verbose=False)
+
+
+# ---------------------------------------------------------------------------
+# _sort_dsp_proc_chain
+# ---------------------------------------------------------------------------
+
+
+def test_sort_dsp_proc_chain_top_level_order():
+    data = {
+        "processors": {
+            "bl": {"module": "numpy", "function": "mean", "args": ["wf", "bl"]}
+        },
+        "outputs": ["bl"],
+    }
+    result = police._sort_dsp_proc_chain(data)
+    assert list(result.keys()) == ["outputs", "processors"]
+
+
+def test_sort_dsp_proc_chain_processor_key_order():
+    data = {
+        "processors": {
+            "energy": {
+                "args": ["wf", "energy"],
+                "unit": "ADC",
+                "prereqs": ["bl"],
+                "defaults": {"db.rise": "10*us"},
+                "module": "dspeed.processors",
+                "function": "trap_norm",
+                "description": "trap energy",
+            }
+        }
+    }
+    result = police._sort_dsp_proc_chain(data)
+    assert list(result["processors"]["energy"].keys()) == [
+        "description",
+        "module",
+        "function",
+        "prereqs",
+        "args",
+        "defaults",
+        "unit",
+    ]
+
+
+def test_sort_dsp_proc_chain_string_shorthand_unchanged():
+    data = {"processors": {"QDrift": "trapQftp*16"}}
+    result = police._sort_dsp_proc_chain(data)
+    assert result["processors"]["QDrift"] == "trapQftp*16"
+
+
+# ---------------------------------------------------------------------------
+# _fix_dsp_proc_chain_file
+# ---------------------------------------------------------------------------
+
+
+def test_fix_dsp_proc_chain_file_already_sorted(tmp_path):
+    f = _write_dsp(tmp_path, "proc_chain.yaml", _GOOD_DSP)
+    assert not police._fix_dsp_proc_chain_file(f)
+
+
+def test_fix_dsp_proc_chain_file_unsorted_returns_true(tmp_path):
+    unsorted = {
+        "processors": {
+            "bl": {"args": ["wf", "bl"], "function": "mean", "module": "numpy"}
+        },
+        "outputs": ["bl"],
+    }
+    f = _write_dsp(tmp_path, "proc_chain.yaml", unsorted)
+    assert police._fix_dsp_proc_chain_file(f)
+
+
+def test_fix_dsp_proc_chain_file_result_passes_validation(tmp_path):
+    unsorted = {
+        "processors": {
+            "bl": {"args": ["wf", "bl"], "function": "mean", "module": "numpy"}
+        },
+        "outputs": ["bl"],
+    }
+    f = _write_dsp(tmp_path, "proc_chain.yaml", unsorted)
+    police._fix_dsp_proc_chain_file(f)
+    assert police._validate_dsp_proc_chain_file(f, verbose=False)
+
+
+def test_fix_dsp_proc_chain_file_data_preserved(tmp_path):
+    unsorted = {
+        "processors": {
+            "energy": {
+                "args": ["wf", "energy"],
+                "unit": "ADC",
+                "function": "trap_norm",
+                "module": "dspeed.processors",
+            }
+        },
+        "outputs": ["energy"],
+    }
+    f = _write_dsp(tmp_path, "proc_chain.yaml", unsorted)
+    police._fix_dsp_proc_chain_file(f)
+    fixed = yaml.safe_load(Path(f).read_text())
+    assert fixed == yaml.safe_load(yaml.dump(unsorted))

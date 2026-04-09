@@ -411,8 +411,315 @@ def validate_statuses() -> None:
         sys.exit(1)
 
 
+_HIT_TOP_KEY_ORDER = ("outputs", "operations", "aggregations")
+_OPERATION_KEY_ORDER = ("description", "expression", "parameters", "lgdo_attrs")
+_BIT_KEY_RE = re.compile(r"^bit\d+$")
+
+_DSP_TOP_KEY_ORDER = ("outputs", "processors")
+_PROCESSOR_KEY_ORDER = (
+    "description",
+    "module",
+    "function",
+    "prereqs",
+    "args",
+    "init_args",
+    "kwargs",
+    "defaults",
+    "unit",
+)
+
 _STATUS_KEY_ORDER = ("reason", "usability", "processable", "is_blinded", "psd")
 _PSD_KEY_ORDER = ("is_bb_like", "status")
+
+
+def _sort_operation_entry(op: dict) -> dict:
+    """Return a copy of an operation dict with keys in canonical order."""
+    result = {k: op[k] for k in _OPERATION_KEY_ORDER if k in op}
+    result.update({k: v for k, v in op.items() if k not in result})
+    return result
+
+
+def _sort_hit_config(data: dict) -> dict:
+    """Return a copy of a hit config with top-level and operation keys in canonical order."""
+    result = {}
+    for key in _HIT_TOP_KEY_ORDER:
+        if key not in data:
+            continue
+        if key == "operations" and isinstance(data[key], dict):
+            result[key] = {
+                name: _sort_operation_entry(op) if isinstance(op, dict) else op
+                for name, op in data[key].items()
+            }
+        else:
+            result[key] = data[key]
+    result.update({k: v for k, v in data.items() if k not in result})
+    return result
+
+
+def _validate_hit_config_file(file: str, verbose: bool = True) -> bool:
+    """Validate a single tier/hit config YAML file.
+
+    Parameters
+    ----------
+    file
+        Path to the hit config YAML file.
+    verbose
+        If False, suppress error output.
+    """
+    data = utils.load_dict(file)
+
+    if not isinstance(data, dict):
+        if verbose:
+            print(f"ERROR: '{file}': top-level value must be a dict")  # noqa: T201
+        return False
+
+    valid = True
+
+    # No unexpected top-level keys
+    for key in data:
+        if key not in _HIT_TOP_KEY_ORDER:
+            if verbose:
+                print(f"ERROR: '{file}': unexpected top-level key '{key}'")  # noqa: T201
+            valid = False
+
+    # Top-level key order
+    present = [k for k in data if k in _HIT_TOP_KEY_ORDER]
+    if present != [k for k in _HIT_TOP_KEY_ORDER if k in data]:
+        if verbose:
+            print(  # noqa: T201
+                f"ERROR: '{file}': top-level keys must be ordered:"
+                f" outputs → operations → aggregations"
+            )
+        valid = False
+
+    # outputs: list of strings
+    if "outputs" in data:
+        outputs = data["outputs"]
+        if not isinstance(outputs, list) or not all(
+            isinstance(s, str) for s in outputs
+        ):
+            if verbose:
+                print(f"ERROR: '{file}': 'outputs' must be a list of strings")  # noqa: T201
+            valid = False
+
+    # operations: dict of dicts
+    if "operations" in data:
+        ops = data["operations"]
+        if not isinstance(ops, dict):
+            if verbose:
+                print(f"ERROR: '{file}': 'operations' must be a dict")  # noqa: T201
+            valid = False
+        else:
+            for name, op in ops.items():
+                loc = f"operations/{name}"
+                if not isinstance(op, dict):
+                    if verbose:
+                        print(f"ERROR: '{file}': '{loc}' must be a dict")  # noqa: T201
+                    valid = False
+                    continue
+
+                for k in op:
+                    if k not in _OPERATION_KEY_ORDER:
+                        if verbose:
+                            print(f"ERROR: '{file}': '{loc}/{k}': unexpected key")  # noqa: T201
+                        valid = False
+
+                if "expression" not in op:
+                    if verbose:
+                        print(f"ERROR: '{file}': '{loc}': missing 'expression'")  # noqa: T201
+                    valid = False
+                elif not isinstance(op["expression"], str):
+                    if verbose:
+                        print(  # noqa: T201
+                            f"ERROR: '{file}': '{loc}/expression' must be a string"
+                        )
+                    valid = False
+
+                if "description" in op and not isinstance(op["description"], str):
+                    if verbose:
+                        print(  # noqa: T201
+                            f"ERROR: '{file}': '{loc}/description' must be a string"
+                        )
+                    valid = False
+
+                if "parameters" in op and not isinstance(op["parameters"], dict):
+                    if verbose:
+                        print(  # noqa: T201
+                            f"ERROR: '{file}': '{loc}/parameters' must be a dict"
+                        )
+                    valid = False
+
+                present_op = [k for k in op if k in _OPERATION_KEY_ORDER]
+                if present_op != [k for k in _OPERATION_KEY_ORDER if k in op]:
+                    if verbose:
+                        print(  # noqa: T201
+                            f"ERROR: '{file}': '{loc}': keys must be ordered:"
+                            " description → expression → parameters → lgdo_attrs"
+                        )
+                    valid = False
+
+    # aggregations: dict of dicts with bitN keys mapping to strings
+    if "aggregations" in data:
+        aggs = data["aggregations"]
+        if not isinstance(aggs, dict):
+            if verbose:
+                print(f"ERROR: '{file}': 'aggregations' must be a dict")  # noqa: T201
+            valid = False
+        else:
+            for name, agg in aggs.items():
+                loc = f"aggregations/{name}"
+                if not isinstance(agg, dict):
+                    if verbose:
+                        print(f"ERROR: '{file}': '{loc}' must be a dict")  # noqa: T201
+                    valid = False
+                    continue
+                for k, v in agg.items():
+                    if not _BIT_KEY_RE.match(k):
+                        if verbose:
+                            print(  # noqa: T201
+                                f"ERROR: '{file}': '{loc}/{k}': key must match 'bitN'"
+                            )
+                        valid = False
+                    if not isinstance(v, str):
+                        if verbose:
+                            print(  # noqa: T201
+                                f"ERROR: '{file}': '{loc}/{k}': value must be a string"
+                            )
+                        valid = False
+
+    return valid
+
+
+def _fix_hit_config_file(file: str) -> bool:
+    """Sort a hit config file in place. Returns True if the file was modified."""
+    data = utils.load_dict(file)
+    sorted_data = _sort_hit_config(data)
+    if not _needs_reorder(data, sorted_data):
+        return False
+    with Path(file).open("w") as f:
+        yaml.dump(
+            sorted_data,
+            f,
+            default_flow_style=False,
+            sort_keys=False,
+            allow_unicode=True,
+        )
+    print(f"Fixed: sorted keys in '{file}'")  # noqa: T201
+    return True
+
+
+def _sort_processor_entry(proc: dict) -> dict:
+    """Return a copy of a processor dict with keys in canonical order."""
+    result = {k: proc[k] for k in _PROCESSOR_KEY_ORDER if k in proc}
+    result.update({k: v for k, v in proc.items() if k not in result})
+    return result
+
+
+def _sort_dsp_proc_chain(data: dict) -> dict:
+    """Return a copy of a DSP proc chain with top-level and processor keys in canonical order."""
+    result = {}
+    for key in _DSP_TOP_KEY_ORDER:
+        if key not in data:
+            continue
+        if key == "processors" and isinstance(data[key], dict):
+            result[key] = {
+                name: _sort_processor_entry(proc) if isinstance(proc, dict) else proc
+                for name, proc in data[key].items()
+            }
+        else:
+            result[key] = data[key]
+    result.update({k: v for k, v in data.items() if k not in result})
+    return result
+
+
+def _validate_dsp_proc_chain_file(file: str, verbose: bool = True) -> bool:
+    """Validate a single tier/dsp proc chain YAML file."""
+    data = utils.load_dict(file)
+
+    if not isinstance(data, dict):
+        if verbose:
+            print(f"ERROR: '{file}': top-level value must be a dict")  # noqa: T201
+        return False
+
+    valid = True
+
+    for key in data:
+        if key not in _DSP_TOP_KEY_ORDER:
+            if verbose:
+                print(f"ERROR: '{file}': unexpected top-level key '{key}'")  # noqa: T201
+            valid = False
+
+    present = [k for k in data if k in _DSP_TOP_KEY_ORDER]
+    if present != [k for k in _DSP_TOP_KEY_ORDER if k in data]:
+        if verbose:
+            print(  # noqa: T201
+                f"ERROR: '{file}': top-level keys must be ordered: outputs → processors"
+            )
+        valid = False
+
+    if "outputs" in data:
+        outputs = data["outputs"]
+        if not isinstance(outputs, list) or not all(
+            isinstance(s, str) for s in outputs
+        ):
+            if verbose:
+                print(f"ERROR: '{file}': 'outputs' must be a list of strings")  # noqa: T201
+            valid = False
+
+    if "processors" in data:
+        procs = data["processors"]
+        if not isinstance(procs, dict):
+            if verbose:
+                print(f"ERROR: '{file}': 'processors' must be a dict")  # noqa: T201
+            valid = False
+        else:
+            for name, proc in procs.items():
+                loc = f"processors/{name}"
+                # string shorthand (e.g. "tail_slope: tail_pars[1]") is valid
+                if not isinstance(proc, dict):
+                    if proc is not None and not isinstance(proc, str):
+                        if verbose:
+                            print(  # noqa: T201
+                                f"ERROR: '{file}': '{loc}' must be a dict or string shorthand"
+                            )
+                        valid = False
+                    continue
+
+                for k in proc:
+                    if k not in _PROCESSOR_KEY_ORDER:
+                        if verbose:
+                            print(f"ERROR: '{file}': '{loc}/{k}': unexpected key")  # noqa: T201
+                        valid = False
+
+                present_proc = [k for k in proc if k in _PROCESSOR_KEY_ORDER]
+                if present_proc != [k for k in _PROCESSOR_KEY_ORDER if k in proc]:
+                    if verbose:
+                        print(  # noqa: T201
+                            f"ERROR: '{file}': '{loc}': keys must be ordered:"
+                            " description → module → function → args → prereqs"
+                            " → init_args → kwargs → defaults → unit"
+                        )
+                    valid = False
+
+    return valid
+
+
+def _fix_dsp_proc_chain_file(file: str) -> bool:
+    """Sort a DSP proc chain file in place. Returns True if the file was modified."""
+    data = utils.load_dict(file)
+    sorted_data = _sort_dsp_proc_chain(data)
+    if not _needs_reorder(data, sorted_data):
+        return False
+    with Path(file).open("w") as f:
+        yaml.dump(
+            sorted_data,
+            f,
+            default_flow_style=False,
+            sort_keys=False,
+            allow_unicode=True,
+        )
+    print(f"Fixed: sorted keys in '{file}'")  # noqa: T201
+    return True
 
 
 def _sort_status_entry(entry: dict) -> dict:
@@ -861,6 +1168,127 @@ def validate_phy_groupings() -> None:
         if args.fix:
             modified |= _fix_groupings_file(file)
         valid &= _validate_groupings_file(file, "phygroup")
+
+    if modified or not valid:
+        sys.exit(1)
+
+
+def _iter_string_values(obj: object):
+    """Yield all string leaf values from a nested dict/list structure."""
+    if isinstance(obj, str):
+        yield obj
+    elif isinstance(obj, dict):
+        for v in obj.values():
+            yield from _iter_string_values(v)
+    elif isinstance(obj, list):
+        for item in obj:
+            yield from _iter_string_values(item)
+
+
+def _check_dataflow_config_paths(
+    state: object,
+    db_dir: Path,
+    timestamp: str,
+    category: str,
+    verbose: bool = True,
+) -> bool:
+    """Check that all concrete (non-wildcard) path strings in *state* exist on disk.
+
+    Parameters
+    ----------
+    state
+        Loaded database state (nested dict/list/str).
+    db_dir
+        The directory that ``$_`` was expanded to (the TextDB root).
+    timestamp
+        Timestamp string used in the query (for error messages).
+    category
+        Category string used in the query (for error messages).
+    verbose
+        If False, suppress error output.
+    """
+    valid = True
+    db_dir_str = str(db_dir)
+    for value in _iter_string_values(state):
+        if not value.startswith(db_dir_str):
+            continue
+        # Skip wildcard patterns — they are not concrete file paths
+        if "%" in value:
+            continue
+        if not Path(value).is_file():
+            if verbose:
+                print(  # noqa: T201
+                    f"ERROR: '{timestamp}' (category '{category}'):"
+                    f" path does not exist: '{value}'"
+                )
+            valid = False
+    return valid
+
+
+def validate_dataflow_config() -> None:
+    """Validate LEGEND dataflow configuration files.
+
+    Invoked in CLI. Accepts validity files; for each unique (timestamp, category)
+    in the validity loads the database, checks that all concrete (non-wildcard)
+    path values point to files that exist, and validates any tier/hit config files
+    referenced in the state.
+    """
+    parser = argparse.ArgumentParser(
+        prog="validate-dataflow-config",
+        description="Validate LEGEND dataflow configuration files",
+    )
+    parser.add_argument("files", nargs="+", help="validity files")
+    parser.add_argument(
+        "--fix",
+        action="store_true",
+        help="sort tier/hit config keys in place instead of reporting errors",
+    )
+    args = parser.parse_args()
+
+    modified = False
+    valid = True
+    for validity_file in args.files:
+        d = Path(validity_file).parent
+        db = TextDB(d)
+
+        valid_dic = Props.read_from(str(validity_file))
+
+        # Collect unique (timestamp, category) pairs to check
+        seen: set[tuple[str, str]] = set()
+        for dic in valid_dic:
+            ts = str(dic["valid_from"])
+            categories = dic.get("category", "all")
+            if isinstance(categories, str):
+                categories = [categories]
+            for cat in categories:
+                seen.add((ts, str(cat)))
+
+        for ts, cat in sorted(seen):
+            try:
+                state = db.on(ts, system=cat)
+            except Exception as e:
+                print(  # noqa: T201
+                    f"ERROR: could not load dataflow config at '{ts}'"
+                    f" (category '{cat}'): {e}"
+                )
+                valid = False
+                continue
+
+            valid &= _check_dataflow_config_paths(state, d, ts, cat)
+
+        hit_dir = d / "tier" / "hit"
+        if hit_dir.is_dir():
+            for hit_file in sorted(hit_dir.glob("*.yaml")):
+                if args.fix:
+                    modified |= _fix_hit_config_file(str(hit_file))
+                valid &= _validate_hit_config_file(str(hit_file))
+
+        dsp_dir = d / "tier" / "dsp"
+        if dsp_dir.is_dir():
+            for dsp_file in sorted(dsp_dir.glob("*proc_chain*.yaml")):
+                if args.fix:
+                    modified |= _fix_dsp_proc_chain_file(str(dsp_file))
+                valid &= _validate_dsp_proc_chain_file(str(dsp_file))
 
     if modified or not valid:
         sys.exit(1)
