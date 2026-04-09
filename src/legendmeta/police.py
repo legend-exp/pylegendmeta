@@ -296,7 +296,7 @@ def _find_unreferenced_files(
         # skip files in subdirectories that have their own validity.yaml
         skip = False
         for p in rel.parents:
-            if p != Path(".") and (parent / p / "validity.yaml").exists():
+            if p != Path() and (parent / p / "validity.yaml").exists():
                 skip = True
                 break
         if skip:
