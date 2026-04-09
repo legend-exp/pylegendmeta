@@ -19,7 +19,7 @@
 
 - id: validate-dataflow-config
   name: check LEGEND dataflow config files
-  entry: validate-dataflow-config
+  entry: validate-dataflow-config --fix
   language: python
   files: (.*\/)?validity\..+$
   types_or: [yaml, json]
