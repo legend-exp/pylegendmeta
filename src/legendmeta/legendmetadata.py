@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 import logging
+from copy import deepcopy
 from datetime import datetime
 
 from dbetto import AttrsDict
@@ -103,8 +104,8 @@ class LegendMetadata(MetadataRepository):
         if on is None:
             on = datetime.now()
 
-        chmap = self.hardware.configuration.channelmaps.on(
-            on, pattern=None, system=system
+        chmap = deepcopy(
+            self.hardware.configuration.channelmaps.on(on, pattern=None, system=system)
         )
 
         # get analysis metadata
@@ -139,4 +140,5 @@ class LegendMetadata(MetadataRepository):
                 msg = f"Could not find detector '{det}' in dataprod.config database"
                 log.debug(msg)
 
+        chmap.__readonly__ = True
         return chmap

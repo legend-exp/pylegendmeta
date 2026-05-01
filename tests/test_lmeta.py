@@ -112,6 +112,7 @@ def test_channelmap(metadb):
     metadb.scan()
     assert isinstance(metadb, LegendMetadata)
     assert isinstance(metadb.channelmap(date), AttrsDict)
+    assert metadb.channelmap(date).__readonly__
     channel = metadb.channelmap(on=date).V02160A
     assert isinstance(channel, AttrsDict)
     assert "geometry" in channel
