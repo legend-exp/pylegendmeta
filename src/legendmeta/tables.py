@@ -1,5 +1,7 @@
 from functools import cached_property
+
 import polars as pl
+from dbetto import AttrsDict
 
 def _resolve_runinfo(lmeta):
     """Get runinfo dict, handling metadata layout differences."""
@@ -65,11 +67,8 @@ class Tables:
 
     @cached_property
     def statuses(self) -> pl.DataFrame:
-        """Per-(period, run, datatype, detector) analysis status DataFrame.
+        """Per-(period, run, datatype, detector) analysis status DataFrame."""
 
-        Combines metadata-version differences in the statuses path internally
-        via :func:`_resolve_statuses_on`.
-        """
         statuses_on = _resolve_statuses_on(self._lmeta)
         dfs = []
         for row in self.runinfo.iter_rows(named=True):
@@ -86,26 +85,24 @@ class Tables:
         return pl.concat(dfs, how="diagonal_relaxed")
 
     @cached_property
-    def channelmaps(self) -> dict[str, pl.DataFrame]:
-        """Per-system channelmap DataFrames, keyed by system name."""
+    def channelmaps(self) -> AttrsDict:
+        """Per-system channelmap DataFrames, accessible by attribute or key."""
+
         period_ts = self.runinfo.group_by("period").agg(pl.col("start_key").min())
 
         by_system: dict[str, list[dict]] = {}
         for row in period_ts.iter_rows(named=True):
-            period = row["period"]
             chmap = self._lmeta.hardware.configuration.channelmaps.on(row["start_key"])
             for name, e in chmap.items():
                 rawid = e.get("daq", {}).get("rawid")
                 by_system.setdefault(e["system"], []).append(
-                    {**e, "name": name, "period": period, "rawid": rawid}
+                    {**e, "name": name, "period": row["period"], "rawid": rawid}
                 )
 
-        runs = self.runinfo.select("period", "run").unique()
-        return {
+        return AttrsDict({
             sys: pl.from_dicts(entries, strict=False, infer_schema_length=None)
-                  .join(runs, on="period", how="inner")
             for sys, entries in by_system.items()
-        }
+        })
 
     @cached_property
     def crystals(self) -> pl.DataFrame:
