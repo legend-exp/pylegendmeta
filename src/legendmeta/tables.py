@@ -20,9 +20,14 @@ def _resolve_statuses_on(lmeta):
         return lambda ts: lmeta.dataprod.config.on(ts).analysis
 
 def _textdb_to_df(db) -> pl.DataFrame:
-    """Materialize a TextDB directory of JSON records as a Polars DataFrame."""
+    """Materialize a TextDB directory of JSON records as a Polars DataFrame.
+
+    Sub-directories (TextDB entries) are skipped — only file records are included.
+    """
+    from dbetto import TextDB
     return pl.from_dicts(
-        [v for _, v in db.items()], strict=False, infer_schema_length=None
+        [v for _, v in db.items() if not isinstance(v, TextDB)],
+        strict=False, infer_schema_length=None,
     )
 
 def _stringify_keys(obj):
@@ -119,23 +124,3 @@ class Tables:
     @cached_property
     def fibers(self) -> pl.DataFrame:
         return _textdb_to_df(self._lmeta.hardware.detectors.lar.fibers)
-
-
-if __name__ == "__main__":
-
-    from legendmeta import LegendMetadata
-
-    lmeta = LegendMetadata('/global/cfs/cdirs/m2676/data/lngs/l200/public/prodenv/prod-blind/ref/latest/inputs')
-    runinfo = Tables(lmeta).runinfo
-    sts = Tables(lmeta).statuses
-    cms_geds = Tables(lmeta).channelmaps['geds']
-
-    lmeta2 = LegendMetadata()
-    runinfo2 = Tables(lmeta2).runinfo
-    sts2 = Tables(lmeta2).statuses
-    cms_geds2 = Tables(lmeta2).channelmaps['geds']
-
-    crystals = Tables(lmeta).crystals
-    diodes = Tables(lmeta).diodes
-    sipms = Tables(lmeta).sipms
-    fibers = Tables(lmeta).fibers
