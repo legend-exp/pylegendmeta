@@ -24,14 +24,25 @@ def _resolve_statuses_on(lmeta):
         return lambda ts: lmeta.dataprod.config.on(ts).analysis
 
 def _textdb_to_df(db) -> pl.DataFrame:
-    """Materialize a TextDB directory of JSON records as a Polars DataFrame.
+    """Materialize a TextDB directory of records as a Polars DataFrame.
 
-    Sub-directories (TextDB entries) are skipped — only file records are included.
+    Nested sub-directories are skipped (with warning) — their schema is
+    unknown so it's unclear how to merge those with the top-level table.
     """
-    return pl.from_dicts(
-        [v for _, v in db.items() if not isinstance(v, TextDB)],
-        strict=False, infer_schema_length=None,
-    )
+    file_items, dir_names = [], []
+    for k, v in db.items():
+        if isinstance(v, TextDB):
+            dir_names.append(k)
+        else:
+            file_items.append(v)
+
+    if dir_names:
+        warnings.warn(
+            f"_textdb_to_df: skipping {len(dir_names)} sub-directories: {dir_names}",
+            stacklevel=2,
+        )
+
+    return pl.from_dicts(file_items, strict=False, infer_schema_length=None)
 
 def _stringify_keys(obj):
     """Recursively coerce dict keys to strings.
