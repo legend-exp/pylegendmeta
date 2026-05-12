@@ -1,7 +1,11 @@
+from __future__ import annotations
+
+import warnings
 from functools import cached_property
 
 import polars as pl
-from dbetto import AttrsDict
+from dbetto import AttrsDict, TextDB
+
 
 def _resolve_runinfo(lmeta):
     """Get runinfo dict, handling metadata layout differences."""
@@ -15,7 +19,7 @@ def _resolve_statuses_on(lmeta):
     differences."""
     try:
         _ = lmeta.datasets.statuses
-        return lambda ts: lmeta.datasets.statuses.on(ts)
+        return lmeta.datasets.statuses.on
     except (AttributeError, FileNotFoundError):
         return lambda ts: lmeta.dataprod.config.on(ts).analysis
 
@@ -24,7 +28,6 @@ def _textdb_to_df(db) -> pl.DataFrame:
 
     Sub-directories (TextDB entries) are skipped — only file records are included.
     """
-    from dbetto import TextDB
     return pl.from_dicts(
         [v for _, v in db.items() if not isinstance(v, TextDB)],
         strict=False, infer_schema_length=None,
@@ -97,11 +100,18 @@ class Tables:
 
         by_system: dict[str, list[dict]] = {}
         for row in period_ts.iter_rows(named=True):
+            period = row["period"]
             chmap = self._lmeta.hardware.configuration.channelmaps.on(row["start_key"])
             for name, e in chmap.items():
                 rawid = e.get("daq", {}).get("rawid")
+                if rawid is None:
+                    msg = (
+                        f"missing rawid for {name} in period {period}: "
+                        f"daq={e.get('daq')!r}"
+                    )
+                    raise ValueError(msg)
                 by_system.setdefault(e["system"], []).append(
-                    {**e, "name": name, "period": row["period"], "rawid": rawid}
+                    {**e, "name": name, "period": period, "rawid": rawid}
                 )
 
         return AttrsDict({
