@@ -14,6 +14,7 @@ def _resolve_runinfo(lmeta):
     except (AttributeError, FileNotFoundError):
         return lmeta.dataprod.runinfo
 
+
 def _resolve_statuses_on(lmeta):
     """Return a callable ts -> statuses dict, also handling metadata layout
     differences."""
@@ -22,6 +23,7 @@ def _resolve_statuses_on(lmeta):
         return lmeta.datasets.statuses.on
     except (AttributeError, FileNotFoundError):
         return lambda ts: lmeta.dataprod.config.on(ts).analysis
+
 
 def _textdb_to_df(db) -> pl.DataFrame:
     """Materialize a TextDB directory of records as a Polars DataFrame.
@@ -44,6 +46,7 @@ def _textdb_to_df(db) -> pl.DataFrame:
 
     return pl.from_dicts(file_items, strict=False, infer_schema_length=None)
 
+
 def _stringify_keys(obj):
     """Recursively coerce dict keys to strings.
 
@@ -54,6 +57,7 @@ def _stringify_keys(obj):
     if isinstance(obj, dict):
         return {str(k): _stringify_keys(v) for k, v in obj.items()}
     return obj
+
 
 class Tables:
     """Polars DataFrame views over LEGEND metadata.
@@ -72,17 +76,21 @@ class Tables:
     @cached_property
     def runinfo(self) -> pl.DataFrame:
         _runinfo = _resolve_runinfo(self._lmeta)
-        return pl.from_dicts([
-            {
-                "period": int(p.removeprefix("p")),
-                "run": int(r.removeprefix("r")),
-                "datatype": dt,
-                **_stringify_keys(info),  # acs runs, etc, have int-keyed sub-dicts
-            }
-            for p, runs in _runinfo.items()
-            for r, datatypes in runs.items()
-            for dt, info in datatypes.items()
-        ], strict=False, infer_schema_length=None)
+        return pl.from_dicts(
+            [
+                {
+                    "period": int(p.removeprefix("p")),
+                    "run": int(r.removeprefix("r")),
+                    "datatype": dt,
+                    **_stringify_keys(info),  # acs runs, etc, have int-keyed sub-dicts
+                }
+                for p, runs in _runinfo.items()
+                for r, datatypes in runs.items()
+                for dt, info in datatypes.items()
+            ],
+            strict=False,
+            infer_schema_length=None,
+        )
 
     @cached_property
     def statuses(self) -> pl.DataFrame:
@@ -94,13 +102,16 @@ class Tables:
             st = statuses_on(row["start_key"])
             df = pl.from_dicts(
                 [{"name": k, **_stringify_keys(v)} for k, v in st.items()],
-                strict=False, infer_schema_length=None,
+                strict=False,
+                infer_schema_length=None,
             )
-            dfs.append(df.with_columns(
-                period=pl.lit(row["period"]),
-                run=pl.lit(row["run"]),
-                datatype=pl.lit(row["datatype"]),
-            ))
+            dfs.append(
+                df.with_columns(
+                    period=pl.lit(row["period"]),
+                    run=pl.lit(row["run"]),
+                    datatype=pl.lit(row["datatype"]),
+                )
+            )
         return pl.concat(dfs, how="diagonal_relaxed")
 
     @cached_property
@@ -127,10 +138,12 @@ class Tables:
                     {**e, "name": name, "period": period, "rawid": rawid}
                 )
 
-        return AttrsDict({
-            sys: pl.from_dicts(entries, strict=False, infer_schema_length=None)
-            for sys, entries in by_system.items()
-        })
+        return AttrsDict(
+            {
+                sys: pl.from_dicts(entries, strict=False, infer_schema_length=None)
+                for sys, entries in by_system.items()
+            }
+        )
 
     @cached_property
     def crystals(self) -> pl.DataFrame:

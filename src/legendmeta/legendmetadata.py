@@ -148,4 +148,5 @@ class LegendMetadata(MetadataRepository):
     def tables(self):
         """Tabular views over the metadata. See :class:`legendmeta.tables.Tables`."""
         from .tables import Tables
+
         return Tables(self)
