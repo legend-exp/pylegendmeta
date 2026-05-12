@@ -96,6 +96,8 @@ class Tables:
     def channelmaps(self) -> AttrsDict:
         """Per-system channelmap DataFrames, accessible by attribute or key."""
 
+        # Within a period, channelmap is invariant by convention.
+        # Sample at each period's first run; do NOT sample per-run.
         period_ts = self.runinfo.group_by("period").agg(pl.col("start_key").min())
 
         by_system: dict[str, list[dict]] = {}
