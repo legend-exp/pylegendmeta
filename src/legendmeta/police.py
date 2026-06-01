@@ -1293,16 +1293,18 @@ def _check_dataflow_config_paths(
 def validate_dataflow_config() -> None:
     """Validate LEGEND dataflow configuration files.
 
-    Invoked in CLI. Accepts validity files; for each unique (timestamp, category)
-    in the validity loads the database, checks that all concrete (non-wildcard)
-    path values point to files that exist, and validates any tier/hit config files
-    referenced in the state.
+    Invoked in CLI. Accepts validity files, tier/hit config files, and DSP proc
+    chain files. Validity files trigger a full database path check plus a scan of
+    the sibling tier/hit and tier/dsp directories. Hit config and proc chain files
+    are validated (and optionally fixed) directly.
     """
     parser = argparse.ArgumentParser(
         prog="validate-dataflow-config",
         description="Validate LEGEND dataflow configuration files",
     )
-    parser.add_argument("files", nargs="+", help="validity files")
+    parser.add_argument(
+        "files", nargs="+", help="validity, hit config, or proc chain files"
+    )
     parser.add_argument(
         "--fix",
         action="store_true",
@@ -1312,48 +1314,59 @@ def validate_dataflow_config() -> None:
 
     modified = False
     valid = True
-    for validity_file in args.files:
-        d = Path(validity_file).parent
-        db = TextDB(d)
+    for f in args.files:
+        name = Path(f).name
+        if re.search(r"validity\..+$", name):
+            d = Path(f).parent
+            db = TextDB(d)
 
-        valid_dic = Props.read_from(str(validity_file))
+            valid_dic = Props.read_from(f)
 
-        # Collect unique (timestamp, category) pairs to check
-        seen: set[tuple[str, str]] = set()
-        for dic in valid_dic:
-            ts = str(dic["valid_from"])
-            categories = dic.get("category", "all")
-            if isinstance(categories, str):
-                categories = [categories]
-            for cat in categories:
-                seen.add((ts, str(cat)))
+            seen: set[tuple[str, str]] = set()
+            for dic in valid_dic:
+                ts = str(dic["valid_from"])
+                categories = dic.get("category", "all")
+                if isinstance(categories, str):
+                    categories = [categories]
+                for cat in categories:
+                    seen.add((ts, str(cat)))
 
-        for ts, cat in sorted(seen):
-            try:
-                state = db.on(ts, system=cat)
-            except Exception as e:
-                print(  # noqa: T201
-                    f"ERROR: could not load dataflow config at '{ts}'"
-                    f" (category '{cat}'): {e}"
-                )
-                valid = False
-                continue
+            for ts, cat in sorted(seen):
+                try:
+                    state = db.on(ts, system=cat)
+                except Exception as e:
+                    print(  # noqa: T201
+                        f"ERROR: could not load dataflow config at '{ts}'"
+                        f" (category '{cat}'): {e}"
+                    )
+                    valid = False
+                    continue
 
-            valid &= _check_dataflow_config_paths(state, d, ts, cat)
+                valid &= _check_dataflow_config_paths(state, d, ts, cat)
 
-        hit_dir = d / "tier" / "hit"
-        if hit_dir.is_dir():
-            for hit_file in sorted(hit_dir.glob("*.yaml")):
-                if args.fix:
-                    modified |= _fix_hit_config_file(str(hit_file))
-                valid &= _validate_hit_config_file(str(hit_file))
+            hit_dir = d / "tier" / "hit"
+            if hit_dir.is_dir():
+                for hit_file in sorted(hit_dir.glob("*.yaml")):
+                    if args.fix:
+                        modified |= _fix_hit_config_file(str(hit_file))
+                    valid &= _validate_hit_config_file(str(hit_file))
 
-        dsp_dir = d / "tier" / "dsp"
-        if dsp_dir.is_dir():
-            for dsp_file in sorted(dsp_dir.glob("*proc_chain*.yaml")):
-                if args.fix:
-                    modified |= _fix_dsp_proc_chain_file(str(dsp_file))
-                valid &= _validate_dsp_proc_chain_file(str(dsp_file))
+            dsp_dir = d / "tier" / "dsp"
+            if dsp_dir.is_dir():
+                for dsp_file in sorted(dsp_dir.glob("*proc_chain*.yaml")):
+                    if args.fix:
+                        modified |= _fix_dsp_proc_chain_file(str(dsp_file))
+                    valid &= _validate_dsp_proc_chain_file(str(dsp_file))
+
+        elif "hit_config" in name:
+            if args.fix:
+                modified |= _fix_hit_config_file(f)
+            valid &= _validate_hit_config_file(f)
+
+        elif "proc_chain" in name:
+            if args.fix:
+                modified |= _fix_dsp_proc_chain_file(f)
+            valid &= _validate_dsp_proc_chain_file(f)
 
     if modified or not valid:
         sys.exit(1)

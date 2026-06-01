@@ -21,7 +21,7 @@
   name: check LEGEND dataflow config files
   entry: validate-dataflow-config --fix
   language: python
-  files: (.*\/)?validity\..+$
+  files: (.*\/)?validity\..+$|hit_config\.|proc_chain
   types_or: [yaml, json]
 
 - id: validate-statuses
