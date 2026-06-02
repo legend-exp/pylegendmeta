@@ -496,6 +496,328 @@ _PROCESSOR_KEY_ORDER = (
 _STATUS_KEY_ORDER = ("reason", "usability", "processable", "is_blinded", "psd")
 _PSD_KEY_ORDER = ("is_bb_like", "status")
 
+_EVT_TOP_KEY_ORDER = ("channels", "outputs", "operations")
+_EVT_OPERATION_KEY_ORDER = (
+    "description",
+    "channels",
+    "exclude_channels",
+    "aggregation_mode",
+    "query",
+    "expression",
+    "initial",
+    "dtype",
+    "unit",
+    "lgdo_attrs",
+)
+_EVT_REF_RE = re.compile(r"(?<![.\w])evt\.(_?\w+)")
+
+
+def _has_invalid_underscore_runs(name: str) -> bool:
+    """Return True if name contains underscore runs of length other than 1 or 3."""
+    return any(len(m) != 3 for m in re.findall(r"_{2,}", name))
+
+
+def _sort_evt_operation_entry(op: dict) -> dict:
+    """Return a copy of an evt operation dict with keys in canonical order."""
+    result = {k: op[k] for k in _EVT_OPERATION_KEY_ORDER if k in op}
+    result.update({k: v for k, v in op.items() if k not in result})
+    return result
+
+
+def _sort_evt_config(data: dict) -> dict:
+    """Return a copy of an evt config with top-level and operation keys in canonical order."""
+    result = {}
+    for key in _EVT_TOP_KEY_ORDER:
+        if key not in data:
+            continue
+        if key == "operations" and isinstance(data[key], dict):
+            result[key] = {
+                name: _sort_evt_operation_entry(op) if isinstance(op, dict) else op
+                for name, op in data[key].items()
+            }
+        else:
+            result[key] = data[key]
+    result.update({k: v for k, v in data.items() if k not in result})
+    return result
+
+
+def _fix_evt_config_file(file: str) -> bool:
+    """Sort an evt config file in place. Returns True if the file was modified."""
+    data = utils.load_dict(file)
+    sorted_data = _sort_evt_config(data)
+    if not _needs_reorder(data, sorted_data):
+        return False
+    with Path(file).open("w") as f:
+        yaml.dump(
+            sorted_data,
+            f,
+            default_flow_style=False,
+            sort_keys=False,
+            allow_unicode=True,
+        )
+    print(f"Fixed: sorted keys in '{file}'")  # noqa: T201
+    return True
+
+
+def _validate_evt_config_file(file: str, verbose: bool = True) -> bool:
+    """Validate a single tier/evt config YAML file.
+
+    Checks top-level key ordering, channel definitions, output list, and
+    per-operation key ordering and types. Does not check cross-file field
+    references (see _validate_evt_config_group).
+    """
+    data = utils.load_dict(file)
+
+    if not isinstance(data, dict):
+        if verbose:
+            print(f"ERROR: '{file}': top-level value must be a dict")  # noqa: T201
+        return False
+
+    valid = True
+
+    for key in data:
+        if key not in _EVT_TOP_KEY_ORDER:
+            if verbose:
+                print(f"ERROR: '{file}': unexpected top-level key '{key}'")  # noqa: T201
+            valid = False
+
+    present = [k for k in data if k in _EVT_TOP_KEY_ORDER]
+    if present != [k for k in _EVT_TOP_KEY_ORDER if k in data]:
+        if verbose:
+            print(  # noqa: T201
+                f"ERROR: '{file}': top-level keys must be ordered:"
+                " channels → outputs → operations"
+            )
+        valid = False
+
+    if "channels" in data:
+        chs = data["channels"]
+        if chs is not None and not isinstance(chs, dict):
+            if verbose:
+                print(f"ERROR: '{file}': 'channels' must be a dict")  # noqa: T201
+            valid = False
+        elif isinstance(chs, dict):
+            for ch_name, ch_def in chs.items():
+                if not isinstance(ch_def, (str, dict)):
+                    if verbose:
+                        print(  # noqa: T201
+                            f"ERROR: '{file}': 'channels/{ch_name}'"
+                            " must be a string (channel ID) or a dict"
+                        )
+                    valid = False
+                elif isinstance(ch_def, dict) and "system" not in ch_def:
+                    if verbose:
+                        print(  # noqa: T201
+                            f"ERROR: '{file}': 'channels/{ch_name}'"
+                            " dict must contain 'system'"
+                        )
+                    valid = False
+
+    if "outputs" in data:
+        outputs = data["outputs"]
+        if not isinstance(outputs, list) or not all(
+            isinstance(s, str) for s in outputs
+        ):
+            if verbose:
+                print(f"ERROR: '{file}': 'outputs' must be a list of strings")  # noqa: T201
+            valid = False
+        elif isinstance(outputs, list):
+            for out in outputs:
+                if isinstance(out, str) and out.startswith("_"):
+                    if verbose:
+                        print(  # noqa: T201
+                            f"ERROR: '{file}': private operation '{out}'"
+                            " must not appear in 'outputs'"
+                        )
+                    valid = False
+
+    if "operations" in data:
+        ops = data["operations"]
+        if not isinstance(ops, dict):
+            if verbose:
+                print(f"ERROR: '{file}': 'operations' must be a dict")  # noqa: T201
+            valid = False
+        else:
+            for name, op in ops.items():
+                loc = f"operations/{name}"
+
+                if _has_invalid_underscore_runs(name):
+                    if verbose:
+                        print(  # noqa: T201
+                            f"ERROR: '{file}': '{loc}': name contains"
+                            " underscore runs that are not _ or ___"
+                        )
+                    valid = False
+
+                if op is None:
+                    continue
+
+                if not isinstance(op, dict):
+                    if verbose:
+                        print(f"ERROR: '{file}': '{loc}' must be a dict or null")  # noqa: T201
+                    valid = False
+                    continue
+
+                for k in op:
+                    if k not in _EVT_OPERATION_KEY_ORDER:
+                        if verbose:
+                            print(f"ERROR: '{file}': '{loc}/{k}': unexpected key")  # noqa: T201
+                        valid = False
+
+                for str_key in (
+                    "description",
+                    "aggregation_mode",
+                    "query",
+                    "expression",
+                    "dtype",
+                    "unit",
+                ):
+                    if str_key in op and not isinstance(op[str_key], str):
+                        if verbose:
+                            print(  # noqa: T201
+                                f"ERROR: '{file}': '{loc}/{str_key}' must be a string"
+                            )
+                        valid = False
+
+                for list_or_str_key in ("channels", "exclude_channels"):
+                    if list_or_str_key in op:
+                        val = op[list_or_str_key]
+                        if not isinstance(val, (str, list)):
+                            if verbose:
+                                print(  # noqa: T201
+                                    f"ERROR: '{file}': '{loc}/{list_or_str_key}'"
+                                    " must be a string or list of strings"
+                                )
+                            valid = False
+                        elif isinstance(val, list) and not all(
+                            isinstance(s, str) for s in val
+                        ):
+                            if verbose:
+                                print(  # noqa: T201
+                                    f"ERROR: '{file}': '{loc}/{list_or_str_key}'"
+                                    " must be a list of strings"
+                                )
+                            valid = False
+
+                if "lgdo_attrs" in op and not isinstance(op["lgdo_attrs"], dict):
+                    if verbose:
+                        print(  # noqa: T201
+                            f"ERROR: '{file}': '{loc}/lgdo_attrs' must be a dict"
+                        )
+                    valid = False
+
+                present_op = [k for k in op if k in _EVT_OPERATION_KEY_ORDER]
+                if present_op != [k for k in _EVT_OPERATION_KEY_ORDER if k in op]:
+                    if verbose:
+                        print(  # noqa: T201
+                            f"ERROR: '{file}': '{loc}': keys must be ordered:"
+                            " description → channels → exclude_channels"
+                            " → aggregation_mode → query → expression"
+                            " → initial → dtype → unit → lgdo_attrs"
+                        )
+                    valid = False
+
+    return valid
+
+
+def _merge_evt_configs(files: list[str]) -> tuple[dict, list[str], dict]:
+    """Load and shallow-merge a list of evt config files.
+
+    Returns (merged_channels, merged_outputs, merged_operations).
+    Later files take precedence for per-key within each operation.
+    """
+    merged_channels: dict = {}
+    merged_outputs: list[str] = []
+    merged_ops: dict = {}
+
+    for f in files:
+        if not Path(f).is_file():
+            continue
+        data = utils.load_dict(f)
+        if not isinstance(data, dict):
+            continue
+
+        chs = data.get("channels")
+        if isinstance(chs, dict):
+            merged_channels.update(chs)
+
+        for out in data.get("outputs") or []:
+            if isinstance(out, str) and out not in merged_outputs:
+                merged_outputs.append(out)
+
+        ops = data.get("operations") or {}
+        if isinstance(ops, dict):
+            for op_name, op in ops.items():
+                if op is None:
+                    merged_ops.setdefault(op_name, {})
+                elif isinstance(op, dict):
+                    if op_name not in merged_ops:
+                        merged_ops[op_name] = {}
+                    merged_ops[op_name].update(op)
+
+    return merged_channels, merged_outputs, merged_ops
+
+
+def _validate_evt_config_group(
+    files: list[str],
+    ts: str,
+    cat: str,
+    verbose: bool = True,
+) -> bool:
+    """Validate a merged group of evt config files for a given timestamp/category.
+
+    Checks that all ``evt.X`` references are defined in the merged operation set,
+    private operations do not appear in outputs, all outputs are defined non-private
+    operations, and all non-private operations appear in outputs (when any outputs
+    are present).
+    """
+    _, merged_outputs, merged_ops = _merge_evt_configs(files)
+    valid = True
+    all_op_names = set(merged_ops.keys())
+    outputs_set = set(merged_outputs)
+
+    for op_name, op in merged_ops.items():
+        for text in _iter_string_values(op):
+            for ref in _EVT_REF_RE.findall(text):
+                if ref not in all_op_names:
+                    if verbose:
+                        print(  # noqa: T201
+                            f"ERROR: at '{ts}' (category '{cat}'):"
+                            f" operation '{op_name}' references"
+                            f" 'evt.{ref}' which is not defined"
+                        )
+                    valid = False
+
+    for out in merged_outputs:
+        if out.startswith("_"):
+            if verbose:
+                print(  # noqa: T201
+                    f"ERROR: at '{ts}' (category '{cat}'):"
+                    f" private operation '{out}' must not appear in outputs"
+                )
+            valid = False
+
+    if outputs_set:
+        for out in merged_outputs:
+            if not out.startswith("_") and out not in all_op_names:
+                if verbose:
+                    print(  # noqa: T201
+                        f"ERROR: at '{ts}' (category '{cat}'):"
+                        f" output '{out}' is not defined in merged operations"
+                    )
+                valid = False
+
+        for op_name in sorted(all_op_names):
+            if not op_name.startswith("_") and op_name not in outputs_set:
+                if verbose:
+                    print(  # noqa: T201
+                        f"ERROR: at '{ts}' (category '{cat}'):"
+                        f" non-private operation '{op_name}' is not in outputs"
+                    )
+                valid = False
+
+    return valid
+
 
 def _sort_operation_entry(op: dict) -> dict:
     """Return a copy of an operation dict with keys in canonical order."""
@@ -1293,22 +1615,26 @@ def _check_dataflow_config_paths(
 def validate_dataflow_config() -> None:
     """Validate LEGEND dataflow configuration files.
 
-    Invoked in CLI. Accepts validity files, tier/hit config files, and DSP proc
-    chain files. Validity files trigger a full database path check plus a scan of
-    the sibling tier/hit and tier/dsp directories. Hit config and proc chain files
-    are validated (and optionally fixed) directly.
+    Invoked in CLI. Accepts validity files, tier/hit config files, DSP proc
+    chain files, and tier/evt config files. Validity files trigger a full
+    database path check plus a scan of the sibling tier/hit, tier/dsp, and
+    tier/evt directories. Individual config files are validated (and optionally
+    fixed) directly. Validity files additionally trigger merged evt config group
+    validation (cross-field reference and output completeness checks).
     """
     parser = argparse.ArgumentParser(
         prog="validate-dataflow-config",
         description="Validate LEGEND dataflow configuration files",
     )
     parser.add_argument(
-        "files", nargs="+", help="validity, hit config, or proc chain files"
+        "files",
+        nargs="+",
+        help="validity, hit config, proc chain, or evt config files",
     )
     parser.add_argument(
         "--fix",
         action="store_true",
-        help="sort tier/hit config keys in place instead of reporting errors",
+        help="sort config keys in place instead of reporting errors",
     )
     args = parser.parse_args()
 
@@ -1331,6 +1657,9 @@ def validate_dataflow_config() -> None:
                 for cat in categories:
                     seen.add((ts, str(cat)))
 
+            seen_evt_groups: set[frozenset] = set()
+            all_evt_files: set[str] = set()
+
             for ts, cat in sorted(seen):
                 try:
                     state = db.on(ts, system=cat)
@@ -1343,6 +1672,38 @@ def validate_dataflow_config() -> None:
                     continue
 
                 valid &= _check_dataflow_config_paths(state, d, ts, cat)
+
+                tier_evt_inputs = (
+                    state.get("snakemake_rules", {})
+                    .get("tier_evt", {})
+                    .get("inputs", {})
+                )
+                if isinstance(tier_evt_inputs, dict):
+                    evt_raw = tier_evt_inputs.get("evt_config")
+                    if isinstance(evt_raw, list):
+                        evt_files = [
+                            fp
+                            for fp in evt_raw
+                            if isinstance(fp, str) and "evt_config" in Path(fp).name
+                        ]
+                        all_evt_files.update(evt_files)
+                        gkey = frozenset(evt_files)
+                        if evt_files and gkey not in seen_evt_groups:
+                            seen_evt_groups.add(gkey)
+                            valid &= _validate_evt_config_group(evt_files, ts, cat)
+
+                    muon_raw = tier_evt_inputs.get("muon_config")
+                    if isinstance(muon_raw, dict):
+                        muon_evt = muon_raw.get("evt_config")
+                        if (
+                            isinstance(muon_evt, str)
+                            and "evt_config" in Path(muon_evt).name
+                        ):
+                            all_evt_files.add(muon_evt)
+                            gkey = frozenset({muon_evt})
+                            if gkey not in seen_evt_groups:
+                                seen_evt_groups.add(gkey)
+                                valid &= _validate_evt_config_group([muon_evt], ts, cat)
 
             hit_dir = d / "tier" / "hit"
             if hit_dir.is_dir():
@@ -1358,6 +1719,18 @@ def validate_dataflow_config() -> None:
                         modified |= _fix_dsp_proc_chain_file(str(dsp_file))
                     valid &= _validate_dsp_proc_chain_file(str(dsp_file))
 
+            # Validate all evt config files discovered via state, plus any in
+            # tier/evt/ that weren't referenced (structural check only).
+            evt_dir = d / "tier" / "evt"
+            if evt_dir.is_dir():
+                for evt_file in sorted(evt_dir.glob("*evt_config*.yaml")):
+                    all_evt_files.add(str(evt_file))
+            for evt_f in sorted(all_evt_files):
+                if Path(evt_f).is_file():
+                    if args.fix:
+                        modified |= _fix_evt_config_file(evt_f)
+                    valid &= _validate_evt_config_file(evt_f)
+
         elif "hit_config" in name:
             if args.fix:
                 modified |= _fix_hit_config_file(f)
@@ -1367,6 +1740,11 @@ def validate_dataflow_config() -> None:
             if args.fix:
                 modified |= _fix_dsp_proc_chain_file(f)
             valid &= _validate_dsp_proc_chain_file(f)
+
+        elif "evt_config" in name:
+            if args.fix:
+                modified |= _fix_evt_config_file(f)
+            valid &= _validate_evt_config_file(f)
 
     if modified or not valid:
         sys.exit(1)

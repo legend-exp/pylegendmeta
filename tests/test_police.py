@@ -1345,3 +1345,470 @@ def test_fix_dsp_proc_chain_file_data_preserved(tmp_path):
     police._fix_dsp_proc_chain_file(f)
     fixed = yaml.safe_load(Path(f).read_text())
     assert fixed == yaml.safe_load(yaml.dump(unsorted))
+
+
+# ---------------------------------------------------------------------------
+# _has_invalid_underscore_runs
+# ---------------------------------------------------------------------------
+
+
+def test_invalid_underscore_runs_single():
+    assert not police._has_invalid_underscore_runs("field_name")
+    assert not police._has_invalid_underscore_runs("_private")
+
+
+def test_invalid_underscore_runs_triple():
+    assert not police._has_invalid_underscore_runs("geds___energy")
+    assert not police._has_invalid_underscore_runs("_geds___tcm_idx")
+    assert not police._has_invalid_underscore_runs("geds___quality___is_good")
+
+
+def test_invalid_underscore_runs_double():
+    assert police._has_invalid_underscore_runs("geds__energy")
+    assert police._has_invalid_underscore_runs("__private")
+
+
+def test_invalid_underscore_runs_quadruple():
+    assert police._has_invalid_underscore_runs("geds____energy")
+
+
+# ---------------------------------------------------------------------------
+# _validate_evt_config_file
+# ---------------------------------------------------------------------------
+
+_GOOD_EVT = {
+    "channels": {
+        "geds_on": {
+            "system": "geds",
+            "selectors": {"analysis.usability": "on"},
+        },
+        "ts_master": "ch1027201",
+    },
+    "outputs": ["energy", "multiplicity"],
+    "operations": {
+        "_tcm_idx": {
+            "channels": ["geds_on"],
+            "aggregation_mode": "gather",
+            "expression": "tcm.index",
+            "dtype": "uint32",
+        },
+        "energy": {
+            "description": "HPGe energy",
+            "channels": ["geds_on"],
+            "aggregation_mode": "keep_at_idx:evt._tcm_idx",
+            "expression": "hit.energy_cal",
+            "dtype": "float32",
+            "lgdo_attrs": {"units": "keV"},
+        },
+        "multiplicity": {
+            "expression": "ak.count(evt._tcm_idx, axis=-1)",
+            "dtype": "uint16",
+        },
+    },
+}
+
+
+def _write_evt(tmp_path: Path, name: str, data: dict) -> str:
+    p = tmp_path / name
+    with p.open("w") as fh:
+        yaml.dump(data, fh, default_flow_style=False, sort_keys=False)
+    return str(p)
+
+
+def test_validate_evt_config_valid(tmp_path):
+    f = _write_evt(tmp_path, "evt_config.yaml", _GOOD_EVT)
+    assert police._validate_evt_config_file(f, verbose=False)
+
+
+def test_validate_evt_config_operations_only(tmp_path):
+    data = {"operations": {"energy": {"expression": "hit.e_cal"}}}
+    f = _write_evt(tmp_path, "evt_config.yaml", data)
+    assert police._validate_evt_config_file(f, verbose=False)
+
+
+def test_validate_evt_config_channel_override_no_expression(tmp_path):
+    # Channel-only overrides (no expression) are valid per-file
+    data = {"operations": {"energy": {"channels": ["geds_on"]}}}
+    f = _write_evt(tmp_path, "evt_config.yaml", data)
+    assert police._validate_evt_config_file(f, verbose=False)
+
+
+def test_validate_evt_config_unexpected_top_key(tmp_path):
+    data = deepcopy(_GOOD_EVT)
+    data["unknown"] = "bad"
+    f = _write_evt(tmp_path, "evt_config.yaml", data)
+    assert not police._validate_evt_config_file(f, verbose=False)
+
+
+def test_validate_evt_config_wrong_top_order(tmp_path):
+    data = {
+        "outputs": ["energy"],
+        "channels": {"geds_on": {"system": "geds"}},
+        "operations": {"energy": {"expression": "hit.e"}},
+    }
+    f = _write_evt(tmp_path, "evt_config.yaml", data)
+    assert not police._validate_evt_config_file(f, verbose=False)
+
+
+def test_validate_evt_config_outputs_private_item(tmp_path):
+    data = {"outputs": ["_internal"], "operations": {"_internal": {"expression": "x"}}}
+    f = _write_evt(tmp_path, "evt_config.yaml", data)
+    assert not police._validate_evt_config_file(f, verbose=False)
+
+
+def test_validate_evt_config_unexpected_op_key(tmp_path):
+    data = {"operations": {"op": {"expression": "x", "extra": True}}}
+    f = _write_evt(tmp_path, "evt_config.yaml", data)
+    assert not police._validate_evt_config_file(f, verbose=False)
+
+
+def test_validate_evt_config_op_expression_not_string(tmp_path):
+    data = {"operations": {"op": {"expression": 42}}}
+    f = _write_evt(tmp_path, "evt_config.yaml", data)
+    assert not police._validate_evt_config_file(f, verbose=False)
+
+
+def test_validate_evt_config_op_lgdo_attrs_not_dict(tmp_path):
+    data = {"operations": {"op": {"expression": "x", "lgdo_attrs": "bad"}}}
+    f = _write_evt(tmp_path, "evt_config.yaml", data)
+    assert not police._validate_evt_config_file(f, verbose=False)
+
+
+def test_validate_evt_config_op_wrong_key_order(tmp_path):
+    data = {
+        "operations": {
+            "op": {
+                "expression": "x",
+                "description": "desc",  # description should come first
+            }
+        }
+    }
+    f = _write_evt(tmp_path, "evt_config.yaml", data)
+    assert not police._validate_evt_config_file(f, verbose=False)
+
+
+def test_validate_evt_config_op_null_value_allowed(tmp_path):
+    # Null operation value is a valid "inherit from base" marker
+    data = {"operations": {"energy": None}}
+    f = _write_evt(tmp_path, "evt_config.yaml", data)
+    assert police._validate_evt_config_file(f, verbose=False)
+
+
+def test_validate_evt_config_channel_dict_missing_system(tmp_path):
+    data = {
+        "channels": {"geds_on": {"selectors": {"analysis.usability": "on"}}},
+        "operations": {"op": {"expression": "x"}},
+    }
+    f = _write_evt(tmp_path, "evt_config.yaml", data)
+    assert not police._validate_evt_config_file(f, verbose=False)
+
+
+def test_validate_evt_config_op_name_double_underscore(tmp_path):
+    data = {"operations": {"geds__energy": {"expression": "x"}}}
+    f = _write_evt(tmp_path, "evt_config.yaml", data)
+    assert not police._validate_evt_config_file(f, verbose=False)
+
+
+def test_validate_evt_config_op_name_quadruple_underscore(tmp_path):
+    data = {"operations": {"geds____energy": {"expression": "x"}}}
+    f = _write_evt(tmp_path, "evt_config.yaml", data)
+    assert not police._validate_evt_config_file(f, verbose=False)
+
+
+def test_validate_evt_config_op_name_triple_underscore_ok(tmp_path):
+    data = {"operations": {"geds___energy": {"expression": "x"}}}
+    f = _write_evt(tmp_path, "evt_config.yaml", data)
+    assert police._validate_evt_config_file(f, verbose=False)
+
+
+# ---------------------------------------------------------------------------
+# _validate_evt_config_group
+# ---------------------------------------------------------------------------
+
+
+def _write_evt_group(tmp_path: Path, configs: list[tuple[str, dict]]) -> list[str]:
+    """Write a group of evt config files and return their paths."""
+    paths = []
+    for name, data in configs:
+        p = tmp_path / name
+        with p.open("w") as fh:
+            yaml.dump(data, fh, default_flow_style=False, sort_keys=False)
+        paths.append(str(p))
+    return paths
+
+
+def test_evt_group_python_module_path_not_flagged(tmp_path):
+    # pygama.evt.modules.geds.func(...) must not be flagged as an evt.X reference
+    files = _write_evt_group(
+        tmp_path,
+        [
+            (
+                "base_evt_config.yaml",
+                {
+                    "outputs": ["energy"],
+                    "operations": {
+                        "energy": {
+                            "expression": "pygama.evt.modules.geds.calibrate(<...>)",
+                        }
+                    },
+                },
+            )
+        ],
+    )
+    assert police._validate_evt_config_group(
+        files, "20230101T000000Z", "all", verbose=False
+    )
+
+
+def test_evt_group_valid_cross_reference(tmp_path):
+    files = _write_evt_group(
+        tmp_path,
+        [
+            (
+                "base_evt_config.yaml",
+                {
+                    "outputs": ["energy", "multiplicity"],
+                    "operations": {
+                        "_tcm_idx": {"expression": "tcm.index"},
+                        "energy": {
+                            "aggregation_mode": "keep_at_idx:evt._tcm_idx",
+                            "expression": "hit.energy",
+                        },
+                        "multiplicity": {"expression": "ak.count(evt._tcm_idx)"},
+                    },
+                },
+            )
+        ],
+    )
+    assert police._validate_evt_config_group(
+        files, "20230101T000000Z", "all", verbose=False
+    )
+
+
+def test_evt_group_undefined_evt_ref(tmp_path):
+    files = _write_evt_group(
+        tmp_path,
+        [
+            (
+                "base_evt_config.yaml",
+                {
+                    "outputs": ["energy"],
+                    "operations": {
+                        "energy": {
+                            "aggregation_mode": "keep_at_idx:evt._missing_idx",
+                            "expression": "hit.energy",
+                        }
+                    },
+                },
+            )
+        ],
+    )
+    assert not police._validate_evt_config_group(
+        files, "20230101T000000Z", "all", verbose=False
+    )
+
+
+def test_evt_group_private_in_outputs(tmp_path):
+    files = _write_evt_group(
+        tmp_path,
+        [
+            (
+                "base_evt_config.yaml",
+                {
+                    "outputs": ["_private"],
+                    "operations": {"_private": {"expression": "x"}},
+                },
+            )
+        ],
+    )
+    assert not police._validate_evt_config_group(
+        files, "20230101T000000Z", "all", verbose=False
+    )
+
+
+def test_evt_group_nonprivate_missing_from_outputs(tmp_path):
+    files = _write_evt_group(
+        tmp_path,
+        [
+            (
+                "base_evt_config.yaml",
+                {
+                    "outputs": ["energy"],
+                    "operations": {
+                        "energy": {"expression": "hit.e"},
+                        "orphan": {"expression": "hit.x"},  # not in outputs
+                    },
+                },
+            )
+        ],
+    )
+    assert not police._validate_evt_config_group(
+        files, "20230101T000000Z", "all", verbose=False
+    )
+
+
+def test_evt_group_output_not_defined(tmp_path):
+    files = _write_evt_group(
+        tmp_path,
+        [
+            (
+                "base_evt_config.yaml",
+                {
+                    "outputs": ["energy", "ghost"],
+                    "operations": {"energy": {"expression": "hit.e"}},
+                },
+            )
+        ],
+    )
+    assert not police._validate_evt_config_group(
+        files, "20230101T000000Z", "all", verbose=False
+    )
+
+
+def test_evt_group_cross_file_ref_valid(tmp_path):
+    # _tcm_idx defined in file A, referenced in file B
+    files = _write_evt_group(
+        tmp_path,
+        [
+            (
+                "a_evt_config.yaml",
+                {
+                    "outputs": ["energy"],
+                    "operations": {
+                        "_tcm_idx": {"expression": "tcm.index"},
+                        "energy": {
+                            "aggregation_mode": "keep_at_idx:evt._tcm_idx",
+                            "expression": "hit.e",
+                        },
+                    },
+                },
+            ),
+            (
+                "b_evt_config.yaml",
+                {
+                    "operations": {
+                        "_derived": {"expression": "evt._tcm_idx + 1"},
+                    }
+                },
+            ),
+        ],
+    )
+    # _derived is private and not in outputs → OK; _tcm_idx is defined in a → OK
+    assert police._validate_evt_config_group(
+        files, "20230101T000000Z", "all", verbose=False
+    )
+
+
+def test_evt_group_no_outputs_skips_completeness_check(tmp_path):
+    # Files without any outputs section skip the private/completeness checks
+    files = _write_evt_group(
+        tmp_path,
+        [
+            (
+                "a_evt_config.yaml",
+                {
+                    "operations": {
+                        "energy": {"expression": "hit.e"},
+                        "orphan": {"expression": "hit.x"},
+                    }
+                },
+            )
+        ],
+    )
+    assert police._validate_evt_config_group(
+        files, "20230101T000000Z", "all", verbose=False
+    )
+
+
+# ---------------------------------------------------------------------------
+# _sort_evt_config
+# ---------------------------------------------------------------------------
+
+
+def test_sort_evt_config_top_level_order():
+    data = {
+        "operations": {"op": {"expression": "x"}},
+        "outputs": ["op"],
+        "channels": {"ch": {"system": "geds"}},
+    }
+    result = police._sort_evt_config(data)
+    assert list(result.keys()) == ["channels", "outputs", "operations"]
+
+
+def test_sort_evt_config_operation_key_order():
+    data = {
+        "operations": {
+            "op": {
+                "expression": "hit.e",
+                "lgdo_attrs": {"units": "keV"},
+                "dtype": "float32",
+                "description": "energy",
+                "channels": ["geds_on"],
+            }
+        }
+    }
+    result = police._sort_evt_config(data)
+    assert list(result["operations"]["op"].keys()) == [
+        "description",
+        "channels",
+        "expression",
+        "dtype",
+        "lgdo_attrs",
+    ]
+
+
+def test_sort_evt_config_already_sorted_no_reorder():
+    result = police._sort_evt_config(_GOOD_EVT)
+    assert not police._needs_reorder(_GOOD_EVT, result)
+
+
+# ---------------------------------------------------------------------------
+# _fix_evt_config_file
+# ---------------------------------------------------------------------------
+
+
+def test_fix_evt_config_file_already_sorted(tmp_path):
+    f = _write_evt(tmp_path, "evt_config.yaml", _GOOD_EVT)
+    assert not police._fix_evt_config_file(f)
+
+
+def test_fix_evt_config_file_unsorted_returns_true(tmp_path):
+    unsorted = {
+        "operations": {"op": {"expression": "x", "description": "desc"}},
+        "outputs": ["op"],
+    }
+    f = _write_evt(tmp_path, "evt_config.yaml", unsorted)
+    assert police._fix_evt_config_file(f)
+
+
+def test_fix_evt_config_file_result_passes_validation(tmp_path):
+    unsorted = {
+        "operations": {
+            "op": {
+                "dtype": "float32",
+                "expression": "hit.e",
+                "description": "energy",
+            }
+        },
+        "outputs": ["op"],
+    }
+    f = _write_evt(tmp_path, "evt_config.yaml", unsorted)
+    police._fix_evt_config_file(f)
+    assert police._validate_evt_config_file(f, verbose=False)
+
+
+def test_fix_evt_config_file_data_preserved(tmp_path):
+    unsorted = {
+        "operations": {
+            "op": {
+                "lgdo_attrs": {"units": "keV"},
+                "expression": "hit.e",
+                "description": "energy",
+            }
+        },
+        "outputs": ["op"],
+    }
+    f = _write_evt(tmp_path, "evt_config.yaml", unsorted)
+    police._fix_evt_config_file(f)
+    fixed = yaml.safe_load(Path(f).read_text())
+    assert fixed == yaml.safe_load(yaml.dump(unsorted))
