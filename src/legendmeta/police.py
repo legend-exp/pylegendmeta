@@ -270,19 +270,20 @@ def len_nested(d: dict) -> int:
 
 def _find_unreferenced_files(
     validity_file: str,
-    referenced: set[str],
     exclude: list[str] | None = None,
     verbose: bool = True,
 ) -> list[str]:
-    """Find YAML/JSON data files not referenced in the validity file.
+    """Find YAML/JSON data files not transitively referenced via the validity file.
+
+    Loads the full resolved database state for every (timestamp, category) pair
+    and collects all file paths that appear as string values with the database
+    directory as prefix (i.e. all ``$_``-expanded references). Files listed
+    directly in ``apply`` entries are also considered referenced.
 
     Parameters
     ----------
     validity_file
         Path to the validity YAML file.
-    referenced
-        Set of file paths (relative to the validity file's directory) that
-        are referenced in the validity file's ``apply`` entries.
     exclude
         List of glob patterns (relative to the validity file's directory)
         to exclude from the unreferenced-file check. Dotfiles and files
@@ -295,10 +296,42 @@ def _find_unreferenced_files(
     list[str]
         Relative paths of unreferenced data files.
     """
-    parent = Path(validity_file).parent
+    parent = Path(validity_file).parent.resolve()
     exclude = exclude or []
-    unreferenced = []
+    db_dir_str = str(parent) + "/"
 
+    referenced: set[str] = set()
+
+    try:
+        valid_dic = Props.read_from(str(validity_file))
+    except Exception:
+        valid_dic = []
+
+    # Collect files listed directly in apply entries (top-level config files)
+    seen: set[tuple[str, str]] = set()
+    for dic in valid_dic:
+        for f in dic.get("apply", []):
+            if isinstance(f, str):
+                referenced.add(f)
+        ts = str(dic.get("valid_from", ""))
+        categories = dic.get("category", "all") or "all"
+        if isinstance(categories, str):
+            categories = [categories]
+        for cat in categories:
+            seen.add((ts, str(cat)))
+
+    # Collect transitive references by loading the full resolved state
+    db = TextDB(parent)
+    for ts, cat in seen:
+        try:
+            state = db.on(ts, system=cat)
+            for value in _iter_string_values(state):
+                if value.startswith(db_dir_str):
+                    referenced.add(value[len(db_dir_str) :])
+        except Exception:
+            pass
+
+    unreferenced = []
     for data_file in sorted(parent.rglob("*")):
         if not data_file.is_file():
             continue
@@ -382,7 +415,7 @@ def validate_validity():
                     valid = False
 
         # check for files not referenced in validity
-        if _find_unreferenced_files(file, referenced_files, exclude=args.exclude):
+        if _find_unreferenced_files(file, exclude=args.exclude):
             valid = False
 
     if not valid:
