@@ -1121,6 +1121,23 @@ def test_fix_hit_config_file_data_preserved(tmp_path):
     assert fixed == yaml.safe_load(yaml.dump(unsorted))
 
 
+def test_fix_hit_config_file_multiline_string_preserved(tmp_path):
+    unsorted = {
+        "operations": {
+            "op": {
+                "parameters": {"a": 1},
+                "expression": "func(\n  arg1,\n  arg2\n)",
+            }
+        },
+        "outputs": ["op"],
+    }
+    f = _write_hit(tmp_path, "hit.yaml", unsorted)
+    police._fix_hit_config_file(f)
+    raw = Path(f).read_text()
+    assert "\\n" not in raw
+    assert yaml.safe_load(raw) == yaml.safe_load(yaml.dump(unsorted))
+
+
 # ---------------------------------------------------------------------------
 # _validate_dsp_proc_chain_file
 # ---------------------------------------------------------------------------
@@ -1345,6 +1362,27 @@ def test_fix_dsp_proc_chain_file_data_preserved(tmp_path):
     police._fix_dsp_proc_chain_file(f)
     fixed = yaml.safe_load(Path(f).read_text())
     assert fixed == yaml.safe_load(yaml.dump(unsorted))
+
+
+def test_fix_dsp_proc_chain_file_multiline_string_preserved(tmp_path):
+    unsorted = {
+        "processors": {
+            "wf_out": {
+                "function": "convolve",
+                "module": "dspeed.processors",
+                "args": [
+                    "wf_in",
+                    "wf_out(\n  len(wf_in),\n  period=wf_in.period,\n  offset=wf_in.offset\n)",
+                ],
+            }
+        },
+        "outputs": ["wf_out"],
+    }
+    f = _write_dsp(tmp_path, "proc_chain.yaml", unsorted)
+    police._fix_dsp_proc_chain_file(f)
+    raw = Path(f).read_text()
+    assert "\\n" not in raw
+    assert yaml.safe_load(raw) == yaml.safe_load(yaml.dump(unsorted))
 
 
 # ---------------------------------------------------------------------------
@@ -1812,3 +1850,20 @@ def test_fix_evt_config_file_data_preserved(tmp_path):
     police._fix_evt_config_file(f)
     fixed = yaml.safe_load(Path(f).read_text())
     assert fixed == yaml.safe_load(yaml.dump(unsorted))
+
+
+def test_fix_evt_config_file_multiline_string_preserved(tmp_path):
+    unsorted = {
+        "operations": {
+            "op": {
+                "expression": "pygama.evt.modules.geds.func(<...>,\n  arg1=val1,\n  arg2=val2\n)",
+                "description": "multiline expression",
+            }
+        },
+        "outputs": ["op"],
+    }
+    f = _write_evt(tmp_path, "evt_config.yaml", unsorted)
+    police._fix_evt_config_file(f)
+    raw = Path(f).read_text()
+    assert "\\n" not in raw
+    assert yaml.safe_load(raw) == yaml.safe_load(yaml.dump(unsorted))
