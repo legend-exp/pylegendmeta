@@ -1119,7 +1119,7 @@ def _validate_dsp_proc_chain_file(file: str, verbose: bool = True) -> bool:
                     if verbose:
                         print(  # noqa: T201
                             f"ERROR: '{file}': '{loc}': keys must be ordered:"
-                            " description → module → function → args → prereqs"
+                            " description → module → function → prereqs → args"
                             " → init_args → kwargs → defaults → unit"
                         )
                     valid = False
@@ -1649,7 +1649,7 @@ def _check_dataflow_config_paths(
         If False, suppress error output.
     """
     valid = True
-    db_dir_str = str(db_dir)
+    db_dir_str = str(db_dir) + "/"
     for value in _iter_string_values(state):
         if not value.startswith(db_dir_str):
             continue
@@ -1713,7 +1713,7 @@ def validate_dataflow_config() -> None:
     valid = True
     for f in args.files:
         name = Path(f).name
-        if re.search(r"validity\..+$", name):
+        if name.startswith("validity."):
             d = Path(f).parent
             db = TextDB(d)
 
@@ -1722,13 +1722,13 @@ def validate_dataflow_config() -> None:
             seen: set[tuple[str, str]] = set()
             for dic in valid_dic:
                 ts = str(dic["valid_from"])
-                categories = dic.get("category", "all")
+                categories = dic.get("category", "all") or "all"
                 if isinstance(categories, str):
                     categories = [categories]
                 for cat in categories:
                     seen.add((ts, str(cat)))
 
-            seen_evt_groups: set[frozenset] = set()
+            seen_evt_groups: set[tuple] = set()
             all_evt_files: set[str] = set()
 
             for ts, cat in sorted(seen):
@@ -1758,7 +1758,7 @@ def validate_dataflow_config() -> None:
                             if isinstance(fp, str) and "evt_config" in Path(fp).name
                         ]
                         all_evt_files.update(evt_files)
-                        gkey = frozenset(evt_files)
+                        gkey = tuple(evt_files)
                         if evt_files and gkey not in seen_evt_groups:
                             seen_evt_groups.add(gkey)
                             valid &= _validate_evt_config_group(evt_files, ts, cat)
@@ -1771,7 +1771,7 @@ def validate_dataflow_config() -> None:
                             and "evt_config" in Path(muon_evt).name
                         ):
                             all_evt_files.add(muon_evt)
-                            gkey = frozenset({muon_evt})
+                            gkey = (muon_evt,)
                             if gkey not in seen_evt_groups:
                                 seen_evt_groups.add(gkey)
                                 valid &= _validate_evt_config_group([muon_evt], ts, cat)
@@ -1816,6 +1816,7 @@ def validate_dataflow_config() -> None:
             if args.fix:
                 modified |= _fix_evt_config_file(f)
             valid &= _validate_evt_config_file(f)
+            valid &= _validate_evt_config_group([f], f, "direct")
 
     if modified or not valid:
         sys.exit(1)
