@@ -704,9 +704,8 @@ def test_find_unreferenced_files_all_referenced(tmp_path):
         tmp_path,
         [{"valid_from": "20230101T000000Z", "apply": ["a.yaml", "b.json"]}],
     )
-    referenced = {"a.yaml", "b.json"}
     result = police._find_unreferenced_files(
-        str(tmp_path / "validity.yaml"), referenced, verbose=False
+        str(tmp_path / "validity.yaml"), verbose=False
     )
     assert result == []
 
@@ -719,9 +718,8 @@ def test_find_unreferenced_files_detects_orphan(tmp_path):
         tmp_path,
         [{"valid_from": "20230101T000000Z", "apply": ["a.yaml"]}],
     )
-    referenced = {"a.yaml"}
     result = police._find_unreferenced_files(
-        str(tmp_path / "validity.yaml"), referenced, verbose=False
+        str(tmp_path / "validity.yaml"), verbose=False
     )
     assert "orphan.yaml" in result
 
@@ -734,9 +732,8 @@ def test_find_unreferenced_files_detects_orphan_json(tmp_path):
         tmp_path,
         [{"valid_from": "20230101T000000Z", "apply": ["a.yaml"]}],
     )
-    referenced = {"a.yaml"}
     result = police._find_unreferenced_files(
-        str(tmp_path / "validity.yaml"), referenced, verbose=False
+        str(tmp_path / "validity.yaml"), verbose=False
     )
     assert "orphan.json" in result
 
@@ -747,9 +744,8 @@ def test_find_unreferenced_files_ignores_validity_yaml(tmp_path):
         tmp_path,
         [{"valid_from": "20230101T000000Z", "apply": []}],
     )
-    referenced = set()
     result = police._find_unreferenced_files(
-        str(tmp_path / "validity.yaml"), referenced, verbose=False
+        str(tmp_path / "validity.yaml"), verbose=False
     )
     assert "validity.yaml" not in result
     assert result == []
@@ -763,9 +759,8 @@ def test_find_unreferenced_files_ignores_non_yaml_json(tmp_path):
         tmp_path,
         [{"valid_from": "20230101T000000Z", "apply": []}],
     )
-    referenced = set()
     result = police._find_unreferenced_files(
-        str(tmp_path / "validity.yaml"), referenced, verbose=False
+        str(tmp_path / "validity.yaml"), verbose=False
     )
     assert result == []
 
@@ -781,9 +776,8 @@ def test_find_unreferenced_files_skips_subdir_with_own_validity(tmp_path):
         tmp_path,
         [{"valid_from": "20230101T000000Z", "apply": []}],
     )
-    referenced = set()
     result = police._find_unreferenced_files(
-        str(tmp_path / "validity.yaml"), referenced, verbose=False
+        str(tmp_path / "validity.yaml"), verbose=False
     )
     assert result == []
 
@@ -798,9 +792,8 @@ def test_find_unreferenced_files_includes_subdir_without_validity(tmp_path):
         tmp_path,
         [{"valid_from": "20230101T000000Z", "apply": []}],
     )
-    referenced = set()
     result = police._find_unreferenced_files(
-        str(tmp_path / "validity.yaml"), referenced, verbose=False
+        str(tmp_path / "validity.yaml"), verbose=False
     )
     assert any("orphan.yaml" in r for r in result)
 
@@ -815,9 +808,8 @@ def test_find_unreferenced_files_subdir_file_referenced(tmp_path):
         tmp_path,
         [{"valid_from": "20230101T000000Z", "apply": ["sub/data.yaml"]}],
     )
-    referenced = {"sub/data.yaml"}
     result = police._find_unreferenced_files(
-        str(tmp_path / "validity.yaml"), referenced, verbose=False
+        str(tmp_path / "validity.yaml"), verbose=False
     )
     assert result == []
 
