@@ -534,6 +534,18 @@ _EVT_OPERATION_KEY_ORDER = (
 _EVT_REF_RE = re.compile(r"(?<![.\w])evt\.(_?\w+)")
 
 
+class _LiteralBlockDumper(yaml.Dumper):
+    """YAML Dumper that preserves multiline strings as literal block scalars."""
+
+
+_LiteralBlockDumper.add_representer(
+    str,
+    lambda dumper, data: dumper.represent_scalar(
+        "tag:yaml.org,2002:str", data, style="|" if "\n" in data else None
+    ),
+)
+
+
 def _has_invalid_underscore_runs(name: str) -> bool:
     """Return True if name contains underscore runs of length other than 1 or 3."""
     return any(len(m) != 3 for m in re.findall(r"_{2,}", name))
@@ -573,6 +585,7 @@ def _fix_evt_config_file(file: str) -> bool:
         yaml.dump(
             sorted_data,
             f,
+            Dumper=_LiteralBlockDumper,
             default_flow_style=False,
             sort_keys=False,
             allow_unicode=True,
@@ -1009,6 +1022,7 @@ def _fix_hit_config_file(file: str) -> bool:
         yaml.dump(
             sorted_data,
             f,
+            Dumper=_LiteralBlockDumper,
             default_flow_style=False,
             sort_keys=False,
             allow_unicode=True,
@@ -1123,6 +1137,7 @@ def _fix_dsp_proc_chain_file(file: str) -> bool:
         yaml.dump(
             sorted_data,
             f,
+            Dumper=_LiteralBlockDumper,
             default_flow_style=False,
             sort_keys=False,
             allow_unicode=True,
@@ -1204,6 +1219,7 @@ def _fix_groupings_file(file: str) -> bool:
         yaml.dump(
             sorted_data,
             f,
+            Dumper=_LiteralBlockDumper,
             default_flow_style=False,
             sort_keys=False,
             allow_unicode=True,
@@ -1240,6 +1256,7 @@ def _fix_status_files(validity_file: str) -> bool:
                 yaml.dump(
                     sorted_data,
                     f,
+                    Dumper=_LiteralBlockDumper,
                     default_flow_style=False,
                     sort_keys=False,
                     allow_unicode=True,
