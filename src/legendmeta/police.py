@@ -34,7 +34,10 @@ templates = resources.files("legendmeta") / "templates"
 def validate_legend_detector_db() -> bool:
     """Validate LEGEND detector database.
 
-    Invoked in CLI.
+    Invoked in CLI. Checks:
+
+    - required ``type`` key is present and has a known value;
+    - all keys and value types match the per-type YAML template.
     """
     parser = argparse.ArgumentParser(
         prog="validate-legend-detdb", description="Validate LEGEND detector database"
@@ -81,7 +84,11 @@ def validate_legend_detector_db() -> bool:
 def validate_legend_channel_map() -> bool:
     """Validate list of LEGEND channel map files.
 
-    Invoked in CLI.
+    Invoked in CLI. Checks:
+
+    - required ``system`` key is present in every channel entry;
+    - channel key matches the ``name`` field when present;
+    - all keys and value types match the per-system YAML template.
     """
     parser = argparse.ArgumentParser(
         prog="validate-legend-chmaps", description="Validate LEGEND channel map files"
@@ -314,6 +321,14 @@ def _find_unreferenced_files(
 
 
 def validate_validity():
+    """Validate LEGEND validity files.
+
+    Invoked in CLI. Checks:
+
+    - the file parses as a valid dbetto catalog;
+    - every file listed in ``apply`` entries exists on disk;
+    - no YAML/JSON data files in the same directory are unreferenced.
+    """
     parser = argparse.ArgumentParser(
         prog="validate-validity", description="Validate LEGEND validity files"
     )
@@ -356,6 +371,13 @@ def validate_statuses() -> None:
     """Validate LEGEND status files.
 
     Invoked in CLI. Accepts validity files; derives the status directory from each.
+    Checks:
+
+    - every channel key in each snapshot exists in the channel map (when available);
+    - Ge detector entries have non-empty ``usability`` (one of ``on``, ``off``, ``ac``),
+      boolean ``processable``, non-empty ``reason`` when ``usability != on``,
+      and a ``psd/status`` dict whose values are one of ``present``, ``valid``, ``missing``;
+    - SiPM entries have ``usability`` and boolean ``processable``.
     """
     parser = argparse.ArgumentParser(
         prog="validate-statuses", description="Validate LEGEND status files"
@@ -1485,8 +1507,16 @@ def _validate_groupings_file(
 def validate_cal_groupings() -> None:
     """Validate LEGEND calibration groupings files.
 
-    Invoked in CLI. Expects run_override.yaml and runinfo.yaml to be in the
-    same directory as each groupings file.
+    Invoked in CLI. Expects ``run_override.yaml`` and ``runinfo.yaml`` to be in
+    the same directory as each groupings file. Checks:
+
+    - ``default`` key is present and comes first;
+    - non-default top-level keys are lexicographically sorted;
+    - group names match ``calgroupNNNx`` (e.g. ``calgroup001a``);
+    - period names match ``pNN`` (e.g. ``p03``), sorted lexicographically;
+    - run specifications are ``rNNN`` or ``rNNN..rNNN``, sorted within each period;
+    - non-default entries do not redundantly replicate the corresponding default;
+    - no run whose calibration falls inside a ``run_override`` window appears in the file.
     """
     parser = argparse.ArgumentParser(
         prog="validate-cal-groupings",
@@ -1535,7 +1565,14 @@ def validate_cal_groupings() -> None:
 def validate_phy_groupings() -> None:
     """Validate LEGEND physics groupings files.
 
-    Invoked in CLI.
+    Invoked in CLI. Checks:
+
+    - ``default`` key is present and comes first;
+    - non-default top-level keys are lexicographically sorted;
+    - group names match ``phygroupNNNx`` (e.g. ``phygroup001a``);
+    - period names match ``pNN`` (e.g. ``p03``), sorted lexicographically;
+    - run specifications are ``rNNN`` or ``rNNN..rNNN``, sorted within each period;
+    - non-default entries do not redundantly replicate the corresponding default.
     """
     parser = argparse.ArgumentParser(
         prog="validate-phy-groupings",
@@ -1616,11 +1653,28 @@ def validate_dataflow_config() -> None:
     """Validate LEGEND dataflow configuration files.
 
     Invoked in CLI. Accepts validity files, tier/hit config files, DSP proc
-    chain files, and tier/evt config files. Validity files trigger a full
-    database path check plus a scan of the sibling tier/hit, tier/dsp, and
-    tier/evt directories. Individual config files are validated (and optionally
-    fixed) directly. Validity files additionally trigger merged evt config group
-    validation (cross-field reference and output completeness checks).
+    chain files, and tier/evt config files.
+
+    When given a validity file the hook loads the full config database for
+    every (timestamp, category) pair and additionally scans the sibling
+    ``tier/hit``, ``tier/dsp``, and ``tier/evt`` directories. Checks:
+
+    - all concrete path strings in the resolved state exist on disk;
+    - hit config: top-level key order ``outputs → operations → aggregations``;
+      ``operations`` entries are dicts with optional ``description`` / ``parameters``
+      / ``lgdo_attrs`` and required ``expression`` string;
+      ``aggregations`` entries map ``bitN`` keys to expression strings;
+    - DSP proc chain: top-level key order ``outputs → processors``;
+      ``processors`` entries are dicts with known keys in canonical order;
+    - evt config (per-file): top-level key order ``channels → outputs → operations``;
+      ``channels`` values are channel-ID strings or dicts with a ``system`` key;
+      ``outputs`` is a list of non-private strings;
+      ``operations`` entries are dicts (or ``null``) with known keys, string values
+      where required, and no invalid underscore runs (only ``_`` or ``___`` allowed)
+      in operation names;
+    - evt config (merged group): all ``evt.X`` cross-references resolve to a defined
+      operation; private operations do not appear in outputs; every output maps to a
+      defined non-private operation; every non-private operation appears in outputs.
     """
     parser = argparse.ArgumentParser(
         prog="validate-dataflow-config",
