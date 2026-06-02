@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import re
 import sys
 from importlib import resources
@@ -268,7 +269,10 @@ def len_nested(d: dict) -> int:
 
 
 def _find_unreferenced_files(
-    validity_file: str, referenced: set[str], verbose: bool = True
+    validity_file: str,
+    referenced: set[str],
+    exclude: list[str] | None = None,
+    verbose: bool = True,
 ) -> list[str]:
     """Find YAML/JSON data files not referenced in the validity file.
 
@@ -279,6 +283,10 @@ def _find_unreferenced_files(
     referenced
         Set of file paths (relative to the validity file's directory) that
         are referenced in the validity file's ``apply`` entries.
+    exclude
+        List of glob patterns (relative to the validity file's directory)
+        to exclude from the unreferenced-file check. Dotfiles and files
+        inside hidden directories are always excluded.
     verbose
         If True, print error messages.
 
@@ -288,6 +296,7 @@ def _find_unreferenced_files(
         Relative paths of unreferenced data files.
     """
     parent = Path(validity_file).parent
+    exclude = exclude or []
     unreferenced = []
 
     for data_file in sorted(parent.rglob("*")):
@@ -300,6 +309,19 @@ def _find_unreferenced_files(
 
         rel = data_file.relative_to(parent)
 
+        # skip dotfiles and files inside hidden directories
+        if any(part.startswith(".") for part in rel.parts):
+            continue
+
+        rel_str = str(rel)
+
+        if any(
+            fnmatch.fnmatch(rel_str, pat)
+            or any(fnmatch.fnmatch(str(p), pat) for p in rel.parents if p != Path())
+            for pat in exclude
+        ):
+            continue
+
         # skip files in subdirectories that have their own validity.yaml
         skip = False
         for p in rel.parents:
@@ -309,7 +331,6 @@ def _find_unreferenced_files(
         if skip:
             continue
 
-        rel_str = str(rel)
         if rel_str not in referenced:
             unreferenced.append(rel_str)
             if verbose:
@@ -333,6 +354,14 @@ def validate_validity():
         prog="validate-validity", description="Validate LEGEND validity files"
     )
     parser.add_argument("files", nargs="+", help="validity files")
+    parser.add_argument(
+        "--exclude",
+        action="append",
+        default=[],
+        metavar="PATTERN",
+        help="glob pattern (relative to the validity file directory) to exclude"
+        " from the unreferenced-file check; may be repeated",
+    )
     args = parser.parse_args()
 
     valid = True
@@ -353,7 +382,7 @@ def validate_validity():
                     valid = False
 
         # check for files not referenced in validity
-        if _find_unreferenced_files(file, referenced_files):
+        if _find_unreferenced_files(file, referenced_files, exclude=args.exclude):
             valid = False
 
     if not valid:
