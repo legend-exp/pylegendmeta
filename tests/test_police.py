@@ -1483,7 +1483,7 @@ def test_validate_evt_config_wrong_top_order(tmp_path):
 def test_validate_evt_config_outputs_private_item(tmp_path):
     data = {"outputs": ["_internal"], "operations": {"_internal": {"expression": "x"}}}
     f = _write_evt(tmp_path, "evt_config.yaml", data)
-    assert not police._validate_evt_config_file(f, verbose=False)
+    assert police._validate_evt_config_file(f, verbose=False)
 
 
 def test_validate_evt_config_unexpected_op_key(tmp_path):
@@ -1651,7 +1651,7 @@ def test_evt_group_private_in_outputs(tmp_path):
             )
         ],
     )
-    assert not police._validate_evt_config_group(
+    assert police._validate_evt_config_group(
         files, "20230101T000000Z", "all", verbose=False
     )
 
@@ -1859,3 +1859,36 @@ def test_fix_evt_config_file_multiline_string_preserved(tmp_path):
     raw = Path(f).read_text()
     assert "\\n" not in raw
     assert yaml.safe_load(raw) == yaml.safe_load(yaml.dump(unsorted))
+
+
+# ---------------------------------------------------------------------------
+# validate_dataflow_config: evt_config direct path
+# ---------------------------------------------------------------------------
+
+
+def test_validate_dataflow_config_evt_direct_no_group_check(tmp_path, monkeypatch):
+    """Passing an evt_config directly must not run the single-file group check.
+
+    An overlay file that references operations defined in another file should
+    pass when no validity.yaml exists in the parent hierarchy (only the
+    structural per-file check runs).
+    """
+    evt_dir = tmp_path / "tier" / "evt"
+    evt_dir.mkdir(parents=True)
+    overlay = evt_dir / "foo-evt_config.yaml"
+    # Cross-file reference: evt._base_tcm_idx is defined in a sibling file,
+    # not in this overlay.  The old direct group check would flag this.
+    data = {
+        "operations": {
+            "energy": {
+                "aggregation_mode": "keep_at_idx:evt._base_tcm_idx",
+                "expression": "hit.energy",
+            },
+        }
+    }
+    with overlay.open("w") as fh:
+        yaml.dump(data, fh, default_flow_style=False, sort_keys=False)
+
+    monkeypatch.setattr(sys, "argv", ["validate-dataflow-config", str(overlay)])
+    # Must not raise SystemExit(1); structural check passes, no group check.
+    police.validate_dataflow_config()

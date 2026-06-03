@@ -718,15 +718,6 @@ def _validate_evt_config_file(file: str, verbose: bool = True) -> bool:
             if verbose:
                 print(f"ERROR: '{file}': 'outputs' must be a list of strings")  # noqa: T201
             valid = False
-        elif isinstance(outputs, list):
-            for out in outputs:
-                if isinstance(out, str) and out.startswith("_"):
-                    if verbose:
-                        print(  # noqa: T201
-                            f"ERROR: '{file}': private operation '{out}'"
-                            " must not appear in 'outputs'"
-                        )
-                    valid = False
 
     if "operations" in data:
         ops = data["operations"]
@@ -864,9 +855,8 @@ def _validate_evt_config_group(
     """Validate a merged group of evt config files for a given timestamp/category.
 
     Checks that all ``evt.X`` references are defined in the merged operation set,
-    private operations do not appear in outputs, all outputs are defined non-private
-    operations, and all non-private operations appear in outputs (when any outputs
-    are present).
+    all outputs (including private ones) are defined operations, and all non-private
+    operations appear in outputs (when any outputs are present).
     """
     _, merged_outputs, merged_ops = _merge_evt_configs(files)
     valid = True
@@ -885,18 +875,9 @@ def _validate_evt_config_group(
                         )
                     valid = False
 
-    for out in merged_outputs:
-        if out.startswith("_"):
-            if verbose:
-                print(  # noqa: T201
-                    f"ERROR: at '{ts}' (category '{cat}'):"
-                    f" private operation '{out}' must not appear in outputs"
-                )
-            valid = False
-
     if outputs_set:
         for out in merged_outputs:
-            if not out.startswith("_") and out not in all_op_names:
+            if out not in all_op_names:
                 if verbose:
                     print(  # noqa: T201
                         f"ERROR: at '{ts}' (category '{cat}'):"
@@ -1734,6 +1715,12 @@ def validate_dataflow_config() -> None:
     Invoked in CLI. Accepts validity files, tier/hit config files, DSP proc
     chain files, and tier/evt config files.
 
+    For evt config files the hook always resolves the associated
+    ``validity.yaml`` (by walking up the directory tree) and performs the
+    merged-group validation from there.  This ensures that cross-file
+    ``evt.X`` references are checked in the correct overlay context rather
+    than against a single file in isolation.
+
     When given a validity file the hook loads the full config database for
     every (timestamp, category) pair and additionally scans the sibling
     ``tier/hit``, ``tier/dsp``, and ``tier/evt`` directories. Checks:
@@ -1752,8 +1739,8 @@ def validate_dataflow_config() -> None:
       where required, and no invalid underscore runs (only ``_`` or ``___`` allowed)
       in operation names;
     - evt config (merged group): all ``evt.X`` cross-references resolve to a defined
-      operation; private operations do not appear in outputs; every output maps to a
-      defined non-private operation; every non-private operation appears in outputs.
+      operation; every output (including private ones) maps to a defined operation;
+      every non-private operation appears in outputs.
     """
     parser = argparse.ArgumentParser(
         prog="validate-dataflow-config",
@@ -1773,98 +1760,120 @@ def validate_dataflow_config() -> None:
 
     modified = False
     valid = True
+
+    # Collect validity files to process: those passed directly plus any
+    # discovered by walking up from evt_config file paths.  Using an ordered
+    # dict preserves the original argument order while deduplicating.
+    validity_files: dict[str, None] = {}
+    other_files: list[str] = []
+
     for f in args.files:
         name = Path(f).name
         if name.startswith("validity."):
-            d = Path(f).parent
-            db = TextDB(d)
+            validity_files[str(Path(f).resolve())] = None
+        else:
+            other_files.append(f)
+            if "evt_config" in name:
+                for parent in Path(f).resolve().parents:
+                    for vname in ("validity.yaml", "validity.json"):
+                        vf = parent / vname
+                        if vf.is_file():
+                            validity_files[str(vf)] = None
+                            break
+                    else:
+                        continue
+                    break
 
-            valid_dic = Props.read_from(f)
+    for vf in validity_files:
+        d = Path(vf).parent
+        db = TextDB(d)
 
-            seen: set[tuple[str, str]] = set()
-            for dic in valid_dic:
-                ts = str(dic["valid_from"])
-                categories = dic.get("category", "all") or "all"
-                if isinstance(categories, str):
-                    categories = [categories]
-                for cat in categories:
-                    seen.add((ts, str(cat)))
+        valid_dic = Props.read_from(vf)
 
-            seen_evt_groups: set[tuple] = set()
-            all_evt_files: set[str] = set()
+        seen: set[tuple[str, str]] = set()
+        for dic in valid_dic:
+            ts = str(dic["valid_from"])
+            categories = dic.get("category", "all") or "all"
+            if isinstance(categories, str):
+                categories = [categories]
+            for cat in categories:
+                seen.add((ts, str(cat)))
 
-            for ts, cat in sorted(seen):
-                try:
-                    state = db.on(ts, system=cat)
-                except Exception as e:
-                    print(  # noqa: T201
-                        f"ERROR: could not load dataflow config at '{ts}'"
-                        f" (category '{cat}'): {e}"
-                    )
-                    valid = False
-                    continue
+        seen_evt_groups: set[tuple] = set()
+        all_evt_files: set[str] = set()
 
-                valid &= _check_dataflow_config_paths(state, d, ts, cat)
-
-                tier_evt_inputs = (
-                    state.get("snakemake_rules", {})
-                    .get("tier_evt", {})
-                    .get("inputs", {})
+        for ts, cat in sorted(seen):
+            try:
+                state = db.on(ts, system=cat)
+            except Exception as e:
+                print(  # noqa: T201
+                    f"ERROR: could not load dataflow config at '{ts}'"
+                    f" (category '{cat}'): {e}"
                 )
-                if isinstance(tier_evt_inputs, dict):
-                    evt_raw = tier_evt_inputs.get("evt_config")
-                    if isinstance(evt_raw, list):
-                        evt_files = [
-                            fp
-                            for fp in evt_raw
-                            if isinstance(fp, str) and "evt_config" in Path(fp).name
-                        ]
-                        all_evt_files.update(evt_files)
-                        gkey = tuple(evt_files)
-                        if evt_files and gkey not in seen_evt_groups:
+                valid = False
+                continue
+
+            valid &= _check_dataflow_config_paths(state, d, ts, cat)
+
+            tier_evt_inputs = (
+                state.get("snakemake_rules", {}).get("tier_evt", {}).get("inputs", {})
+            )
+            if isinstance(tier_evt_inputs, dict):
+                evt_raw = tier_evt_inputs.get("evt_config")
+                if isinstance(evt_raw, list):
+                    evt_files = [
+                        fp
+                        for fp in evt_raw
+                        if isinstance(fp, str) and "evt_config" in Path(fp).name
+                    ]
+                    all_evt_files.update(evt_files)
+                    gkey = tuple(evt_files)
+                    if evt_files and gkey not in seen_evt_groups:
+                        seen_evt_groups.add(gkey)
+                        valid &= _validate_evt_config_group(evt_files, ts, cat)
+
+                muon_raw = tier_evt_inputs.get("muon_config")
+                if isinstance(muon_raw, dict):
+                    muon_evt = muon_raw.get("evt_config")
+                    if (
+                        isinstance(muon_evt, str)
+                        and "evt_config" in Path(muon_evt).name
+                    ):
+                        all_evt_files.add(muon_evt)
+                        gkey = (muon_evt,)
+                        if gkey not in seen_evt_groups:
                             seen_evt_groups.add(gkey)
-                            valid &= _validate_evt_config_group(evt_files, ts, cat)
+                            valid &= _validate_evt_config_group([muon_evt], ts, cat)
 
-                    muon_raw = tier_evt_inputs.get("muon_config")
-                    if isinstance(muon_raw, dict):
-                        muon_evt = muon_raw.get("evt_config")
-                        if (
-                            isinstance(muon_evt, str)
-                            and "evt_config" in Path(muon_evt).name
-                        ):
-                            all_evt_files.add(muon_evt)
-                            gkey = (muon_evt,)
-                            if gkey not in seen_evt_groups:
-                                seen_evt_groups.add(gkey)
-                                valid &= _validate_evt_config_group([muon_evt], ts, cat)
+        hit_dir = d / "tier" / "hit"
+        if hit_dir.is_dir():
+            for hit_file in sorted(hit_dir.glob("*.yaml")):
+                if args.fix:
+                    modified |= _fix_hit_config_file(str(hit_file))
+                valid &= _validate_hit_config_file(str(hit_file))
 
-            hit_dir = d / "tier" / "hit"
-            if hit_dir.is_dir():
-                for hit_file in sorted(hit_dir.glob("*.yaml")):
-                    if args.fix:
-                        modified |= _fix_hit_config_file(str(hit_file))
-                    valid &= _validate_hit_config_file(str(hit_file))
+        dsp_dir = d / "tier" / "dsp"
+        if dsp_dir.is_dir():
+            for dsp_file in sorted(dsp_dir.glob("*proc_chain*.yaml")):
+                if args.fix:
+                    modified |= _fix_dsp_proc_chain_file(str(dsp_file))
+                valid &= _validate_dsp_proc_chain_file(str(dsp_file))
 
-            dsp_dir = d / "tier" / "dsp"
-            if dsp_dir.is_dir():
-                for dsp_file in sorted(dsp_dir.glob("*proc_chain*.yaml")):
-                    if args.fix:
-                        modified |= _fix_dsp_proc_chain_file(str(dsp_file))
-                    valid &= _validate_dsp_proc_chain_file(str(dsp_file))
+        # Validate all evt config files discovered via state, plus any in
+        # tier/evt/ that weren't referenced (structural check only).
+        evt_dir = d / "tier" / "evt"
+        if evt_dir.is_dir():
+            for evt_file in sorted(evt_dir.glob("*evt_config*.yaml")):
+                all_evt_files.add(str(evt_file))
+        for evt_f in sorted(all_evt_files):
+            if Path(evt_f).is_file():
+                if args.fix:
+                    modified |= _fix_evt_config_file(evt_f)
+                valid &= _validate_evt_config_file(evt_f)
 
-            # Validate all evt config files discovered via state, plus any in
-            # tier/evt/ that weren't referenced (structural check only).
-            evt_dir = d / "tier" / "evt"
-            if evt_dir.is_dir():
-                for evt_file in sorted(evt_dir.glob("*evt_config*.yaml")):
-                    all_evt_files.add(str(evt_file))
-            for evt_f in sorted(all_evt_files):
-                if Path(evt_f).is_file():
-                    if args.fix:
-                        modified |= _fix_evt_config_file(evt_f)
-                    valid &= _validate_evt_config_file(evt_f)
-
-        elif "hit_config" in name:
+    for f in other_files:
+        name = Path(f).name
+        if "hit_config" in name:
             if args.fix:
                 modified |= _fix_hit_config_file(f)
             valid &= _validate_hit_config_file(f)
@@ -1878,7 +1887,8 @@ def validate_dataflow_config() -> None:
             if args.fix:
                 modified |= _fix_evt_config_file(f)
             valid &= _validate_evt_config_file(f)
-            valid &= _validate_evt_config_group([f], f, "direct")
+            # Merged-group check was already handled above via the associated
+            # validity file; no direct single-file group check here.
 
     if modified or not valid:
         sys.exit(1)
