@@ -7,6 +7,7 @@ import sqlalchemy as sql
 from dbetto import AttrsDict
 
 from legendmeta import LegendMetadata, LegendSlowControlDB
+from legendmeta.scdb_tables import HeadLdoSnap
 from legendmeta.slowcontrol import DiodeSnap
 
 pytestmark = [
@@ -36,6 +37,14 @@ def test_select(scdb):
     session.close()
 
 
+def test_select_head_ldo(scdb):
+    session = scdb.make_session()
+    query = sql.select(HeadLdoSnap).limit(10)
+    result = session.execute(query).all()
+    assert len(result) == 10
+    session.close()
+
+
 def test_str_table_pandas(scdb):
     data = scdb.dataframe("diode_snap_last")
     assert len(data) > 0
@@ -59,12 +68,30 @@ def test_status(scdb):
     assert isinstance(status, AttrsDict)
     assert "vmon" in status
     assert "vset" in status
+    assert "cc4" in status
+    for rail in ("vb", "vb1", "vb2", "vcc", "vcc1", "vee", "vee1", "vfet"):
+        assert rail in status.cc4
+        assert isinstance(status.cc4[rail], float)
 
     channel = chmap.S002
     status = scdb.status(channel)
     assert isinstance(status, AttrsDict)
     assert "vmon" in status
     assert "vset" in status
+
+    # LDO rails are also available for aux channels with a buffer card
+    channel = next(
+        v
+        for v in chmap.values()
+        if getattr(v, "system", None) == "auxs"
+        and "buffer_card" in v.get("electronics", {})
+    )
+    status = scdb.status(channel)
+    assert isinstance(status, AttrsDict)
+    assert "cc4" in status
+    for rail in ("vb", "vb1", "vb2", "vcc", "vcc1", "vee", "vee1", "vfet"):
+        assert rail in status.cc4
+        assert isinstance(status.cc4[rail], float)
 
 
 def test_pickle_legend_slowcontrol_db_roundtrip(scdb):
