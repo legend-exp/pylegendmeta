@@ -141,14 +141,16 @@ class Tables:
                         f"run {row['run']} ({row['datatype']}): daq={e.get('daq')!r}"
                     )
                     raise ValueError(msg)
-                by_system.setdefault(e["system"], []).append({
-                    **e,
-                    "name": name,
-                    "period": row["period"],
-                    "run": row["run"],
-                    "datatype": row["datatype"],
-                    "rawid": rawid,
-                })
+                by_system.setdefault(e["system"], []).append(
+                    {
+                        **e,
+                        "name": name,
+                        "period": row["period"],
+                        "run": row["run"],
+                        "datatype": row["datatype"],
+                        "rawid": rawid,
+                    }
+                )
 
         return AttrsDict(
             {
