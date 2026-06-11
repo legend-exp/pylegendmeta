@@ -18,7 +18,6 @@ from __future__ import annotations
 import logging
 from copy import deepcopy
 from datetime import datetime
-from functools import cached_property
 
 from dbetto import AttrsDict
 from packaging.version import Version
@@ -143,10 +142,3 @@ class LegendMetadata(MetadataRepository):
 
         chmap.__readonly__ = True
         return chmap
-
-    @cached_property
-    def tables(self):
-        """Tabular views over the metadata. See :class:`legendmeta.tables.Tables`."""
-        from .tables import Tables
-
-        return Tables(self)

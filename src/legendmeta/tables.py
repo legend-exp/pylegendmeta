@@ -67,7 +67,13 @@ class Tables:
     ``statuses``, ``channelmaps``) are concatenated across all known
     periods/runs.
 
-    Accessed via ``LegendMetadata.tables``.
+    Examples
+    --------
+    >>> from legendmeta import LegendMetadata
+    >>> from legendmeta.tables import Tables
+    >>> lmeta = LegendMetadata()
+    >>> tables = Tables(lmeta)
+    >>> tables.runinfo
     """
 
     def __init__(self, lmeta):
@@ -116,27 +122,33 @@ class Tables:
 
     @cached_property
     def channelmaps(self) -> AttrsDict:
-        """Per-system channelmap DataFrames, accessible by attribute or key."""
+        """Per-system channelmap DataFrames, accessible by attribute or key.
 
-        # Within a period, channelmap is invariant by convention.
-        # Sample at each period's first run; do NOT sample per-run.
-        period_ts = self.runinfo.group_by("period").agg(pl.col("start_key").min())
-
+        Channel maps are NOT guaranteed constant within a period (e.g. in p18
+        the SiPM DAQ mapping changed between the cal and phy runs of r000), so
+        rows are keyed on ``(period, run, datatype)`` — one channel map per
+        ``runinfo`` row, resolved at that row's ``start_key``, exactly like
+        :attr:`statuses`.
+        """
         by_system: dict[str, list[dict]] = {}
-        for row in period_ts.iter_rows(named=True):
-            period = row["period"]
+        for row in self.runinfo.iter_rows(named=True):
             chmap = self._lmeta.hardware.configuration.channelmaps.on(row["start_key"])
             for name, e in chmap.items():
                 rawid = e.get("daq", {}).get("rawid")
                 if rawid is None:
                     msg = (
-                        f"missing rawid for {name} in period {period}: "
-                        f"daq={e.get('daq')!r}"
+                        f"missing rawid for {name} in period {row['period']} "
+                        f"run {row['run']} ({row['datatype']}): daq={e.get('daq')!r}"
                     )
                     raise ValueError(msg)
-                by_system.setdefault(e["system"], []).append(
-                    {**e, "name": name, "period": period, "rawid": rawid}
-                )
+                by_system.setdefault(e["system"], []).append({
+                    **e,
+                    "name": name,
+                    "period": row["period"],
+                    "run": row["run"],
+                    "datatype": row["datatype"],
+                    "rawid": rawid,
+                })
 
         return AttrsDict(
             {
