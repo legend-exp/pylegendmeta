@@ -58,7 +58,7 @@ def test_runlists(metadb):
     assert len(df) > 0
     assert {"runlist", "period", "run", "datatype"}.issubset(df.columns)
 
-    # ranges are expanded: p03 cal "valid" covers r000..r005 -> 6 rows
+    # single inclusive range expands fully: p03 cal "valid" -> r000..r005
     valid_p03_cal = df.filter(
         (pl.col("runlist") == "valid")
         & (pl.col("period") == 3)
@@ -66,18 +66,30 @@ def test_runlists(metadb):
     )
     assert set(valid_p03_cal["run"].to_list()) == {0, 1, 2, 3, 4, 5}
 
-    # runlist rows reference real runinfo rows
+    # multiple ranges concatenate and gaps are preserved: p08 phy "valid"
+    # is "r000..r004" + "r006..r014", so r005 is excluded
+    valid_p08_phy = df.filter(
+        (pl.col("runlist") == "valid")
+        & (pl.col("period") == 8)
+        & (pl.col("datatype") == "phy")
+    )
+    assert set(valid_p08_phy["run"].to_list()) == {0, 1, 2, 3, 4, *range(6, 15)}
+
+    # expansion/flattening never double-counts a run
+    assert df.is_duplicated().sum() == 0
+
+    # runlist keys mostly resolve to real runinfo rows; a few upstream
+    # entries legitimately have no runinfo row (e.g. a phy run listed where
+    # runinfo only records cal), but a key-parsing bug would flip this ratio
     runinfo_keys = (
         LegendMetadataTables(metadb)
         .runinfo.select("period", "run", "datatype")
         .unique()
     )
-    joined = (
-        df.select("period", "run", "datatype")
-        .unique()
-        .join(runinfo_keys, on=["period", "run", "datatype"], how="inner")
-    )
-    assert joined.height > 0
+    runlist_keys = df.select("period", "run", "datatype").unique()
+    matched = runlist_keys.join(runinfo_keys, on=["period", "run", "datatype"])
+    orphans = runlist_keys.join(runinfo_keys, on=["period", "run", "datatype"], how="anti")
+    assert matched.height > orphans.height
 
 
 def test_ignored_daq_cycles(metadb):
