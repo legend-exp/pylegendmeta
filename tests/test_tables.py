@@ -88,7 +88,9 @@ def test_runlists(metadb):
     )
     runlist_keys = df.select("period", "run", "datatype").unique()
     matched = runlist_keys.join(runinfo_keys, on=["period", "run", "datatype"])
-    orphans = runlist_keys.join(runinfo_keys, on=["period", "run", "datatype"], how="anti")
+    orphans = runlist_keys.join(
+        runinfo_keys, on=["period", "run", "datatype"], how="anti"
+    )
     assert matched.height > orphans.height
 
 
