@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import re
 import warnings
 from functools import cached_property
 
 import polars as pl
 from dbetto import AttrsDict, TextDB
+
+from .utils import expand_runs
 
 
 def _resolve_runinfo(lmeta):
@@ -47,18 +50,6 @@ def _textdb_to_df(db) -> pl.DataFrame:
     return pl.from_dicts(file_items, strict=False, infer_schema_length=None)
 
 
-def _expand_run_spec(spec: str) -> list[int]:
-    """Expand a ``runlists.yaml`` entry into integer run numbers.
-
-    Each entry is either a single run (``"r000"``) or an inclusive range
-    (``"r000..r005"``, expanding to ``[0, 1, 2, 3, 4, 5]``).
-    """
-    if ".." in spec:
-        lo, hi = spec.split("..")
-        return list(range(int(lo.removeprefix("r")), int(hi.removeprefix("r")) + 1))
-    return [int(spec.removeprefix("r"))]
-
-
 def _parse_cycle_key(key: str) -> dict:
     """Split a DAQ cycle key into its component fields.
 
@@ -66,7 +57,7 @@ def _parse_cycle_key(key: str) -> dict:
     string is preserved under ``key`` and ``period``/``run`` are returned as
     integers so the row joins on the :attr:`LegendMetadataTables.runinfo` key columns.
     """
-    experiment, period, run, datatype, timestamp = key.split("-")
+    experiment, period, run, datatype, timestamp = re.split(r"\W+", key)
     return {
         "key": key,
         "experiment": experiment,
@@ -145,14 +136,13 @@ class LegendMetadataTables:
                 {
                     "runlist": listname,
                     "period": int(p.removeprefix("p")),
-                    "run": run,
+                    "run": int(run.removeprefix("r")),
                     "datatype": dt,
                 }
                 for listname, by_datatype in _runlists.items()
                 for dt, by_period in by_datatype.items()
                 for p, specs in by_period.items()
-                for spec in specs
-                for run in _expand_run_spec(spec)
+                for run in expand_runs(specs)
             ],
             strict=False,
             infer_schema_length=None,
