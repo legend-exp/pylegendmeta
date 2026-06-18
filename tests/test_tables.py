@@ -67,9 +67,15 @@ def test_runlists(metadb):
     assert set(valid_p03_cal["run"].to_list()) == {0, 1, 2, 3, 4, 5}
 
     # runlist rows reference real runinfo rows
-    runinfo_keys = LegendMetadataTables(metadb).runinfo.select("period", "run", "datatype").unique()
-    joined = df.select("period", "run", "datatype").unique().join(
-        runinfo_keys, on=["period", "run", "datatype"], how="inner"
+    runinfo_keys = (
+        LegendMetadataTables(metadb)
+        .runinfo.select("period", "run", "datatype")
+        .unique()
+    )
+    joined = (
+        df.select("period", "run", "datatype")
+        .unique()
+        .join(runinfo_keys, on=["period", "run", "datatype"], how="inner")
     )
     assert joined.height > 0
 
