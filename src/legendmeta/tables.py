@@ -165,10 +165,10 @@ class LegendMetadataTables:
         ``ignored_daq_cycles.yaml`` lists cycle keys under a few categories
         (``unprocessable``, ``removed``). Each key
         (``l200-p02-r008-cal-20230111T203016Z``) is split into its
-        ``(experiment, period, run, datatype, timestamp)`` fields — with the
-        raw string kept as ``key`` and the category as ``category`` — so the
-        table joins on the :attr:`runinfo` key columns (e.g. anti-join to drop
-        ignored runs). Note the per-entry reasons live in YAML comments and so
+        ``(experiment, period, run, datatype, timestamp)`` fields, with the
+        raw string kept as ``key`` and the category as ``category``. Rows are
+        at cycle granularity (one per ``timestamp``), finer than
+        :attr:`runinfo`. The per-entry reasons live in YAML comments and so
         are not recoverable here.
         """
         _ignored = self._lmeta.datasets.ignored_daq_cycles
