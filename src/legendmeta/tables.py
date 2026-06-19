@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import re
 import warnings
 from functools import cached_property
 
 import polars as pl
 from dbetto import AttrsDict, TextDB
+
+from .utils import expand_runs
 
 
 def _resolve_runinfo(lmeta):
@@ -47,6 +50,24 @@ def _textdb_to_df(db) -> pl.DataFrame:
     return pl.from_dicts(file_items, strict=False, infer_schema_length=None)
 
 
+def _parse_cycle_key(key: str) -> dict:
+    """Split a DAQ cycle key into its component fields.
+
+    Keys look like ``l200-p02-r008-cal-20230111T203016Z``; the original
+    string is preserved under ``key`` and ``period``/``run`` are returned as
+    integers so the row joins on the :attr:`LegendMetadataTables.runinfo` key columns.
+    """
+    experiment, period, run, datatype, timestamp = re.split(r"\W+", key)
+    return {
+        "key": key,
+        "experiment": experiment,
+        "period": int(period.removeprefix("p")),
+        "run": int(run.removeprefix("r")),
+        "datatype": datatype,
+        "timestamp": timestamp,
+    }
+
+
 def _stringify_keys(obj):
     """Recursively coerce dict keys to strings.
 
@@ -59,7 +80,7 @@ def _stringify_keys(obj):
     return obj
 
 
-class Tables:
+class LegendMetadataTables:
     """Polars DataFrame views over LEGEND metadata.
 
     Materializes and caches the dict-of-dict metadata structures into tabular
@@ -70,9 +91,9 @@ class Tables:
     Examples
     --------
     >>> from legendmeta import LegendMetadata
-    >>> from legendmeta.tables import Tables
+    >>> from legendmeta.tables import LegendMetadataTables
     >>> lmeta = LegendMetadata()
-    >>> tables = Tables(lmeta)
+    >>> tables = LegendMetadataTables(lmeta)
     >>> tables.runinfo
     """
 
@@ -93,6 +114,59 @@ class Tables:
                 for p, runs in _runinfo.items()
                 for r, datatypes in runs.items()
                 for dt, info in datatypes.items()
+            ],
+            strict=False,
+            infer_schema_length=None,
+        )
+
+    @cached_property
+    def runlists(self) -> pl.DataFrame:
+        """Named run selections (``valid``, ``0vbb``, ...) in long form.
+
+        ``runlists.yaml`` nests each named list as
+        ``{datatype: {period: [run specs]}}``, where a spec is a single run
+        (``"r000"``) or an inclusive range (``"r000..r005"``). This flattens
+        and expands those into one row per ``(runlist, period, run,
+        datatype)``, matching the :attr:`runinfo` key columns so the two
+        join directly (e.g. semi-join ``runinfo`` to keep only valid runs).
+        """
+        _runlists = self._lmeta.datasets.runlists
+        return pl.from_dicts(
+            [
+                {
+                    "runlist": listname,
+                    "period": int(p.removeprefix("p")),
+                    "run": int(run.removeprefix("r")),
+                    "datatype": dt,
+                }
+                for listname, by_datatype in _runlists.items()
+                for dt, by_period in by_datatype.items()
+                for p, specs in by_period.items()
+                for run in expand_runs(specs)
+            ],
+            strict=False,
+            infer_schema_length=None,
+        )
+
+    @cached_property
+    def ignored_daq_cycles(self) -> pl.DataFrame:
+        """DAQ cycles excluded from processing, in long form.
+
+        ``ignored_daq_cycles.yaml`` lists cycle keys under a few categories
+        (``unprocessable``, ``removed``). Each key
+        (``l200-p02-r008-cal-20230111T203016Z``) is split into its
+        ``(experiment, period, run, datatype, timestamp)`` fields, with the
+        raw string kept as ``key`` and the category as ``category``. Rows are
+        at cycle granularity (one per ``timestamp``), finer than
+        :attr:`runinfo`. The per-entry reasons live in YAML comments and so
+        are not recoverable here.
+        """
+        _ignored = self._lmeta.datasets.ignored_daq_cycles
+        return pl.from_dicts(
+            [
+                {"category": category, **_parse_cycle_key(key)}
+                for category, keys in _ignored.items()
+                for key in keys
             ],
             strict=False,
             infer_schema_length=None,
