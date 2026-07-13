@@ -119,12 +119,17 @@ def test_channelmap(metadb):
     assert hasattr(channel, "geometry")
     assert "analysis" in channel
 
-    channel = metadb.channelmap(on=date, system="cal").V02160A
+    channel = metadb.channelmap(on=date, category="cal").V02160A
+    assert "analysis" in channel
+
+    # the deprecated 'system' alias must still work
+    with pytest.warns(DeprecationWarning, match="'system' argument is deprecated"):
+        channel = metadb.channelmap(on=date, system="cal").V02160A
     assert "analysis" in channel
 
     metadb.checkout("8c311d5")
     metadb.scan()
-    channel = metadb.channelmap(on=date, system="cal").V02160A
+    channel = metadb.channelmap(on=date, category="cal").V02160A
     assert "analysis" in channel
 
 

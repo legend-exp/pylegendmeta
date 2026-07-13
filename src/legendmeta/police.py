@@ -111,8 +111,8 @@ def validate_legend_channel_map() -> bool:
             validity = yaml.safe_load(f)
             for line in validity():
                 ts = line["valid_from"]
-                sy = line["apply"]
-                chmap = db.on(ts, system=sy)
+                cat = line["apply"]
+                chmap = db.on(ts, category=cat)
 
                 for k, v in chmap.items():
                     if "system" not in v:
@@ -324,7 +324,7 @@ def _find_unreferenced_files(
     db = TextDB(parent)
     for ts, cat in seen:
         try:
-            state = db.on(ts, system=cat)
+            state = db.on(ts, category=cat)
             for value in _iter_string_values(state):
                 if value.startswith(db_dir_str):
                     referenced.add(value[len(db_dir_str) :])
@@ -1804,7 +1804,7 @@ def validate_dataflow_config() -> None:
 
         for ts, cat in sorted(seen):
             try:
-                state = db.on(ts, system=cat)
+                state = db.on(ts, category=cat)
             except Exception as e:
                 print(  # noqa: T201
                     f"ERROR: could not load dataflow config at '{ts}'"
