@@ -141,6 +141,29 @@ def test_channelmaps(metadb):
     assert covered.height == runinfo_keys.height
 
 
+def test_channelmaps_respect_datatype_category(metadb):
+    """Regression test for #149: rows must be resolved with their datatype as
+    the validity category, so datatype-specific overlays are applied."""
+    metadb.scan()
+    tables = LegendMetadataTables(metadb)
+
+    # p03 has a cal-only overlay (l200-p03-r%-T%-cal-config.yaml) setting
+    # PULS01.rate_in_Hz to 0.5; the base config has 0.05
+    puls = tables.channelmaps.puls.filter(
+        (pl.col("period") == 3) & (pl.col("run") == 0) & (pl.col("name") == "PULS01")
+    )
+    rate = dict(zip(puls["datatype"], puls["rate_in_Hz"], strict=True))
+    assert rate["cal"] == 0.5
+    assert rate["phy"] == 0.05
+
+    # and it must agree with a direct category-aware query
+    start = tables.runinfo.filter(
+        (pl.col("period") == 3) & (pl.col("run") == 0) & (pl.col("datatype") == "cal")
+    )["start_key"][0]
+    direct = metadb.hardware.configuration.channelmaps.on(start, category="cal")
+    assert rate["cal"] == direct.PULS01.rate_in_Hz
+
+
 def test_detector_tables(metadb):
     metadb.scan()
     tables = LegendMetadataTables(metadb)

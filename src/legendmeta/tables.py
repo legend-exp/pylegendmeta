@@ -19,13 +19,15 @@ def _resolve_runinfo(lmeta):
 
 
 def _resolve_statuses_on(lmeta):
-    """Return a callable ts -> statuses dict, also handling metadata layout
-    differences."""
+    """Return a callable ``(ts, category) -> statuses dict``, also handling
+    metadata layout differences."""
     try:
         _ = lmeta.datasets.statuses
         return lmeta.datasets.statuses.on
     except (AttributeError, FileNotFoundError):
-        return lambda ts: lmeta.dataprod.config.on(ts).analysis
+        return lambda ts, category="all": (
+            lmeta.dataprod.config.on(ts, category=category).analysis
+        )
 
 
 def _textdb_to_df(db) -> pl.DataFrame:
@@ -174,12 +176,17 @@ class LegendMetadataTables:
 
     @cached_property
     def statuses(self) -> pl.DataFrame:
-        """Per-(period, run, datatype, detector) analysis status DataFrame."""
+        """Per-(period, run, datatype, detector) analysis status DataFrame.
+
+        Each row is resolved at its ``start_key`` with the row's ``datatype``
+        as the validity category, so datatype-specific overlays (e.g. a
+        ``cal``-only file) are applied.
+        """
 
         statuses_on = _resolve_statuses_on(self._lmeta)
         dfs = []
         for row in self.runinfo.iter_rows(named=True):
-            st = statuses_on(row["start_key"])
+            st = statuses_on(row["start_key"], category=row["datatype"])
             df = pl.from_dicts(
                 [{"name": k, **_stringify_keys(v)} for k, v in st.items()],
                 strict=False,
@@ -201,12 +208,15 @@ class LegendMetadataTables:
         Channel maps are NOT guaranteed constant within a period (e.g. in p18
         the SiPM DAQ mapping changed between the cal and phy runs of r000), so
         rows are keyed on ``(period, run, datatype)`` — one channel map per
-        ``runinfo`` row, resolved at that row's ``start_key``, exactly like
-        :attr:`statuses`.
+        ``runinfo`` row, resolved at that row's ``start_key`` with the row's
+        ``datatype`` as the validity category (so e.g. ``cal``-only overlays
+        are applied), exactly like :attr:`statuses`.
         """
         by_system: dict[str, list[dict]] = {}
         for row in self.runinfo.iter_rows(named=True):
-            chmap = self._lmeta.hardware.configuration.channelmaps.on(row["start_key"])
+            chmap = self._lmeta.hardware.configuration.channelmaps.on(
+                row["start_key"], category=row["datatype"]
+            )
             for name, e in chmap.items():
                 rawid = e.get("daq", {}).get("rawid")
                 if rawid is None:
