@@ -85,8 +85,7 @@ class LegendMetadata(MetadataRepository):
             data-taking categories.
         skip_version_check
             if ``True``, skip the git version check and assume the latest
-            metadata structure. This is useful when working with non-git
-            repositories (e.g., test data).
+            metadata structure. Implied by ``METADATA_NO_GIT_REPO``.
 
         Warning
         -------
@@ -126,7 +125,7 @@ class LegendMetadata(MetadataRepository):
         )
 
         # get analysis metadata
-        if skip_version_check:
+        if skip_version_check or self.__no_git_repo__:
             # assume latest structure (post v0.5.9)
             anamap = self.datasets.statuses.on(on, pattern=None, category=category)
         elif self.__closest_tag__ < Version("v0.5.9") or self.__version__ == "v0.5.9":
