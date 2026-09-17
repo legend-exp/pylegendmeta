@@ -125,6 +125,14 @@ def test_non_git_metadata_without_flag():
         meta.channelmap(datetime(2023, 6, 1))
 
 
+def test_non_git_metadata_needs_files(monkeypatch):
+    """With the variable set there is nothing to clone, so an empty directory is an error."""
+    monkeypatch.setenv("METADATA_NO_GIT_REPO", "1")
+
+    with pytest.raises(FileNotFoundError, match="METADATA_NO_GIT_REPO"):
+        LegendMetadata(Path(tempfile.mkdtemp()), lazy=True)
+
+
 def test_non_git_metadata(monkeypatch):
     """METADATA_NO_GIT_REPO reads a plain directory, without the version features."""
     monkeypatch.setenv("METADATA_NO_GIT_REPO", "1")

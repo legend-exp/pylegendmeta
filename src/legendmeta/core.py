@@ -113,6 +113,13 @@ class MetadataRepository(TextDB):
             raise ValueError(msg)
 
         if not self.__repo_path__.exists() or not any(self.__repo_path__.iterdir()):
+            if self.__no_git_repo__:
+                msg = (
+                    f"METADATA_NO_GIT_REPO is set but {self.__repo_path__} is empty, "
+                    "there is nothing to read and nothing to clone into"
+                )
+                raise FileNotFoundError(msg)
+
             msg = f"Cloning {self.__repo_url__} in {self.__repo_path__}..."
             # set logging level as warning (default logging level), so it's
             # always printed and the user knows why it takes so long to initialize
