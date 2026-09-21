@@ -1954,8 +1954,9 @@ def _pair_blocks(runmap: dict) -> dict:
     counters: dict[str, int] = {}
     out: dict = {}
     for pair, runs in ordered:
-        m = re.search(r"(\d{3})", str(pair[0]) or "") or \
-            re.search(r"(\d{3})", str(pair[1]) or "")
+        m = re.search(r"(\d{3})", str(pair[0]) or "") or re.search(
+            r"(\d{3})", str(pair[1]) or ""
+        )
         idx = m.group(1) if m else "000"
         letter = chr(ord("a") + counters.get(idx, 0))
         counters[idx] = counters.get(idx, 0) + 1
@@ -1977,8 +1978,10 @@ def _merge_cal_groupings_data(cal: dict, aspects: dict[str, dict]) -> dict:
     derived_periods = {
         period
         for doc in aspects.values()
-        for block in (doc or {}).values() if isinstance(block, dict)
-        for periods in block.values() if isinstance(periods, dict)
+        for block in (doc or {}).values()
+        if isinstance(block, dict)
+        for periods in block.values()
+        if isinstance(periods, dict)
         for period in periods
     }
     # pass-through: strip derived periods from the existing content
@@ -1994,13 +1997,11 @@ def _merge_cal_groupings_data(cal: dict, aspects: dict[str, dict]) -> dict:
         if kept_block:
             out[key] = kept_block
 
-    detectors = sorted({
-        det
-        for doc in aspects.values()
-        for det in (doc or {})
-        if det != "default"
-    })
+    detectors = sorted(
+        {det for doc in aspects.values() for det in (doc or {}) if det != "default"}
+    )
     for period in sorted(derived_periods):
+
         def eff_for(det):
             maps = []
             for doc in aspects.values():
@@ -2014,16 +2015,18 @@ def _merge_cal_groupings_data(cal: dict, aspects: dict[str, dict]) -> dict:
         default_map = eff_for("__none__")
         default_blocks = _pair_blocks(default_map)
         for group, runs in default_blocks.items():
-            out.setdefault("default", {}).setdefault(group, {})[period] = \
+            out.setdefault("default", {}).setdefault(group, {})[period] = (
                 _compress_runs(runs)
+            )
         for det in detectors:
             det_map = eff_for(det)
             if det_map == default_map:
                 continue
             det_blocks = _pair_blocks(det_map)
             for group, runs in det_blocks.items():
-                out.setdefault(det, {}).setdefault(group, {})[period] = \
-                    _compress_runs(runs)
+                out.setdefault(det, {}).setdefault(group, {})[period] = _compress_runs(
+                    runs
+                )
             # a default group the detector does NOT reproduce must be MASKED
             # (an empty run list), or the consumer's default+override merge
             # would hand the default's runs straight back
@@ -2049,7 +2052,8 @@ def merge_cal_groupings() -> None:
     )
     parser.add_argument("files", nargs="+", help="groupings files (from pre-commit)")
     parser.add_argument(
-        "--check", action="store_true",
+        "--check",
+        action="store_true",
         help="report only; do not rewrite cal_groupings.yaml",
     )
     args = parser.parse_args()
@@ -2078,9 +2082,14 @@ def merge_cal_groupings() -> None:
             print(f"'{cal_path}' is out of date with groupings/")  # noqa: T201
             continue
         with cal_path.open("w") as f:
-            yaml.dump(merged, f, Dumper=_LiteralBlockDumper,
-                      default_flow_style=False, sort_keys=False,
-                      allow_unicode=True)
+            yaml.dump(
+                merged,
+                f,
+                Dumper=_LiteralBlockDumper,
+                default_flow_style=False,
+                sort_keys=False,
+                allow_unicode=True,
+            )
         print(f"Rewrote '{cal_path}' from the per-aspect groupings")  # noqa: T201
 
     if changed:
