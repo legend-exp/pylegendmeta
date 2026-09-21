@@ -31,6 +31,13 @@
   files: (.*\/)?validity\..+$
   types_or: [yaml, json]
 
+- id: merge-cal-groupings
+  name: derive cal_groupings.yaml from groupings/ (order before validate-cal-groupings)
+  entry: merge-cal-groupings
+  language: python
+  files: (.*\/)?(cal_groupings\..+|groupings\/.*_cal_groupings\..+)$
+  types: [yaml]
+
 - id: validate-cal-groupings
   name: check LEGEND calibration groupings format
   entry: validate-cal-groupings
