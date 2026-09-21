@@ -2003,13 +2003,29 @@ def _merge_cal_groupings_data(cal: dict, aspects: dict[str, dict]) -> dict:
     for period in sorted(derived_periods):
 
         def eff_for(det):
-            maps = []
-            for doc in aspects.values():
+            named = {}
+            for name, doc in aspects.items():
                 e = _merge_effective(doc or {}, det)
-                maps.append({r: g for (p, r), g in e.items() if p == period})
+                named[name] = {r: g for (p, r), g in e.items() if p == period}
+            maps = list(named.values())
             runs = set(maps[0])
             for m in maps[1:]:
                 runs &= set(m)
+            if not runs and det != "__none__" and named.get("escale"):
+                # The aspects disagree with NO overlap — deliberate per-aspect
+                # curation, not an error (live case V06649M p16: the psd file
+                # tracks the A/E-restored window r002+, escale keeps only
+                # r000). The merged file's primary consumer is the energy
+                # partition calibration, so side with the escale grouping
+                # alone — matching the human-curated cal_groupings — and tell
+                # the curator.
+                esc = named["escale"]
+                print(  # noqa: T201
+                    f"WARNING: '{det}' {period}: psd and escale groupings "
+                    "have no common run; deriving from escale alone "
+                    "(energy-partition authority) — review the aspect files"
+                )
+                return {r: (None, esc[r]) for r in sorted(esc)}
             return {r: tuple(m[r] for m in maps) for r in sorted(runs)}
 
         default_map = eff_for("__none__")

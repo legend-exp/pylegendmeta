@@ -74,10 +74,11 @@ def test_identical_override_is_dropped():
     assert "V90001A" not in out
 
 
-def test_empty_detector_map_masks_the_default():
-    """Aspect files with NO common runs for a detector must mask the derived
-    default, never inherit it (found live: V06649M p16, psd r002..r006 vs
-    escale r000 — empty intersection)."""
+def test_empty_intersection_falls_back_to_escale():
+    """Aspects that disagree with NO common run side with escale alone —
+    the merged file's primary consumer is the energy partition calibration,
+    and the human-curated cal_groupings made the same call (live cases:
+    V06649M p16, V01240A p16+p18, V11925A p16)."""
     psd = {
         "default": {"calgroup010a": {"p19": "r000..r005"}},
         "V90001A": {"calgroup010a": {"p19": ["r000"]}},
@@ -85,6 +86,22 @@ def test_empty_detector_map_masks_the_default():
     esc = {
         "default": {"calgroup010a": {"p19": "r000..r005"}},
         "V90001A": {"calgroup010a": {"p19": ["r003"]}},
+    }
+    out = _merge({}, {"psd": psd, "escale": esc})
+    assert out["V90001A"]["calgroup010a"]["p19"] == ["r003"]
+
+
+def test_empty_intersection_without_escale_masks():
+    """No escale runs to fall back to (psd-only coverage): the detector is
+    masked from the derived default — an energy partition cannot be built
+    from runs escale excluded."""
+    psd = {
+        "default": {"calgroup010a": {"p19": "r000..r005"}},
+        "V90001A": {"calgroup010a": {"p19": ["r000"]}},
+    }
+    esc = {
+        "default": {"calgroup010a": {"p19": "r000..r005"}},
+        "V90001A": {"calgroup010a": {"p19": []}},
     }
     out = _merge({}, {"psd": psd, "escale": esc})
     assert out["V90001A"] == {"calgroup010a": {"p19": []}}
