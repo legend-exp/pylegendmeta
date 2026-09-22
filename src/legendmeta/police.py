@@ -2002,7 +2002,7 @@ def _merge_cal_groupings_data(cal: dict, aspects: dict[str, dict]) -> dict:
     )
     for period in sorted(derived_periods):
 
-        def eff_for(det):
+        def eff_for(det, period=period):  # bind the loop var (B023)
             named = {}
             for name, doc in aspects.items():
                 e = _merge_effective(doc or {}, det)
