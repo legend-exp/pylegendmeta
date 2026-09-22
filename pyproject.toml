@@ -78,6 +78,7 @@ test = [
 
 [project.scripts]
 validate-cal-groupings = "legendmeta.police:validate_cal_groupings"
+merge-cal-groupings = "legendmeta.police:merge_cal_groupings"
 validate-dataflow-config = "legendmeta.police:validate_dataflow_config"
 validate-legend-chmaps = "legendmeta.police:validate_legend_channel_map"
 validate-legend-detdb = "legendmeta.police:validate_legend_detector_db"
