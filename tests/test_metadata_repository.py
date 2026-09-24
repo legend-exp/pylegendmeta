@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import pickle
 import tempfile
 from datetime import datetime
 from pathlib import Path
@@ -8,7 +9,12 @@ from pathlib import Path
 import pytest
 from git.exc import InvalidGitRepositoryError
 
-from legendmeta import HadesMetadata, LegendMetadata, MetadataRepository
+from legendmeta import (
+    HadesMetadata,
+    Legend1000Metadata,
+    LegendMetadata,
+    MetadataRepository,
+)
 
 
 def test_legend_metadata_inherits_from_base():
@@ -60,6 +66,89 @@ def test_hades_metadata_initialization():
     meta = HadesMetadata(dir1, lazy=True)
     assert isinstance(meta, HadesMetadata)
     assert isinstance(meta, MetadataRepository)
+
+
+def test_legend1000_metadata(tmp_path):
+    (tmp_path / "test.yaml").write_text("a: 1\n")
+
+    meta = Legend1000Metadata(tmp_path, lazy=True)
+    assert isinstance(meta, MetadataRepository)
+    assert meta.test.a == 1
+
+
+@pytest.mark.parametrize("lazy", [True, False])
+def test_legend1000_metadata_defaults(monkeypatch, tmp_path, lazy):
+    monkeypatch.setenv("METADATA_NO_GIT_REPO", "1")
+    path = _write_metadata(tmp_path)
+
+    config = "l200-p01-config.yaml"
+    with (path / "hardware/configuration/channelmaps" / config).open("a") as f:
+        f.write("V99999Z:\n  name: V99999Z\n  system: geds\n  daq:\n    rawid: 1\n")
+    with (path / "datasets/statuses" / config).open("a") as f:
+        f.write("V99999Z:\n  usability: 'off'\n")
+
+    germanium = path / "hardware/detectors/germanium"
+    (germanium / "diodes/V99999Z.yaml").write_text(
+        "name: V99999Z\ntype: bege\nproduction:\n  order: 99\n  crystal: '999'\n  slice: Z\n"
+    )
+    (germanium / "crystals").mkdir()
+    (germanium / "crystals/V99999.yaml").write_text(
+        "name: '999'\norder: '99'\nslices:\n  Z:\n    detector_offset_in_mm: 10\n"
+    )
+
+    meta = Legend1000Metadata(path, lazy=lazy)
+    diodes = meta.hardware.detectors.germanium.diodes
+
+    # records on disk are returned unchanged
+    assert diodes.V00001A.type == "icpc"
+    assert diodes.V99999Z.name == "V99999Z"
+
+    diode = diodes.V12345A
+    assert diode.name == "V12345A"
+    assert diode.type == "bege"
+    assert diode.production.order == 12
+    assert diode.production.crystal == "345"
+    assert diode.production.slice == "A"
+    assert meta["hardware/detectors/germanium/diodes/V12345B"].production.slice == "B"
+    assert "V12345A" not in diodes
+    with pytest.raises(FileNotFoundError):
+        _ = diodes.V1234
+
+    crystal = meta.hardware.detectors.germanium.crystals.V12345
+    assert crystal.name == "345"
+    assert crystal.order == "12"
+    assert crystal.slices.A.detector_offset_in_mm == 10
+
+    statuses = meta.datasets.statuses.on("20230601T000000Z")
+    assert statuses.V00001A.usability == "on"
+    assert statuses.V12345A.usability == "off"
+
+    chmap = meta.channelmap("20230601T000000Z")
+    assert list(chmap) == ["V00001A", "V99999Z"]
+    assert chmap.V00001A.daq.rawid == 1104000
+    assert chmap.V00001A.type == "icpc"
+    assert chmap.V00001A.analysis.usability == "on"
+
+    channel = chmap.V12345A
+    assert channel.name == "V12345A"
+    assert channel.production.crystal == "345"
+    assert channel.analysis.usability == "off"
+    with pytest.raises(TypeError):
+        channel.name = "V00000A"
+
+    unpickled = pickle.loads(pickle.dumps(meta))
+    assert unpickled.hardware.detectors.germanium.diodes.V12345A.name == "V12345A"
+
+    meta = Legend1000Metadata(path, lazy=lazy, use_defaults=False)
+    assert meta.hardware.detectors.germanium.diodes.V00001A.type == "icpc"
+    with pytest.raises(FileNotFoundError):
+        _ = meta.hardware.detectors.germanium.diodes.V12345A
+    with pytest.raises(AttributeError):
+        _ = meta.datasets.statuses.on("20230601T000000Z").V12345A
+    chmap = meta.channelmap("20230601T000000Z")
+    assert chmap.V00001A.analysis.usability == "on"
+    with pytest.raises(KeyError):
+        _ = chmap["V12345A"]
 
 
 def test_copy_legend_metadata():

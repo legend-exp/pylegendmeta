@@ -22,6 +22,7 @@ from dbetto import str_to_datetime as to_datetime
 from ._version import version as __version__
 from .core import MetadataRepository
 from .hadesmetadata import HadesMetadata
+from .legend1000metadata import Legend1000Metadata
 from .legendmetadata import LegendMetadata
 from .slowcontrol import LegendSlowControlDB
 
@@ -29,6 +30,7 @@ __all__ = [
     "AttrsDict",
     "HadesMetadata",
     "JsonDB",
+    "Legend1000Metadata",
     "LegendMetadata",
     "LegendSlowControlDB",
     "MetadataRepository",
