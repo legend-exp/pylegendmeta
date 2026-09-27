@@ -53,7 +53,10 @@ class Legend1000Metadata(MetadataRepository):
       ``production`` order, crystal and slice.
     - ``hardware.detectors.germanium.crystals`` (e.g. ``V12345``): ``name``
       and ``order``. Any slice letter returns the default slice.
-    - the output of ``hardware.configuration.channelmaps.on()``: ``name``.
+    - the output of ``hardware.configuration.channelmaps.on()``: ``name`` and
+      ``location``. The first three digits of the name give the string number,
+      the last two the position in the string (``V12345A``: string 123,
+      position 45).
     - the output of ``datasets.statuses.on()``.
 
     These records are not added to the database: iterating over it or testing
@@ -130,8 +133,8 @@ class Legend1000Metadata(MetadataRepository):
                 det[:-1],
                 _adjust_crystal,
             ),
-            ("hardware/configuration/channelmaps", _DETECTOR, det, _adjust_name),
-            ("datasets/statuses", _DETECTOR, det, _adjust_name),
+            ("hardware/configuration/channelmaps", _DETECTOR, det, _adjust_channel),
+            ("datasets/statuses", _DETECTOR, det, _adjust_channel),
         ):
             parent_path, name = path.rsplit("/", 1)
             try:
@@ -227,10 +230,17 @@ class Legend1000Metadata(MetadataRepository):
         return channel
 
 
-def _adjust_name(record: AttrsDict, name: str) -> None:
-    """Set the record name to `name`, if the record has one."""
+def _adjust_channel(record: AttrsDict, name: str) -> None:
+    """Set the name and location of a channel record, if present, to match detector `name`.
+
+    Detector ``V12345A`` sits in string 123, at position 45.
+    """
     if "name" in record:
         record["name"] = name
+    if "location" in record:
+        loc = record.location
+        loc["string"] = type(loc.string)(name[1:4])
+        loc["position"] = type(loc.position)(name[4:6])
 
 
 def _adjust_diode(record: AttrsDict, name: str) -> None:

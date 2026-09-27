@@ -83,7 +83,10 @@ def test_legend1000_metadata_defaults(monkeypatch, tmp_path, lazy):
 
     config = "l200-p01-config.yaml"
     with (path / "hardware/configuration/channelmaps" / config).open("a") as f:
-        f.write("V99999Z:\n  name: V99999Z\n  system: geds\n  daq:\n    rawid: 1\n")
+        f.write(
+            "V99999Z:\n  name: V99999Z\n  system: geds\n"
+            "  location:\n    string: 1\n    position: 1\n  daq:\n    rawid: 1\n"
+        )
     with (path / "datasets/statuses" / config).open("a") as f:
         f.write("V99999Z:\n  usability: 'off'\n")
 
@@ -131,6 +134,8 @@ def test_legend1000_metadata_defaults(monkeypatch, tmp_path, lazy):
 
     channel = chmap.V12345A
     assert channel.name == "V12345A"
+    assert channel.location.string == 123
+    assert channel.location.position == 45
     assert channel.production.crystal == "345"
     assert channel.analysis.usability == "off"
     with pytest.raises(TypeError):
