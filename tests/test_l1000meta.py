@@ -52,6 +52,9 @@ def test_default_channelmap(l1000meta):
     chmap = l1000meta.hardware.configuration.channelmaps.on("20400101T000000Z")
     assert chmap.V12345A.name == "V12345A"
     assert chmap.V12345A.system == "geds"
+    assert chmap.V12345A.location.string == 123
+    assert chmap.V12345A.location.position == 45
+    assert chmap.V00102A.location.position == 2
 
     statuses = l1000meta.datasets.statuses.on("20400101T000000Z")
     assert statuses.V12345A == statuses.V99999Z
