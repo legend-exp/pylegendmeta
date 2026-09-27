@@ -30,7 +30,7 @@ from .core import MetadataRepository
 log = logging.getLogger(__name__)
 
 # detector names are V<order: 2 digits><crystal: 3 digits><slice: 1 letter>
-_DETECTOR = r"V\d{5}[A-Z]"
+HPGE_PATTERN = r"V\d{5}[A-Z]"
 
 
 class Legend1000Metadata(MetadataRepository):
@@ -126,26 +126,23 @@ class Legend1000Metadata(MetadataRepository):
         """Replace the database folders listed in the class documentation with defaulting ones."""
         det = self.default_detector
         for path, pattern, default, adjust in (
-            ("hardware/detectors/germanium/diodes", _DETECTOR, det, _adjust_diode),
+            ("hardware/detectors/germanium/diodes", HPGE_PATTERN, det, _adjust_diode),
             (
                 "hardware/detectors/germanium/crystals",
                 r"V\d{5}",
                 det[:-1],
                 _adjust_crystal,
             ),
-            ("hardware/configuration/channelmaps", _DETECTOR, det, _adjust_channel),
-            ("datasets/statuses", _DETECTOR, det, _adjust_channel),
+            ("hardware/configuration/channelmaps", HPGE_PATTERN, det, _adjust_channel),
+            ("datasets/statuses", HPGE_PATTERN, det, _adjust_channel),
         ):
-            parent_path, name = path.rsplit("/", 1)
-            try:
-                parent = self[parent_path]
-            except FileNotFoundError:
-                continue
-            if not (parent.__path__ / name).is_dir():
+            if not (self.__path__ / path).is_dir():
                 continue
 
-            db = _DefaultTextDB(
-                parent.__path__ / name,
+            parent_path, name = path.rsplit("/", 1)
+            parent = self[parent_path]
+            db = DefaultTextDB(
+                self.__path__ / path,
                 pattern,
                 default,
                 adjust,
@@ -197,12 +194,9 @@ class Legend1000Metadata(MetadataRepository):
         statuses = self.datasets.statuses.on(on, pattern=None, category=category)
         get_channel = partial(self._channel, chmap, statuses)
 
-        if not self.__use_defaults__:
-            return AttrsDict({det: get_channel(det) for det in chmap}, readonly=True)
-
-        return _DefaultDict(
+        return DefaultAttrsDict(
             {det: get_channel(det) for det in chmap},
-            _DETECTOR,
+            HPGE_PATTERN,
             get_channel,
             readonly=True,
         )
@@ -238,28 +232,26 @@ def _adjust_channel(record: AttrsDict, name: str) -> None:
     if "name" in record:
         record["name"] = name
     if "location" in record:
-        loc = record.location
-        loc["string"] = type(loc.string)(name[1:4])
-        loc["position"] = type(loc.position)(name[4:6])
+        record.location["string"] = int(name[1:4])
+        record.location["position"] = int(name[4:6])
 
 
 def _adjust_diode(record: AttrsDict, name: str) -> None:
     """Set the name and production fields of a diode record to match detector `name`."""
     record["name"] = name
-    prod = record.production
-    prod["order"] = type(prod.order)(name[1:3])
-    prod["crystal"] = name[3:6]
-    prod["slice"] = name[6]
+    record.production["order"] = int(name[1:3])
+    record.production["crystal"] = name[3:6]
+    record.production["slice"] = name[6]
 
 
 def _adjust_crystal(record: AttrsDict, name: str) -> None:
     """Set the fields of a crystal record to match crystal `name` (e.g. ``V12345``)."""
     record["name"] = name[3:6]
-    record["order"] = type(record.order)(name[1:3])
+    record["order"] = name[1:3]
     if "slices" in record:
         slices = record.slices
         default = next(iter(slices))
-        record["slices"] = _DefaultDict(
+        record["slices"] = DefaultAttrsDict(
             slices, r"[A-Z]", partial(_default_record, slices, default, None)
         )
 
@@ -282,7 +274,7 @@ def _default_record(
     return record
 
 
-class _DefaultDict(AttrsDict):
+class DefaultAttrsDict(AttrsDict):
     """AttrsDict that returns ``factory(key)`` for missing keys matching `pattern`."""
 
     def __init__(
@@ -325,7 +317,7 @@ class _DefaultDict(AttrsDict):
         dict.__setattr__(self, "__factory__", state["__factory__"])
 
 
-class _DefaultTextDB(TextDB):
+class DefaultTextDB(TextDB):
     """TextDB that returns an adjusted copy of the `default` record for missing names matching `pattern`.
 
     The output of :meth:`on` falls back in the same way.
@@ -357,7 +349,7 @@ class _DefaultTextDB(TextDB):
 
     def on(self, *args, **kwargs) -> AttrsDict | list:
         result = super().on(*args, **kwargs)
-        return _DefaultDict(
+        return DefaultAttrsDict(
             result,
             self.__pattern__,
             partial(_default_record, result, self.__default__, self.__adjust__),
