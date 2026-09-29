@@ -61,7 +61,7 @@ def test_default_channelmap(l1000meta):
 
 
 def test_channelmap(l1000meta):
-    chmap = l1000meta.channelmap("20400101T000000Z")
+    chmap = l1000meta.channelmap()
     assert "V99999Z" in chmap
 
     channel = chmap.V12345A

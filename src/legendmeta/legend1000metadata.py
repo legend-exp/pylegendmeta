@@ -153,7 +153,7 @@ class Legend1000Metadata(MetadataRepository):
             setattr(parent, name, db)
 
     def channelmap(
-        self, on: str | datetime | None = None, category: str = "all"
+        self, on: str | datetime = "20400101T000000Z", category: str = "all"
     ) -> AttrsDict:
         """Get a LEGEND-1000 channel map.
 
@@ -169,7 +169,8 @@ class Legend1000Metadata(MetadataRepository):
         ----------
         on
             a :class:`~datetime.datetime` object or a string matching the
-            pattern ``YYYYmmddTHHMMSSZ``. Defaults to now.
+            pattern ``YYYYmmddTHHMMSSZ``. The default is the start of the
+            first LEGEND-1000 period in the metadata.
         category: 'all', 'phy', 'cal', ...
             query only a data taking category.
 
@@ -185,9 +186,6 @@ class Legend1000Metadata(MetadataRepository):
         --------
         dbetto.TextDB.on
         """
-        if on is None:
-            on = datetime.now()
-
         chmap = self.hardware.configuration.channelmaps.on(
             on, pattern=None, category=category
         )
