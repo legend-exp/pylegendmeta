@@ -60,6 +60,20 @@ def test_default_channelmap(l1000meta):
     assert statuses.V12345A == statuses.V99999Z
 
 
+def test_default_sipm_channelmap(l1000meta):
+    chmap = l1000meta.hardware.configuration.channelmaps.on("20400101T000000Z")
+    assert chmap.S0102B.name == "S0102B"
+    assert chmap.S0102B.system == "spms"
+    assert chmap.S0102B.location.barrel == 1
+    assert chmap.S0102B.location.fiber == "S0102"
+    assert chmap.S0102B.location.position == "bottom"
+    assert chmap.S1203T.location.position == "top"
+    assert chmap.S1203T.location.barrel == 12
+
+    statuses = l1000meta.datasets.statuses.on("20400101T000000Z")
+    assert statuses.S0102B == statuses.S9999Z
+
+
 def test_channelmap(l1000meta):
     chmap = l1000meta.channelmap()
     assert "V99999Z" in chmap

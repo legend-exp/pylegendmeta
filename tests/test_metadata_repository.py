@@ -86,9 +86,12 @@ def test_legend1000_metadata_defaults(monkeypatch, tmp_path, lazy):
         f.write(
             "V99999Z:\n  name: V99999Z\n  system: geds\n"
             "  location:\n    string: 1\n    position: 1\n  daq:\n    rawid: 1\n"
+            "S9999Z:\n  name: S9999Z\n  system: spms\n"
+            "  location:\n    barrel: 1\n    fiber: S9999\n    position: top\n"
+            "  daq:\n    rawid: 5000\n"
         )
     with (path / "datasets/statuses" / config).open("a") as f:
-        f.write("V99999Z:\n  usability: 'off'\n")
+        f.write("V99999Z:\n  usability: 'off'\nS9999Z:\n  usability: 'ac'\n")
 
     germanium = path / "hardware/detectors/germanium"
     (germanium / "diodes/V99999Z.yaml").write_text(
@@ -125,9 +128,10 @@ def test_legend1000_metadata_defaults(monkeypatch, tmp_path, lazy):
     statuses = meta.datasets.statuses.on("20230601T000000Z")
     assert statuses.V00001A.usability == "on"
     assert statuses.V12345A.usability == "off"
+    assert statuses.S0102B == statuses.S9999Z
 
     chmap = meta.channelmap("20230601T000000Z")
-    assert list(chmap) == ["V00001A", "V99999Z"]
+    assert list(chmap) == ["V00001A", "V99999Z", "S9999Z"]
     assert chmap.V00001A.daq.rawid == 1104000
     assert chmap.V00001A.type == "icpc"
     assert chmap.V00001A.analysis.usability == "on"
@@ -141,8 +145,22 @@ def test_legend1000_metadata_defaults(monkeypatch, tmp_path, lazy):
     with pytest.raises(TypeError):
         channel.name = "V00000A"
 
+    channel = chmap.S0102B
+    assert channel.name == "S0102B"
+    assert channel.system == "spms"
+    assert channel.location.barrel == 1
+    assert channel.location.fiber == "S0102"
+    assert channel.location.position == "bottom"
+    assert channel.analysis.usability == "ac"
+    assert chmap.S0102T.location.position == "top"
+    assert "S0102B" not in chmap
+    # only the T and B ends of a fiber module are SiPM arrays
+    with pytest.raises(KeyError):
+        _ = chmap["S0102X"]
+
     unpickled = pickle.loads(pickle.dumps(meta))
     assert unpickled.hardware.detectors.germanium.diodes.V12345A.name == "V12345A"
+    assert unpickled.channelmap("20230601T000000Z").S0102B.location.fiber == "S0102"
 
     meta = Legend1000Metadata(path, lazy=lazy, use_defaults=False)
     assert meta.hardware.detectors.germanium.diodes.V00001A.type == "icpc"
@@ -154,6 +172,8 @@ def test_legend1000_metadata_defaults(monkeypatch, tmp_path, lazy):
     assert chmap.V00001A.analysis.usability == "on"
     with pytest.raises(KeyError):
         _ = chmap["V12345A"]
+    with pytest.raises(KeyError):
+        _ = chmap["S0102B"]
 
 
 def test_copy_legend_metadata():

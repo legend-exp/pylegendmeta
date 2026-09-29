@@ -17,11 +17,12 @@ from __future__ import annotations
 
 import logging
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from copy import deepcopy
 from datetime import datetime
 from functools import partial
 from pathlib import Path
+from typing import NamedTuple
 
 from dbetto import AttrsDict, TextDB
 
@@ -31,6 +32,17 @@ log = logging.getLogger(__name__)
 
 # detector names are V<order: 2 digits><crystal: 3 digits><slice: 1 letter>
 HPGE_PATTERN = r"V\d{5}[A-Z]"
+
+# SiPM array names are S<string: 2 digits><fiber module: 2 digits><end: T or B>
+SPMS_PATTERN = r"S\d{4}[TB]"
+
+
+class _Default(NamedTuple):
+    """A name pattern, the record that stands in for it, and how to adjust a copy."""
+
+    pattern: str
+    record: str
+    adjust: Callable[[AttrsDict, str], None]
 
 
 class Legend1000Metadata(MetadataRepository):
@@ -43,21 +55,30 @@ class Legend1000Metadata(MetadataRepository):
     will attempt to clone https://github.com/legend-exp/legend1000-metadata via
     SSH and git-checkout the latest stable tag (vM.m.p format).
 
-    In the design phase all germanium detectors are equal, so the metadata
-    describes a single default detector (:attr:`default_detector`). Asking for
-    any other detector name (e.g. ``V12345A``) that has no record of its own
-    returns a copy of the default record, with the name-dependent fields
-    updated. This applies to:
+    In the design phase all germanium detectors are equal, and so are all SiPM
+    arrays, so the metadata describes a single default detector
+    (:attr:`default_detector`) and a single default array
+    (:attr:`default_sipm`). Asking for any other name (e.g. ``V12345A``) that
+    has no record of its own returns a copy of the default record, with the
+    name-dependent fields updated. This applies to:
 
     - ``hardware.detectors.germanium.diodes``: ``name`` and the
       ``production`` order, crystal and slice.
     - ``hardware.detectors.germanium.crystals`` (e.g. ``V12345``): ``name``
       and ``order``. Any slice letter returns the default slice.
     - the output of ``hardware.configuration.channelmaps.on()``: ``name`` and
-      ``location``. The first three digits of the name give the string number,
-      the last two the position in the string (``V12345A``: string 123,
-      position 45).
+      ``location``.
     - the output of ``datasets.statuses.on()``.
+
+    A germanium detector is named ``V<order><crystal><slice>``. The first three
+    digits give the string number, the last two the position in the string, so
+    ``V12345A`` sits in string 123 at position 45.
+
+    A SiPM array is named ``S<string><module><end>``: two digits for the string
+    number, two for the fiber module on that string, and ``T`` or ``B`` for the
+    end of the module that the array reads out. So ``S0102B`` reads out the
+    bottom end of fiber module ``S0102``, on string 1. This is the naming that
+    ``legend-pygeom-l1000`` writes.
 
     These records are not added to the database: iterating over it or testing
     membership with ``in`` only sees records that exist on disk. Pass
@@ -85,6 +106,9 @@ class Legend1000Metadata(MetadataRepository):
 
     default_detector = "V99999Z"
     """Name of the detector whose records stand in for missing ones."""
+
+    default_sipm = "S9999Z"
+    """Name of the SiPM array whose records stand in for missing ones."""
 
     def __init__(
         self,
@@ -125,16 +149,22 @@ class Legend1000Metadata(MetadataRepository):
     def _setup_defaults(self) -> None:
         """Replace the database folders listed in the class documentation with defaulting ones."""
         det = self.default_detector
-        for path, pattern, default, adjust in (
-            ("hardware/detectors/germanium/diodes", HPGE_PATTERN, det, _adjust_diode),
+        # the channel maps and the statuses hold both germanium and SiPM records
+        channel = (
+            _Default(HPGE_PATTERN, det, _adjust_hpge_channel),
+            _Default(SPMS_PATTERN, self.default_sipm, _adjust_sipm_channel),
+        )
+        for path, defaults in (
+            (
+                "hardware/detectors/germanium/diodes",
+                (_Default(HPGE_PATTERN, det, _adjust_diode),),
+            ),
             (
                 "hardware/detectors/germanium/crystals",
-                r"V\d{5}",
-                det[:-1],
-                _adjust_crystal,
+                (_Default(r"V\d{5}", det[:-1], _adjust_crystal),),
             ),
-            ("hardware/configuration/channelmaps", HPGE_PATTERN, det, _adjust_channel),
-            ("datasets/statuses", HPGE_PATTERN, det, _adjust_channel),
+            ("hardware/configuration/channelmaps", channel),
+            ("datasets/statuses", channel),
         ):
             if not (self.__path__ / path).is_dir():
                 continue
@@ -143,9 +173,7 @@ class Legend1000Metadata(MetadataRepository):
             parent = self[parent_path]
             db = DefaultTextDB(
                 self.__path__ / path,
-                pattern,
-                default,
-                adjust,
+                defaults,
                 lazy=self.__lazy__,
                 hidden=self.__hidden__,
             )
@@ -181,6 +209,8 @@ class Legend1000Metadata(MetadataRepository):
         >>> channel = l1000meta.channelmap(on="20400101T000000Z").V00101Z
         >>> channel.daq.rawid
         1
+        >>> l1000meta.channelmap().S0102B.location.position
+        'bottom'
 
         See Also
         --------
@@ -194,8 +224,7 @@ class Legend1000Metadata(MetadataRepository):
 
         return DefaultAttrsDict(
             {det: get_channel(det) for det in chmap},
-            HPGE_PATTERN,
-            get_channel,
+            [(HPGE_PATTERN, get_channel), (SPMS_PATTERN, get_channel)],
             readonly=True,
         )
 
@@ -222,7 +251,7 @@ class Legend1000Metadata(MetadataRepository):
         return channel
 
 
-def _adjust_channel(record: AttrsDict, name: str) -> None:
+def _adjust_hpge_channel(record: AttrsDict, name: str) -> None:
     """Set the name and location of a channel record, if present, to match detector `name`.
 
     Detector ``V12345A`` sits in string 123, at position 45.
@@ -232,6 +261,20 @@ def _adjust_channel(record: AttrsDict, name: str) -> None:
     if "location" in record:
         record.location["string"] = int(name[1:4])
         record.location["position"] = int(name[4:6])
+
+
+def _adjust_sipm_channel(record: AttrsDict, name: str) -> None:
+    """Set the name and location of a channel record, if present, to match array `name`.
+
+    Array ``S0102B`` reads out the bottom end of fiber module ``S0102``, on
+    string 1.
+    """
+    if "name" in record:
+        record["name"] = name
+    if "location" in record:
+        record.location["barrel"] = int(name[1:3])
+        record.location["fiber"] = name[:5]
+        record.location["position"] = "top" if name[5] == "T" else "bottom"
 
 
 def _adjust_diode(record: AttrsDict, name: str) -> None:
@@ -250,7 +293,7 @@ def _adjust_crystal(record: AttrsDict, name: str) -> None:
         slices = record.slices
         default = next(iter(slices))
         record["slices"] = DefaultAttrsDict(
-            slices, r"[A-Z]", partial(_default_record, slices, default, None)
+            slices, [(r"[A-Z]", partial(_default_record, slices, default, None))]
         )
 
 
@@ -273,27 +316,31 @@ def _default_record(
 
 
 class DefaultAttrsDict(AttrsDict):
-    """AttrsDict that returns ``factory(key)`` for missing keys matching `pattern`."""
+    """AttrsDict that builds a record for a missing key whose name matches a pattern.
+
+    `factories` holds one ``(pattern, factory)`` pair per kind of name. The
+    first pattern that matches wins, and the record is ``factory(key)``.
+    """
 
     def __init__(
         self,
         value: dict,
-        pattern: str,
-        factory: Callable[[str], AttrsDict],
+        factories: Sequence[tuple[str, Callable[[str], AttrsDict]]],
         readonly: bool = False,
     ) -> None:
-        dict.__setattr__(self, "__pattern__", pattern)
-        dict.__setattr__(self, "__factory__", factory)
+        dict.__setattr__(self, "__factories__", tuple(factories))
         super().__init__(value, readonly=readonly)
 
     def __missing__(self, key: str) -> AttrsDict:
-        if not isinstance(key, str) or not re.fullmatch(self.__pattern__, key):
-            raise KeyError(key)
+        if isinstance(key, str):
+            for pattern, factory in self.__factories__:
+                if re.fullmatch(pattern, key):
+                    record = factory(key)
+                    if self.__readonly__:
+                        record.__readonly__ = True
+                    return record
 
-        record = self.__factory__(key)
-        if self.__readonly__:
-            record.__readonly__ = True
-        return record
+        raise KeyError(key)
 
     def __getattr__(self, name: str) -> AttrsDict:
         if not name.startswith("__"):
@@ -304,34 +351,27 @@ class DefaultAttrsDict(AttrsDict):
         return super().__getattr__(name)
 
     def __getstate__(self) -> dict:
-        return super().__getstate__() | {
-            "__pattern__": self.__pattern__,
-            "__factory__": self.__factory__,
-        }
+        return super().__getstate__() | {"__factories__": self.__factories__}
 
     def __setstate__(self, state: dict) -> None:
         super().__setstate__(state)
-        dict.__setattr__(self, "__pattern__", state["__pattern__"])
-        dict.__setattr__(self, "__factory__", state["__factory__"])
+        dict.__setattr__(self, "__factories__", state["__factories__"])
 
 
 class DefaultTextDB(TextDB):
-    """TextDB that returns an adjusted copy of the `default` record for missing names matching `pattern`.
+    """TextDB that returns an adjusted copy of a default record for missing names.
 
-    The output of :meth:`on` falls back in the same way.
+    `defaults` holds one :class:`_Default` per kind of name. The first pattern
+    that matches wins. The output of :meth:`on` falls back in the same way.
     """
 
     def __init__(
         self,
         path: str | Path,
-        pattern: str,
-        default: str,
-        adjust: Callable[[AttrsDict, str], None],
+        defaults: Sequence[_Default],
         **kwargs,
     ) -> None:
-        self.__pattern__ = pattern
-        self.__default__ = default
-        self.__adjust__ = adjust
+        self.__defaults__ = tuple(defaults)
         super().__init__(path, **kwargs)
 
     def __getitem__(self, item: str | Path) -> TextDB | AttrsDict | list | None:
@@ -339,30 +379,27 @@ class DefaultTextDB(TextDB):
             return super().__getitem__(item)
         except FileNotFoundError:
             name = str(item)
-            if name == self.__default__ or not re.fullmatch(self.__pattern__, name):
-                raise
-            record = deepcopy(super().__getitem__(self.__default__))
-            self.__adjust__(record, name)
-            return record
+            for default in self.__defaults__:
+                if name != default.record and re.fullmatch(default.pattern, name):
+                    record = deepcopy(super().__getitem__(default.record))
+                    default.adjust(record, name)
+                    return record
+            raise
 
     def on(self, *args, **kwargs) -> AttrsDict | list:
         result = super().on(*args, **kwargs)
         return DefaultAttrsDict(
             result,
-            self.__pattern__,
-            partial(_default_record, result, self.__default__, self.__adjust__),
+            [
+                (d.pattern, partial(_default_record, result, d.record, d.adjust))
+                for d in self.__defaults__
+            ],
             readonly=True,
         )
 
     def __getstate__(self) -> dict:
-        return super().__getstate__() | {
-            "__pattern__": self.__pattern__,
-            "__default__": self.__default__,
-            "__adjust__": self.__adjust__,
-        }
+        return super().__getstate__() | {"__defaults__": self.__defaults__}
 
     def __setstate__(self, state: dict) -> None:
         super().__setstate__(state)
-        self.__pattern__ = state["__pattern__"]
-        self.__default__ = state["__default__"]
-        self.__adjust__ = state["__adjust__"]
+        self.__defaults__ = state["__defaults__"]
