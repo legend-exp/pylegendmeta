@@ -1,0 +1,73 @@
+# LEGEND-1000 test metadata: one record set per file of the repository
+hardware/configuration/channelmaps/validity.yaml:
+  - valid_from: 20230101T000000Z
+    apply:
+      - l1000-p01-config.yaml
+
+hardware/configuration/channelmaps/l1000-p01-config.yaml:
+  V00001A:
+    name: V00001A
+    system: geds
+    daq:
+      rawid: 1104000
+  V99999Z:
+    name: V99999Z
+    system: geds
+    location:
+      string: 1
+      position: 1
+    daq:
+      rawid: 1000000
+  S9999Z:
+    name: S9999Z
+    system: spms
+    location:
+      barrel: 1
+      fiber: S9999
+      position: top
+    daq:
+      rawid: 2000000
+  PMT9999:
+    name: PMT9999
+    system: pmts
+    location:
+      name: wall
+      x: 1
+      y: 2
+      z: 3
+    daq:
+      rawid: 3000000
+
+datasets/statuses/validity.yaml:
+  - valid_from: 20230101T000000Z
+    apply:
+      - l1000-p01-config.yaml
+
+datasets/statuses/l1000-p01-config.yaml:
+  V00001A:
+    usability: "on"
+  V99999Z:
+    usability: "off"
+  S9999Z:
+    usability: "ac"
+  PMT9999:
+    usability: "on"
+
+hardware/detectors/germanium/diodes/V00001A.yaml:
+  name: V00001A
+  type: icpc
+
+hardware/detectors/germanium/diodes/V99999Z.yaml:
+  name: V99999Z
+  type: bege
+  production:
+    order: 99
+    crystal: "999"
+    slice: Z
+
+hardware/detectors/germanium/crystals/V99999.yaml:
+  name: "999"
+  order: "99"
+  slices:
+    Z:
+      detector_offset_in_mm: 10

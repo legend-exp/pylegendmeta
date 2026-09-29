@@ -5,8 +5,10 @@ import pickle
 import tempfile
 from datetime import datetime
 from pathlib import Path
+from textwrap import dedent
 
 import pytest
+import yaml
 from git.exc import InvalidGitRepositoryError
 
 from legendmeta import (
@@ -15,6 +17,16 @@ from legendmeta import (
     LegendMetadata,
     MetadataRepository,
 )
+
+
+def write_l1000db(path: Path) -> dict:
+    """Write the LEGEND-1000 test metadata under `path` and return its records."""
+    db = yaml.safe_load((Path(__file__).parent / "l1000db.yaml").read_text())
+    for name, records in db.items():
+        file = path / name
+        file.parent.mkdir(parents=True, exist_ok=True)
+        file.write_text(yaml.dump(records, sort_keys=False))
+    return db
 
 
 def test_legend_metadata_inherits_from_base():
@@ -79,30 +91,14 @@ def test_legend1000_metadata(tmp_path):
 @pytest.mark.parametrize("lazy", [True, False])
 def test_legend1000_metadata_defaults(monkeypatch, tmp_path, lazy):
     monkeypatch.setenv("METADATA_NO_GIT_REPO", "1")
-    path = _write_metadata(tmp_path)
+    monkeypatch.setenv("LEGEND1000_METADATA", str(tmp_path))
 
-    config = "l200-p01-config.yaml"
-    with (path / "hardware/configuration/channelmaps" / config).open("a") as f:
-        f.write(
-            "V99999Z:\n  name: V99999Z\n  system: geds\n"
-            "  location:\n    string: 1\n    position: 1\n  daq:\n    rawid: 1\n"
-            "S9999Z:\n  name: S9999Z\n  system: spms\n"
-            "  location:\n    barrel: 1\n    fiber: S9999\n    position: top\n"
-            "  daq:\n    rawid: 5000\n"
-        )
-    with (path / "datasets/statuses" / config).open("a") as f:
-        f.write("V99999Z:\n  usability: 'off'\nS9999Z:\n  usability: 'ac'\n")
+    # the dummy records the defaults are built from, one raw ID block each
+    db = write_l1000db(tmp_path)
+    dummies = db["hardware/configuration/channelmaps/l1000-p01-config.yaml"]
+    geds, spms, pmts = dummies["V99999Z"], dummies["S9999Z"], dummies["PMT9999"]
 
-    germanium = path / "hardware/detectors/germanium"
-    (germanium / "diodes/V99999Z.yaml").write_text(
-        "name: V99999Z\ntype: bege\nproduction:\n  order: 99\n  crystal: '999'\n  slice: Z\n"
-    )
-    (germanium / "crystals").mkdir()
-    (germanium / "crystals/V99999.yaml").write_text(
-        "name: '999'\norder: '99'\nslices:\n  Z:\n    detector_offset_in_mm: 10\n"
-    )
-
-    meta = Legend1000Metadata(path, lazy=lazy)
+    meta = Legend1000Metadata(lazy=lazy)
     diodes = meta.hardware.detectors.germanium.diodes
 
     # records on disk are returned unchanged
@@ -131,8 +127,8 @@ def test_legend1000_metadata_defaults(monkeypatch, tmp_path, lazy):
     assert statuses.S0102B == statuses.S9999Z
 
     chmap = meta.channelmap("20230601T000000Z")
-    assert list(chmap) == ["V00001A", "V99999Z", "S9999Z"]
-    assert chmap.V00001A.daq.rawid == 1104000
+    assert list(chmap) == ["V00001A", "V99999Z", "S9999Z", "PMT9999"]
+    assert chmap.V00001A.daq.rawid == dummies["V00001A"]["daq"]["rawid"]
     assert chmap.V00001A.type == "icpc"
     assert chmap.V00001A.analysis.usability == "on"
 
@@ -142,6 +138,7 @@ def test_legend1000_metadata_defaults(monkeypatch, tmp_path, lazy):
     assert channel.location.position == 45
     assert channel.production.crystal == "345"
     assert channel.analysis.usability == "off"
+    assert channel.daq.rawid == geds["daq"]["rawid"] + 123045
     with pytest.raises(TypeError):
         channel.name = "V00000A"
 
@@ -152,17 +149,39 @@ def test_legend1000_metadata_defaults(monkeypatch, tmp_path, lazy):
     assert channel.location.fiber == "S0102"
     assert channel.location.position == "bottom"
     assert channel.analysis.usability == "ac"
+    assert channel.daq.rawid == spms["daq"]["rawid"] + 1021
     assert chmap.S0102T.location.position == "top"
+    assert chmap.S0102T.daq.rawid == spms["daq"]["rawid"] + 1020
     assert "S0102B" not in chmap
     # only the T and B ends of a fiber module are SiPM arrays
     with pytest.raises(KeyError):
         _ = chmap["S0102X"]
 
+    channel = chmap.PMT1135
+    assert channel.name == "PMT1135"
+    assert channel.system == "pmts"
+    assert channel.location.name == "wall"
+    assert channel.daq.rawid == pmts["daq"]["rawid"] + 11035
+    assert channel.analysis.usability == "on"
+    assert chmap.PMT0104.location.name == "floor"
+    assert chmap.PMT0104.daq.rawid == pmts["daq"]["rawid"] + 1004
+    # the position in the tank does not follow from the name
+    assert chmap.PMT0104.location.x == pmts["location"]["x"]
+
+    # a raw ID counts from the raw ID of the default record of its system
+    assert chmap.V12345A.daq.rawid - chmap.V99999Z.daq.rawid == 123045
+    assert chmap.S0102B.daq.rawid - chmap.S9999Z.daq.rawid == 1021
+    assert chmap.PMT1135.daq.rawid - chmap.PMT9999.daq.rawid == 11035
+
+    # the raw ID blocks of the three systems do not overlap
+    rawids = [chmap[det].daq.rawid for det in ("V12345A", "S0102B", "PMT1135")]
+    assert len(set(rawids)) == len(rawids)
+
     unpickled = pickle.loads(pickle.dumps(meta))
     assert unpickled.hardware.detectors.germanium.diodes.V12345A.name == "V12345A"
     assert unpickled.channelmap("20230601T000000Z").S0102B.location.fiber == "S0102"
 
-    meta = Legend1000Metadata(path, lazy=lazy, use_defaults=False)
+    meta = Legend1000Metadata(lazy=lazy, use_defaults=False)
     assert meta.hardware.detectors.germanium.diodes.V00001A.type == "icpc"
     with pytest.raises(FileNotFoundError):
         _ = meta.hardware.detectors.germanium.diodes.V12345A
@@ -174,6 +193,8 @@ def test_legend1000_metadata_defaults(monkeypatch, tmp_path, lazy):
         _ = chmap["V12345A"]
     with pytest.raises(KeyError):
         _ = chmap["S0102B"]
+    with pytest.raises(KeyError):
+        _ = chmap["PMT1135"]
 
 
 def test_copy_legend_metadata():
@@ -215,11 +236,21 @@ def _write_metadata(path: Path) -> Path:
     for directory in (chmaps, statuses):
         directory.mkdir(parents=True)
         (directory / "validity.yaml").write_text(
-            "- valid_from: 20230101T000000Z\n  apply:\n    - l200-p01-config.yaml\n"
+            dedent("""\
+                - valid_from: 20230101T000000Z
+                  apply:
+                    - l200-p01-config.yaml
+                """)
         )
 
     (chmaps / "l200-p01-config.yaml").write_text(
-        "V00001A:\n  name: V00001A\n  system: geds\n  daq:\n    rawid: 1104000\n"
+        dedent("""\
+            V00001A:
+              name: V00001A
+              system: geds
+              daq:
+                rawid: 1104000
+            """)
     )
     (statuses / "l200-p01-config.yaml").write_text("V00001A:\n  usability: 'on'\n")
 
