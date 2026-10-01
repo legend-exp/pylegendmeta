@@ -4,7 +4,11 @@ import re
 import warnings
 from functools import cached_property
 
-import polars as pl
+try:
+    import polars as pl
+except ImportError as e:
+    msg = "legendmeta.tables needs polars, install it with: pip install 'pylegendmeta[tables]'"
+    raise ImportError(msg) from e
 from dbetto import AttrsDict, TextDB
 
 from .utils import expand_runs
@@ -89,6 +93,9 @@ class LegendMetadataTables:
     form for SQL-like analysis. Time-dependent tables (``runinfo``,
     ``statuses``, ``channelmaps``) are concatenated across all known
     periods/runs.
+
+    Needs the optional ``tables`` dependencies (``pip install
+    'pylegendmeta[tables]'``).
 
     Examples
     --------
