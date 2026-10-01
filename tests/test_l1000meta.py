@@ -55,9 +55,40 @@ def test_default_channelmap(l1000meta):
     assert chmap.V12345A.location.string == 123
     assert chmap.V12345A.location.position == 45
     assert chmap.V00102A.location.position == 2
+    assert chmap.V12345A.daq.rawid == 1123045
+    assert chmap.V00102A.daq.rawid == 1001002
 
     statuses = l1000meta.datasets.statuses.on("20400101T000000Z")
     assert statuses.V12345A == statuses.V99999Z
+
+
+def test_default_sipm_channelmap(l1000meta):
+    chmap = l1000meta.hardware.configuration.channelmaps.on("20400101T000000Z")
+    assert chmap.S0102B.name == "S0102B"
+    assert chmap.S0102B.system == "spms"
+    assert chmap.S0102B.location.barrel == 1
+    assert chmap.S0102B.location.fiber == "S0102"
+    assert chmap.S0102B.location.position == "bottom"
+    assert chmap.S1203T.location.position == "top"
+    assert chmap.S1203T.location.barrel == 12
+    assert chmap.S0102B.daq.rawid == 2001021
+    assert chmap.S1203T.daq.rawid == 2012030
+
+    statuses = l1000meta.datasets.statuses.on("20400101T000000Z")
+    assert statuses.S0102B == statuses.S9999Z
+
+
+def test_default_pmt_channelmap(l1000meta):
+    chmap = l1000meta.hardware.configuration.channelmaps.on("20400101T000000Z")
+    assert chmap.PMT1135.name == "PMT1135"
+    assert chmap.PMT1135.system == "pmts"
+    assert chmap.PMT1135.location.name == "wall"
+    assert chmap.PMT1135.daq.rawid == 3011035
+    assert chmap.PMT0104.location.name == "floor"
+    assert chmap.PMT0104.daq.rawid == 3001004
+
+    statuses = l1000meta.datasets.statuses.on("20400101T000000Z")
+    assert statuses.PMT1135 == statuses.PMT9999
 
 
 def test_channelmap(l1000meta):

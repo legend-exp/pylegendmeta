@@ -17,11 +17,12 @@ from __future__ import annotations
 
 import logging
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from copy import deepcopy
 from datetime import datetime
 from functools import partial
 from pathlib import Path
+from typing import NamedTuple
 
 from dbetto import AttrsDict, TextDB
 
@@ -29,8 +30,17 @@ from .core import MetadataRepository
 
 log = logging.getLogger(__name__)
 
-# detector names are V<order: 2 digits><crystal: 3 digits><slice: 1 letter>
 HPGE_PATTERN = r"V\d{5}[A-Z]"
+SPMS_PATTERN = r"S\d{4}[TB]"
+PMTS_PATTERN = r"PMT\d{4}"
+
+
+class DetectorDefault(NamedTuple):
+    """A name pattern, the record that stands in for it, and how to adjust a copy."""
+
+    pattern: str
+    record: str
+    adjust: Callable[[AttrsDict, str], None]
 
 
 class Legend1000Metadata(MetadataRepository):
@@ -43,21 +53,38 @@ class Legend1000Metadata(MetadataRepository):
     will attempt to clone https://github.com/legend-exp/legend1000-metadata via
     SSH and git-checkout the latest stable tag (vM.m.p format).
 
-    In the design phase all germanium detectors are equal, so the metadata
-    describes a single default detector (:attr:`default_detector`). Asking for
-    any other detector name (e.g. ``V12345A``) that has no record of its own
-    returns a copy of the default record, with the name-dependent fields
-    updated. This applies to:
+    In the design phase all detectors of a system are equal, so the metadata
+    describes one default germanium detector (:attr:`default_detector`), one
+    default SiPM array (:attr:`default_sipm`) and one default PMT
+    (:attr:`default_pmt`). Asking for any other name (e.g. ``V12345A``) that
+    has no record of its own returns a copy of the default record, with the
+    name-dependent fields updated. This applies to:
 
     - ``hardware.detectors.germanium.diodes``: ``name`` and the
       ``production`` order, crystal and slice.
     - ``hardware.detectors.germanium.crystals`` (e.g. ``V12345``): ``name``
       and ``order``. Any slice letter returns the default slice.
-    - the output of ``hardware.configuration.channelmaps.on()``: ``name`` and
-      ``location``. The first three digits of the name give the string number,
-      the last two the position in the string (``V12345A``: string 123,
-      position 45).
+    - the output of ``hardware.configuration.channelmaps.on()``: ``name``,
+      ``location`` and ``daq.rawid``.
     - the output of ``datasets.statuses.on()``.
+
+    A name provides information on the position in the experiment. The
+    position also defines the raw ID of the default record:
+
+    - ``V<string: 3><position: 2><slice>``, e.g. ``V12345A``: string 123,
+      position 45. Offset ``string * 1000 + position``.
+    - ``S<string: 2><module: 2><end>``, e.g. ``S0102B``: the bottom end of
+      fiber module ``S0102``, on string 1. Offset
+      ``string * 1000 + module * 10 + end``, where ``end`` is 0 for ``T`` and
+      1 for ``B``.
+    - ``PMT<row: 2><position: 2>``, e.g. ``PMT1135``: row 11, position 35.
+      Offset ``row * 1000 + position``. Rows below 10 are on the floor of the
+      water tank, the rows above it on the wall. The ``x``, ``y`` and ``z`` of
+      a PMT do not follow from its name.
+
+    The default records in the metadata decide where the raw ID block of each
+    system starts. In legend1000-metadata the blocks start at 1000000, 2000000
+    and 3000000 for the germanium, SiPM and PMT systems, respectively.
 
     These records are not added to the database: iterating over it or testing
     membership with ``in`` only sees records that exist on disk. Pass
@@ -84,7 +111,8 @@ class Legend1000Metadata(MetadataRepository):
     """
 
     default_detector = "V99999Z"
-    """Name of the detector whose records stand in for missing ones."""
+    default_sipm = "S9999Z"
+    default_pmt = "PMT9999"
 
     def __init__(
         self,
@@ -124,17 +152,27 @@ class Legend1000Metadata(MetadataRepository):
 
     def _setup_defaults(self) -> None:
         """Replace the database folders listed in the class documentation with defaulting ones."""
-        det = self.default_detector
-        for path, pattern, default, adjust in (
-            ("hardware/detectors/germanium/diodes", HPGE_PATTERN, det, _adjust_diode),
+        # the channel maps and the statuses hold the records of all three systems
+        channel = (
+            DetectorDefault(HPGE_PATTERN, self.default_detector, _adjust_hpge_channel),
+            DetectorDefault(SPMS_PATTERN, self.default_sipm, _adjust_sipm_channel),
+            DetectorDefault(PMTS_PATTERN, self.default_pmt, _adjust_pmt_channel),
+        )
+        for path, defaults in (
+            (
+                "hardware/detectors/germanium/diodes",
+                (DetectorDefault(HPGE_PATTERN, self.default_detector, _adjust_diode),),
+            ),
             (
                 "hardware/detectors/germanium/crystals",
-                r"V\d{5}",
-                det[:-1],
-                _adjust_crystal,
+                (
+                    DetectorDefault(
+                        r"V\d{5}", self.default_detector[:-1], _adjust_crystal
+                    ),
+                ),
             ),
-            ("hardware/configuration/channelmaps", HPGE_PATTERN, det, _adjust_channel),
-            ("datasets/statuses", HPGE_PATTERN, det, _adjust_channel),
+            ("hardware/configuration/channelmaps", channel),
+            ("datasets/statuses", channel),
         ):
             if not (self.__path__ / path).is_dir():
                 continue
@@ -143,9 +181,7 @@ class Legend1000Metadata(MetadataRepository):
             parent = self[parent_path]
             db = DefaultTextDB(
                 self.__path__ / path,
-                pattern,
-                default,
-                adjust,
+                defaults,
                 lazy=self.__lazy__,
                 hidden=self.__hidden__,
             )
@@ -180,7 +216,11 @@ class Legend1000Metadata(MetadataRepository):
         >>> l1000meta = Legend1000Metadata()
         >>> channel = l1000meta.channelmap(on="20400101T000000Z").V00101Z
         >>> channel.daq.rawid
-        1
+        1001001
+        >>> l1000meta.channelmap().S0102B.location.position
+        'bottom'
+        >>> l1000meta.channelmap().S0102B.daq.rawid
+        2001021
 
         See Also
         --------
@@ -194,8 +234,11 @@ class Legend1000Metadata(MetadataRepository):
 
         return DefaultAttrsDict(
             {det: get_channel(det) for det in chmap},
-            HPGE_PATTERN,
-            get_channel,
+            [
+                (HPGE_PATTERN, get_channel),
+                (SPMS_PATTERN, get_channel),
+                (PMTS_PATTERN, get_channel),
+            ],
             readonly=True,
         )
 
@@ -204,11 +247,17 @@ class Legend1000Metadata(MetadataRepository):
         channel = deepcopy(chmap[det])
         detdb = self.hardware.detectors
 
+        system = channel["system"]
         try:
-            if channel["system"] == "geds":
+            if system == "geds":
                 channel |= detdb.germanium.diodes[det]
-            else:
+            elif system == "spms":
                 channel |= detdb.lar.sipms[det]
+            elif system == "pmts":
+                pass  # PMTs have no detector database of their own
+            else:
+                msg = f"Channel '{det}' has an unknown system, '{system}'"
+                log.debug(msg)
         except (KeyError, FileNotFoundError):
             msg = f"Could not find detector '{det}' in hardware.detectors database"
             log.debug(msg)
@@ -222,16 +271,66 @@ class Legend1000Metadata(MetadataRepository):
         return channel
 
 
-def _adjust_channel(record: AttrsDict, name: str) -> None:
-    """Set the name and location of a channel record, if present, to match detector `name`.
+def _adjust_hpge_channel(record: AttrsDict, name: str) -> None:
+    """Set the fields of a channel record, if present, to match detector `name`.
 
-    Detector ``V12345A`` sits in string 123, at position 45.
+    Detector ``V12345A`` sits in string 123, at position 45, so its raw ID is
+    the raw ID of the default record plus 123045.
     """
+    string = int(name[1:4])
+    position = int(name[4:6])
+
     if "name" in record:
         record["name"] = name
     if "location" in record:
-        record.location["string"] = int(name[1:4])
-        record.location["position"] = int(name[4:6])
+        record.location["string"] = string
+        record.location["position"] = position
+    if "daq" in record:
+        record.daq["rawid"] += string * 1000 + position
+
+
+def _adjust_sipm_channel(record: AttrsDict, name: str) -> None:
+    """Set the fields of a channel record, if present, to match array `name`.
+
+    Array ``S0102B`` reads out the bottom end of fiber module ``S0102``, on
+    string 1, so its raw ID is the raw ID of the default record plus 1021.
+    """
+    string = int(name[1:3])
+    module = int(name[3:5])
+    top = name[5] == "T"
+
+    if "name" in record:
+        record["name"] = name
+    if "location" in record:
+        record.location["barrel"] = string
+        record.location["fiber"] = name[:5]
+        record.location["position"] = "top" if top else "bottom"
+        record.location["module"] = module
+    if "daq" in record:
+        end = 0 if top else 1
+        record.daq["rawid"] += string * 1000 + module * 10 + end
+
+
+def _adjust_pmt_channel(record: AttrsDict, name: str) -> None:
+    """Set the fields of a channel record, if present, to match PMT `name`.
+
+    PMT ``PMT1135`` sits in row 11, at position 35, so its raw ID is the raw
+    ID of the default record plus 11035. The rows below 10 are on the floor of
+    the water tank, the rows above it are on the wall.
+
+    The position in the tank (``location`` ``x``, ``y``, ``z`` and
+    ``direction``) does not follow from the name. Those fields keep the value
+    of the default record.
+    """
+    row = int(name[3:5])
+    position = int(name[5:7])
+
+    if "name" in record:
+        record["name"] = name
+    if "location" in record:
+        record.location["name"] = "floor" if row < 10 else "wall"
+    if "daq" in record:
+        record.daq["rawid"] += row * 1000 + position
 
 
 def _adjust_diode(record: AttrsDict, name: str) -> None:
@@ -250,7 +349,7 @@ def _adjust_crystal(record: AttrsDict, name: str) -> None:
         slices = record.slices
         default = next(iter(slices))
         record["slices"] = DefaultAttrsDict(
-            slices, r"[A-Z]", partial(_default_record, slices, default, None)
+            slices, [(r"[A-Z]", partial(_default_record, slices, default, None))]
         )
 
 
@@ -273,27 +372,31 @@ def _default_record(
 
 
 class DefaultAttrsDict(AttrsDict):
-    """AttrsDict that returns ``factory(key)`` for missing keys matching `pattern`."""
+    """AttrsDict that builds a record for a missing key whose name matches a pattern.
+
+    `factories` holds one ``(pattern, factory)`` pair per kind of name. The
+    first pattern that matches wins, and the record is ``factory(key)``.
+    """
 
     def __init__(
         self,
         value: dict,
-        pattern: str,
-        factory: Callable[[str], AttrsDict],
+        factories: Sequence[tuple[str, Callable[[str], AttrsDict]]],
         readonly: bool = False,
     ) -> None:
-        dict.__setattr__(self, "__pattern__", pattern)
-        dict.__setattr__(self, "__factory__", factory)
+        dict.__setattr__(self, "__factories__", tuple(factories))
         super().__init__(value, readonly=readonly)
 
     def __missing__(self, key: str) -> AttrsDict:
-        if not isinstance(key, str) or not re.fullmatch(self.__pattern__, key):
-            raise KeyError(key)
+        if isinstance(key, str):
+            for pattern, factory in self.__factories__:
+                if re.fullmatch(pattern, key):
+                    record = factory(key)
+                    if self.__readonly__:
+                        record.__readonly__ = True
+                    return record
 
-        record = self.__factory__(key)
-        if self.__readonly__:
-            record.__readonly__ = True
-        return record
+        raise KeyError(key)
 
     def __getattr__(self, name: str) -> AttrsDict:
         if not name.startswith("__"):
@@ -304,34 +407,27 @@ class DefaultAttrsDict(AttrsDict):
         return super().__getattr__(name)
 
     def __getstate__(self) -> dict:
-        return super().__getstate__() | {
-            "__pattern__": self.__pattern__,
-            "__factory__": self.__factory__,
-        }
+        return super().__getstate__() | {"__factories__": self.__factories__}
 
     def __setstate__(self, state: dict) -> None:
         super().__setstate__(state)
-        dict.__setattr__(self, "__pattern__", state["__pattern__"])
-        dict.__setattr__(self, "__factory__", state["__factory__"])
+        dict.__setattr__(self, "__factories__", state["__factories__"])
 
 
 class DefaultTextDB(TextDB):
-    """TextDB that returns an adjusted copy of the `default` record for missing names matching `pattern`.
+    """TextDB that returns an adjusted copy of a default record for missing names.
 
-    The output of :meth:`on` falls back in the same way.
+    `defaults` holds one :class:`DetectorDefault` per kind of name. The first pattern
+    that matches wins. The output of :meth:`on` falls back in the same way.
     """
 
     def __init__(
         self,
         path: str | Path,
-        pattern: str,
-        default: str,
-        adjust: Callable[[AttrsDict, str], None],
+        defaults: Sequence[DetectorDefault],
         **kwargs,
     ) -> None:
-        self.__pattern__ = pattern
-        self.__default__ = default
-        self.__adjust__ = adjust
+        self.__defaults__ = tuple(defaults)
         super().__init__(path, **kwargs)
 
     def __getitem__(self, item: str | Path) -> TextDB | AttrsDict | list | None:
@@ -339,30 +435,27 @@ class DefaultTextDB(TextDB):
             return super().__getitem__(item)
         except FileNotFoundError:
             name = str(item)
-            if name == self.__default__ or not re.fullmatch(self.__pattern__, name):
-                raise
-            record = deepcopy(super().__getitem__(self.__default__))
-            self.__adjust__(record, name)
-            return record
+            for default in self.__defaults__:
+                if name != default.record and re.fullmatch(default.pattern, name):
+                    record = deepcopy(super().__getitem__(default.record))
+                    default.adjust(record, name)
+                    return record
+            raise
 
     def on(self, *args, **kwargs) -> AttrsDict | list:
         result = super().on(*args, **kwargs)
         return DefaultAttrsDict(
             result,
-            self.__pattern__,
-            partial(_default_record, result, self.__default__, self.__adjust__),
+            [
+                (d.pattern, partial(_default_record, result, d.record, d.adjust))
+                for d in self.__defaults__
+            ],
             readonly=True,
         )
 
     def __getstate__(self) -> dict:
-        return super().__getstate__() | {
-            "__pattern__": self.__pattern__,
-            "__default__": self.__default__,
-            "__adjust__": self.__adjust__,
-        }
+        return super().__getstate__() | {"__defaults__": self.__defaults__}
 
     def __setstate__(self, state: dict) -> None:
         super().__setstate__(state)
-        self.__pattern__ = state["__pattern__"]
-        self.__default__ = state["__default__"]
-        self.__adjust__ = state["__adjust__"]
+        self.__defaults__ = state["__defaults__"]
