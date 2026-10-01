@@ -165,7 +165,11 @@ class Legend1000Metadata(MetadataRepository):
             ),
             (
                 "hardware/detectors/germanium/crystals",
-                (DetectorDefault(r"V\d{5}", self.default_detector[:-1], _adjust_crystal),),
+                (
+                    DetectorDefault(
+                        r"V\d{5}", self.default_detector[:-1], _adjust_crystal
+                    ),
+                ),
             ),
             ("hardware/configuration/channelmaps", channel),
             ("datasets/statuses", channel),
