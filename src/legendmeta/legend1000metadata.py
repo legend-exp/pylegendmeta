@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import logging
 import re
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Sequence
 from copy import deepcopy
 from datetime import datetime
 from functools import partial
@@ -190,11 +190,7 @@ class Legend1000Metadata(MetadataRepository):
             setattr(parent, name, db)
 
     def channelmap(
-        self,
-        on: str | datetime = "20400101T000000Z",
-        category: str = "all",
-        *,
-        names: Iterable[str] | None = None,
+        self, on: str | datetime = "20400101T000000Z", category: str = "all"
     ) -> AttrsDict:
         """Get a LEGEND-1000 channel map.
 
@@ -214,11 +210,6 @@ class Legend1000Metadata(MetadataRepository):
             first LEGEND-1000 period in the metadata.
         category: 'all', 'phy', 'cal', ...
             query only a data taking category.
-        names
-            if not ``None``, return only the channels with these names, e.g.
-            the detectors of a geometry. A name without a record of its own
-            gets the default channel. Raises :class:`KeyError` for a name that
-            no default record stands in for.
 
         Examples
         --------
@@ -241,9 +232,6 @@ class Legend1000Metadata(MetadataRepository):
         )
         statuses = self.datasets.statuses.on(on, pattern=None, category=category)
         get_channel = partial(self._channel, chmap, statuses)
-
-        if names is not None:
-            return AttrsDict({name: get_channel(name) for name in names}, readonly=True)
 
         return DefaultAttrsDict(
             {det: get_channel(det) for det in chmap},

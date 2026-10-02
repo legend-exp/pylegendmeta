@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import logging
 import warnings
-from collections.abc import Iterable
 from copy import deepcopy
 from datetime import datetime
 
@@ -64,7 +63,6 @@ class LegendMetadata(MetadataRepository):
         category: str = "all",
         skip_version_check: bool = False,
         *,
-        names: Iterable[str] | None = None,
         system: str | None = None,
     ) -> AttrsDict:
         """Get a LEGEND channel map.
@@ -88,9 +86,6 @@ class LegendMetadata(MetadataRepository):
         skip_version_check
             if ``True``, skip the git version check and assume the latest
             metadata structure. Implied by ``METADATA_NO_GIT_REPO``.
-        names
-            if not ``None``, return only the channels with these names. Raises
-            :class:`KeyError` for a name that is not in the channel map.
 
         Warning
         -------
@@ -123,12 +118,11 @@ class LegendMetadata(MetadataRepository):
         if on is None:
             on = datetime.now()
 
-        chmap = self.hardware.configuration.channelmaps.on(
-            on, pattern=None, category=category
+        chmap = deepcopy(
+            self.hardware.configuration.channelmaps.on(
+                on, pattern=None, category=category
+            )
         )
-        if names is not None:
-            chmap = AttrsDict({name: chmap[name] for name in names})
-        chmap = deepcopy(chmap)
 
         # get analysis metadata
         if skip_version_check or self.__no_git_repo__:
