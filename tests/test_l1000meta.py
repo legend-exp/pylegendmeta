@@ -35,7 +35,8 @@ def test_default_diode(l1000meta):
     assert diode.production.crystal == "345"
     assert diode.production.slice == "A"
     assert diode.geometry == default.geometry
-    assert "V12345A" not in diodes
+    assert "V12345A" in diodes
+    assert "V12345A" not in list(diodes)
 
 
 def test_default_crystal(l1000meta):
