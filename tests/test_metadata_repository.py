@@ -112,7 +112,11 @@ def test_legend1000_metadata_defaults(monkeypatch, tmp_path, lazy):
     assert diode.production.crystal == "345"
     assert diode.production.slice == "A"
     assert meta["hardware/detectors/germanium/diodes/V12345B"].production.slice == "B"
-    assert "V12345A" not in diodes
+    # `in` agrees with a lookup, iteration only sees the records on disk
+    assert "V12345A" in diodes
+    assert "V00001A" in diodes
+    assert "V12345A" not in list(diodes)
+    assert "V1234" not in diodes
     with pytest.raises(FileNotFoundError):
         _ = diodes.V1234
 
@@ -120,6 +124,7 @@ def test_legend1000_metadata_defaults(monkeypatch, tmp_path, lazy):
     assert crystal.name == "345"
     assert crystal.order == "12"
     assert crystal.slices.A.detector_offset_in_mm == 10
+    assert "V12345" in meta.hardware.detectors.germanium.crystals
 
     statuses = meta.datasets.statuses.on("20230601T000000Z")
     assert statuses.V00001A.usability == "on"
@@ -152,8 +157,10 @@ def test_legend1000_metadata_defaults(monkeypatch, tmp_path, lazy):
     assert channel.daq.rawid == spms["daq"]["rawid"] + 1021
     assert chmap.S0102T.location.position == "top"
     assert chmap.S0102T.daq.rawid == spms["daq"]["rawid"] + 1020
-    assert "S0102B" not in chmap
+    assert "S0102B" in chmap
+    assert "S0102B" not in list(chmap)
     # only the T and B ends of a fiber module are SiPM arrays
+    assert "S0102X" not in chmap
     with pytest.raises(KeyError):
         _ = chmap["S0102X"]
 
@@ -185,12 +192,14 @@ def test_legend1000_metadata_defaults(monkeypatch, tmp_path, lazy):
     assert meta.hardware.detectors.germanium.diodes.V00001A.type == "icpc"
     with pytest.raises(FileNotFoundError):
         _ = meta.hardware.detectors.germanium.diodes.V12345A
+    assert "V12345A" not in meta.hardware.detectors.germanium.diodes
     with pytest.raises(AttributeError):
         _ = meta.datasets.statuses.on("20230601T000000Z").V12345A
     chmap = meta.channelmap("20230601T000000Z")
     assert chmap.V00001A.analysis.usability == "on"
     with pytest.raises(KeyError):
         _ = chmap["V12345A"]
+    assert "V12345A" not in chmap
     with pytest.raises(KeyError):
         _ = chmap["S0102B"]
     with pytest.raises(KeyError):

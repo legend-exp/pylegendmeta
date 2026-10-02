@@ -86,9 +86,10 @@ class Legend1000Metadata(MetadataRepository):
     system starts. In legend1000-metadata the blocks start at 1000000, 2000000
     and 3000000 for the germanium, SiPM and PMT systems, respectively.
 
-    These records are not added to the database: iterating over it or testing
-    membership with ``in`` only sees records that exist on disk. Pass
-    ``use_defaults=False`` to read only the records on disk.
+    These records are not added to the database: iterating over it only sees
+    records that exist on disk. Testing membership with ``in`` agrees with a
+    lookup: it is ``True`` for every name that a default record stands in for.
+    Pass ``use_defaults=False`` to read only the records on disk.
 
     Parameters
     ----------
@@ -398,6 +399,15 @@ class DefaultAttrsDict(AttrsDict):
 
         raise KeyError(key)
 
+    def __contains__(self, key: object) -> bool:
+        if super().__contains__(key):
+            return True
+        try:
+            self.__missing__(key)
+        except KeyError:
+            return False
+        return True
+
     def __getattr__(self, name: str) -> AttrsDict:
         if not name.startswith("__"):
             try:
@@ -441,6 +451,13 @@ class DefaultTextDB(TextDB):
                     default.adjust(record, name)
                     return record
             raise
+
+    def __contains__(self, item: str | Path) -> bool:
+        try:
+            self[item]
+        except FileNotFoundError:
+            return False
+        return True
 
     def on(self, *args, **kwargs) -> AttrsDict | list:
         result = super().on(*args, **kwargs)
