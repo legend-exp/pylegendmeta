@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import logging
 import re
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from copy import deepcopy
 from datetime import datetime
 from functools import partial
@@ -91,6 +91,10 @@ class Legend1000Metadata(MetadataRepository):
     lookup: it is ``True`` for every name that a default record stands in for.
     Pass ``use_defaults=False`` to read only the records on disk.
 
+    The channels on disk are the default records only. Pass ``channels`` to
+    set the channels that :meth:`channelmap` returns, e.g. the detectors of a
+    geometry.
+
     Parameters
     ----------
     path
@@ -101,6 +105,10 @@ class Legend1000Metadata(MetadataRepository):
     use_defaults
         if ``True``, missing detector records fall back to the default detector
         record, as described above.
+    channels
+        if not ``None``, the names of the channels in the output of
+        :meth:`channelmap`, in place of the channels in the channel map on
+        disk.
     **kwargs
         further keyword arguments forwarded to :class:`TextDB.__init__`.
 
@@ -119,9 +127,11 @@ class Legend1000Metadata(MetadataRepository):
         self,
         path: str | None = None,
         use_defaults: bool = True,
+        channels: Iterable[str] | None = None,
         **kwargs,
     ) -> None:
         self.__use_defaults__ = use_defaults
+        self.__channels__ = None if channels is None else tuple(channels)
         # the database store for which the default records were last set up
         self.__defaults_store__ = None
         super().__init__(
@@ -201,6 +211,7 @@ class Legend1000Metadata(MetadataRepository):
 
         If ``use_defaults`` is enabled, any detector name missing from the
         channel map returns the default channel (see the class documentation).
+        If ``channels`` was given, the channel map holds these channels.
 
         Parameters
         ----------
@@ -232,9 +243,10 @@ class Legend1000Metadata(MetadataRepository):
         )
         statuses = self.datasets.statuses.on(on, pattern=None, category=category)
         get_channel = partial(self._channel, chmap, statuses)
+        channels = chmap if self.__channels__ is None else self.__channels__
 
         return DefaultAttrsDict(
-            {det: get_channel(det) for det in chmap},
+            {det: get_channel(det) for det in channels},
             [
                 (HPGE_PATTERN, get_channel),
                 (SPMS_PATTERN, get_channel),
