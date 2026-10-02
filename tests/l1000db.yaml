@@ -38,6 +38,17 @@ hardware/configuration/channelmaps/l1000-p01-config.yaml:
     daq:
       rawid: 3000000
 
+hardware/configuration/opvs/validity.yaml:
+  - valid_from: 20230101T000000Z
+    apply:
+      - l1000-p01-opvs.yaml
+
+hardware/configuration/opvs/l1000-p01-opvs.yaml:
+  V00001A:
+    operational_voltage_in_V: 4000.0
+  V99999Z:
+    operational_voltage_in_V: 3500.0
+
 datasets/statuses/validity.yaml:
   - valid_from: 20230101T000000Z
     apply:

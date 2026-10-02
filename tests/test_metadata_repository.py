@@ -131,6 +131,13 @@ def test_legend1000_metadata_defaults(monkeypatch, tmp_path, lazy):
     assert statuses.V12345A.usability == "off"
     assert statuses.S0102B == statuses.S9999Z
 
+    opvs = meta.hardware.configuration.opvs.on("20230601T000000Z")
+    assert opvs.V00001A.operational_voltage_in_V == 4000
+    assert opvs.V12345A.operational_voltage_in_V == 3500
+    assert "V12345A" in opvs
+    # only the germanium detectors have an operational voltage
+    assert "S0102B" not in opvs
+
     chmap = meta.channelmap("20230601T000000Z")
     assert list(chmap) == ["V00001A", "V99999Z", "S9999Z", "PMT9999"]
     assert chmap.V00001A.daq.rawid == dummies["V00001A"]["daq"]["rawid"]

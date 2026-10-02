@@ -40,7 +40,7 @@ class DetectorDefault(NamedTuple):
 
     pattern: str
     record: str
-    adjust: Callable[[AttrsDict, str], None]
+    adjust: Callable[[AttrsDict, str], None] | None
 
 
 class Legend1000Metadata(MetadataRepository):
@@ -67,6 +67,8 @@ class Legend1000Metadata(MetadataRepository):
     - the output of ``hardware.configuration.channelmaps.on()``: ``name``,
       ``location`` and ``daq.rawid``.
     - the output of ``datasets.statuses.on()``.
+    - the output of ``hardware.configuration.opvs.on()``: the record is used
+      as it is.
 
     A name provides information on the position in the experiment. The
     position also defines the raw ID of the default record:
@@ -184,6 +186,10 @@ class Legend1000Metadata(MetadataRepository):
             ),
             ("hardware/configuration/channelmaps", channel),
             ("datasets/statuses", channel),
+            (
+                "hardware/configuration/opvs",
+                (DetectorDefault(HPGE_PATTERN, self.default_detector, None),),
+            ),
         ):
             if not (self.__path__ / path).is_dir():
                 continue
@@ -460,7 +466,8 @@ class DefaultTextDB(TextDB):
             for default in self.__defaults__:
                 if name != default.record and re.fullmatch(default.pattern, name):
                     record = deepcopy(super().__getitem__(default.record))
-                    default.adjust(record, name)
+                    if default.adjust is not None:
+                        default.adjust(record, name)
                     return record
             raise
 
