@@ -184,6 +184,15 @@ def test_legend1000_metadata_defaults(monkeypatch, tmp_path, lazy):
     rawids = [chmap[det].daq.rawid for det in ("V12345A", "S0102B", "PMT1135")]
     assert len(set(rawids)) == len(rawids)
 
+    # the channels of a geometry, in place of the channels on disk
+    names = ["V00001A", "V12345A", "S0102B", "PMT1135"]
+    geom_meta = Legend1000Metadata(lazy=lazy, channels=names)
+    geom_chmap = geom_meta.channelmap("20230601T000000Z")
+    assert list(geom_chmap) == names
+    assert geom_chmap.V12345A == chmap.V12345A
+    unpickled = pickle.loads(pickle.dumps(geom_meta))
+    assert list(unpickled.channelmap("20230601T000000Z")) == names
+
     unpickled = pickle.loads(pickle.dumps(meta))
     assert unpickled.hardware.detectors.germanium.diodes.V12345A.name == "V12345A"
     assert unpickled.channelmap("20230601T000000Z").S0102B.location.fiber == "S0102"
@@ -204,6 +213,10 @@ def test_legend1000_metadata_defaults(monkeypatch, tmp_path, lazy):
         _ = chmap["S0102B"]
     with pytest.raises(KeyError):
         _ = chmap["PMT1135"]
+    with pytest.raises(KeyError):
+        Legend1000Metadata(
+            lazy=lazy, use_defaults=False, channels=["V12345A"]
+        ).channelmap("20230601T000000Z")
 
 
 def test_copy_legend_metadata():
