@@ -133,6 +133,20 @@ def test_channelmap(metadb):
     assert "analysis" in channel
 
 
+def test_channelmap_names(metadb):
+    date = datetime(2024, 7, 1)
+    metadb.checkout("63b789e")
+    metadb.scan()
+
+    chmap = metadb.channelmap(date, names=["V02160A"])
+    assert list(chmap) == ["V02160A"]
+    assert chmap.__readonly__
+    assert chmap.V02160A == metadb.channelmap(date).V02160A
+
+    with pytest.raises(KeyError):
+        metadb.channelmap(date, names=["V99999X"])
+
+
 def test_pickle_legend_metadata_roundtrip(metadb):
     payload = pickle.dumps(metadb)
     metadb2 = pickle.loads(payload)
