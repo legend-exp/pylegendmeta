@@ -128,8 +128,8 @@ def test_write_hardware_detectors_germanium_folder(tmp_path):
 
     diodes = l1000meta.hardware.detectors.germanium.diodes
     crystals = l1000meta.hardware.detectors.germanium.crystals
-    assert germanium.diodes.V12345A == diodes.V12345A.to_dict()
-    assert germanium.crystals.V12345 == crystals.V12345.to_dict()
+    assert diodes.V12345A.to_dict() == germanium.diodes.V12345A
+    assert crystals.V12345.to_dict() == germanium.crystals.V12345
 
     with pytest.raises(ValueError, match="channels list"):
         Legend1000Metadata(path, lazy=True).write_hardware_detectors_germanium_folder(
