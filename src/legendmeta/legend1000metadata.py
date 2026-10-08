@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 from dbetto import AttrsDict, TextDB
+from dbetto.utils import write_dict
 
 from .core import MetadataRepository
 
@@ -288,6 +289,35 @@ class Legend1000Metadata(MetadataRepository):
             log.debug(msg)
 
         return channel
+
+    def write_hardware_detectors_germanium_folder(self, path: str | Path) -> None:
+        """Write the diode and crystal records of the ``channels`` HPGes to `path`.
+
+        The records go to ``<path>/hardware/detectors/germanium/diodes/<name>.yaml`` and
+        ``<path>/hardware/detectors/germanium/crystals/<name>.yaml``.
+        """
+        if self.__channels__ is None:
+            msg = "Cannot write hardware.detectors folder without a channels list"
+            raise ValueError(msg)
+
+        germanium = self.hardware.detectors.germanium
+        folder = Path(path) / "hardware" / "detectors" / "germanium"
+        folder_diode = folder / "diodes"
+        folder_crystal = folder / "crystals"
+        folder_diode.mkdir(parents=True, exist_ok=True)
+        folder_crystal.mkdir(parents=True, exist_ok=True)
+
+        chmap = self.channelmap()
+        for det in self.__channels__:
+            if chmap[det]["system"] != "geds":
+                continue
+            diode = germanium.diodes[det]
+            crystal = f"V{diode.production.order:02d}{diode.production.crystal}"
+            write_dict(diode.to_dict(), folder_diode / f"{det}.yaml")
+            write_dict(
+                germanium.crystals[crystal].to_dict(),
+                folder_crystal / f"{crystal}.yaml",
+            )
 
 
 def _adjust_hpge_channel(record: AttrsDict, name: str) -> None:
