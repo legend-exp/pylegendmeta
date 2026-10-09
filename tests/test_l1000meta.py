@@ -113,3 +113,32 @@ def test_no_defaults():
         _ = diodes.V12345A
     with pytest.raises(KeyError):
         _ = l1000meta.channelmap("20400101T000000Z")["V12345A"]
+
+
+def test_write_hardware_detectors_germanium_folder(tmp_path):
+    path = os.getenv("LEGEND1000_METADATA_TESTDIR", tmpdir)
+    l1000meta = Legend1000Metadata(
+        path, lazy=True, channels=["V12345A", "V99999Z", "S0102B"]
+    )
+    l1000meta.write_hardware_detectors_germanium_folder(tmp_path)
+
+    germanium = TextDB(tmp_path / "hardware" / "detectors" / "germanium")
+    assert sorted(germanium.diodes) == ["V12345A", "V99999Z"]
+    assert sorted(germanium.crystals) == ["V12345", "V99999"]
+
+    diodes = l1000meta.hardware.detectors.germanium.diodes
+    crystals = l1000meta.hardware.detectors.germanium.crystals
+    assert diodes.V12345A.to_dict() == germanium.diodes.V12345A
+    assert crystals.V12345.to_dict() == germanium.crystals.V12345
+
+    # Julia YAML.jl reads an unquoted 008 as an invalid octal number
+    Legend1000Metadata(
+        path, lazy=True, channels=["V01008Z"]
+    ).write_hardware_detectors_germanium_folder(tmp_path)
+    text = (tmp_path / "hardware/detectors/germanium/diodes/V01008Z.yaml").read_text()
+    assert '"crystal":"008"' in text
+
+    with pytest.raises(ValueError, match="channels list"):
+        Legend1000Metadata(path, lazy=True).write_hardware_detectors_germanium_folder(
+            tmp_path
+        )
