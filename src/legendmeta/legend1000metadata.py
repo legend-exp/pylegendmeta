@@ -313,10 +313,13 @@ class Legend1000Metadata(MetadataRepository):
                 continue
             diode = germanium.diodes[det]
             crystal = f"V{diode.production.order:02d}{diode.production.crystal}"
-            write_dict(diode.to_dict(), folder_diode / f"{det}.yaml")
+            # JSON is valid YAML and always quotes strings. PyYAML writes "008"
+            # without quotes, and Julia YAML.jl reads it as an invalid octal
+            write_dict(diode.to_dict(), folder_diode / f"{det}.yaml", ftype="json")
             write_dict(
                 germanium.crystals[crystal].to_dict(),
                 folder_crystal / f"{crystal}.yaml",
+                ftype="json",
             )
 
 
