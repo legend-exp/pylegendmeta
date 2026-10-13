@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import pickle
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 import pytest
 import sqlalchemy as sql
@@ -101,3 +103,20 @@ def test_pickle_legend_slowcontrol_db_roundtrip(scdb):
     assert isinstance(scdb2, LegendSlowControlDB)
     assert scdb2.connection is None
     assert scdb2.session is None
+
+
+def test_status_timestamp_formats(scdb):
+    channel = LegendMetadata().channelmap().V02162B
+    rome = ZoneInfo("Europe/Rome")
+
+    # the same instant, 2025-07-01 08:00 UTC, written in different ways
+    status = scdb.status(channel, on="20250701T080000Z")
+    assert status == scdb.status(
+        channel, on=datetime(2025, 7, 1, 8, tzinfo=timezone.utc)
+    )
+    assert status == scdb.status(channel, on=datetime(2025, 7, 1, 10, tzinfo=rome))
+    # naive datetimes are read in the server time zone (Europe/Rome)
+    assert status == scdb.status(channel, on=datetime(2025, 7, 1, 10))  # noqa: DTZ001
+
+    # the channel status changed between 06:00 and 08:00 UTC
+    assert status != scdb.status(channel, on=datetime(2025, 7, 1, 8, tzinfo=rome))
