@@ -18,7 +18,7 @@ from __future__ import annotations
 import logging
 import warnings
 from copy import deepcopy
-from datetime import datetime
+from datetime import datetime, timezone
 
 from dbetto import AttrsDict
 from packaging.version import Version
@@ -116,7 +116,7 @@ class LegendMetadata(MetadataRepository):
             category = system
 
         if on is None:
-            on = datetime.now()
+            on = datetime.now(timezone.utc)
 
         chmap = deepcopy(
             self.hardware.configuration.channelmaps.on(

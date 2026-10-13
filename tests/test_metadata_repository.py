@@ -3,7 +3,7 @@ from __future__ import annotations
 import copy
 import pickle
 import tempfile
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from textwrap import dedent
 
@@ -296,7 +296,7 @@ def test_non_git_metadata_without_flag():
 
     assert not meta.is_git_repo
     with pytest.raises(InvalidGitRepositoryError, match="METADATA_NO_GIT_REPO"):
-        meta.channelmap(datetime(2023, 6, 1))
+        meta.channelmap(datetime(2023, 6, 1, tzinfo=timezone.utc))
 
 
 def test_non_git_metadata_needs_files(monkeypatch):
@@ -314,7 +314,7 @@ def test_non_git_metadata(monkeypatch):
 
     assert not meta.is_git_repo
 
-    channel = meta.channelmap(datetime(2023, 6, 1)).V00001A
+    channel = meta.channelmap(datetime(2023, 6, 1, tzinfo=timezone.utc)).V00001A
     assert channel.daq.rawid == 1104000
     assert channel.type == "icpc"
     assert channel.analysis.usability == "on"

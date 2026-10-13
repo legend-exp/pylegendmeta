@@ -160,4 +160,5 @@ isort.required-imports = ["from __future__ import annotations"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["T20"]
+"src/legendmeta/police.py" = ["BLE001", "S110"]
 "noxfile.py" = ["T20"]

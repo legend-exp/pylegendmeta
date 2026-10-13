@@ -18,7 +18,7 @@ from __future__ import annotations
 import copy
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 import pandas as pd
 import sqlalchemy as db
@@ -235,9 +235,9 @@ class LegendSlowControlDB:
             except db.exc.ObjectNotExecutableError:
                 return pd.read_sql(db.text(expr), self.connection)
         # try rolling back transaction if any exception occurs
-        except Exception as exc:
+        except Exception:
             self.connection.rollback()
-            raise exc
+            raise
 
     def status(
         self, channel: dict, on: str | datetime | None = None, system: str | None = None
@@ -257,7 +257,8 @@ class LegendSlowControlDB:
             configuration. Typically a LEGEND channel map entry (obtainable, for
             example, with :meth:`.core.LegendMetadata.channelmap`).
         on
-            time at which the status is requested.
+            time at which the status is requested. A naive
+            :class:`~datetime.datetime` (no time zone) is taken as UTC.
         system: "geds", "spms", "pmts", ...
             system the channel belong to. this information is used to ask the
             Slow Control database the right questions. If ``None`` will try to
@@ -285,18 +286,22 @@ class LegendSlowControlDB:
         Might stop working if that structure is altered.
         """
         if not on:
-            on = datetime.now()
+            on = datetime.now(timezone.utc)
 
         # sanity checks
         if isinstance(on, str):
-            on = datetime.strptime(on, "%Y%m%dT%H%M%SZ")
+            on = datetime.strptime(on, "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc)
         elif not isinstance(on, datetime):
             msg = "Bad input timestamp format"
-            raise ValueError(msg)
+            raise TypeError(msg)
+
+        # the database stores timestamps in UTC, without time zone
+        if on.tzinfo is not None:
+            on = on.astimezone(timezone.utc).replace(tzinfo=None)
 
         if not isinstance(channel, dict):
             msg = "Bad channel format: dict expected"
-            raise ValueError(msg)
+            raise TypeError(msg)
 
         if not system:
             system = channel.system

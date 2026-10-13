@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import pickle
 import tempfile
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -95,7 +95,7 @@ def test_nested_get(metadb):
 
 
 def test_chmap_remapping(metadb):
-    date = datetime(2024, 7, 1)
+    date = datetime(2024, 7, 1, tzinfo=timezone.utc)
     metadb.checkout("63b789e")
     metadb.scan()
     assert (
@@ -107,7 +107,7 @@ def test_chmap_remapping(metadb):
 
 
 def test_channelmap(metadb):
-    date = datetime(2024, 7, 1)
+    date = datetime(2024, 7, 1, tzinfo=timezone.utc)
     metadb.checkout("63b789e")
     metadb.scan()
     assert isinstance(metadb, LegendMetadata)
@@ -153,7 +153,7 @@ def test_channelmap_skip_version_check(metadb):
 
     This is especially useful for non-git repositories like test data.
     """
-    date = datetime(2024, 7, 1)
+    date = datetime(2024, 7, 1, tzinfo=timezone.utc)
     metadb.checkout("63b789e")
     metadb.scan()
 

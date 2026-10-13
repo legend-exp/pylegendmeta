@@ -182,7 +182,7 @@ def validate_dict_schema(
     """
     if not isinstance(adict, dict) or not isinstance(template, dict):
         msg = "input objects must be of type dict"
-        raise ValueError(msg)
+        raise TypeError(msg)
 
     valid: bool = True
 
