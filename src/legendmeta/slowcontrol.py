@@ -257,8 +257,10 @@ class LegendSlowControlDB:
             configuration. Typically a LEGEND channel map entry (obtainable, for
             example, with :meth:`.core.LegendMetadata.channelmap`).
         on
-            time at which the status is requested. A naive
-            :class:`~datetime.datetime` (no time zone) is taken as UTC.
+            time at which the status is requested. A string
+            ``YYYYmmddTHHMMSSZ`` is read as UTC. A
+            :class:`~datetime.datetime` without time zone is read in the time
+            zone of the database server (``Europe/Rome``).
         system: "geds", "spms", "pmts", ...
             system the channel belong to. this information is used to ask the
             Slow Control database the right questions. If ``None`` will try to
@@ -294,10 +296,6 @@ class LegendSlowControlDB:
         elif not isinstance(on, datetime):
             msg = "Bad input timestamp format"
             raise TypeError(msg)
-
-        # the database stores timestamps in UTC, without time zone
-        if on.tzinfo is not None:
-            on = on.astimezone(timezone.utc).replace(tzinfo=None)
 
         if not isinstance(channel, dict):
             msg = "Bad channel format: dict expected"
