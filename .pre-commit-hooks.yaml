@@ -40,6 +40,15 @@
   files: (.*\/)?(cal_groupings\..+|groupings\/.*_cal_groupings\..+)$
   types: [yaml]
 
+- id: merge-phy-groupings
+  name:
+    derive phy_groupings.yaml from cal_groupings.yaml (order after
+    merge-cal-groupings, before validate-phy-groupings)
+  entry: merge-phy-groupings
+  language: python
+  files: (.*\/)?((cal|phy)_groupings|runinfo)\..+$
+  types: [yaml]
+
 - id: validate-cal-groupings
   name: check LEGEND calibration groupings format
   entry: validate-cal-groupings

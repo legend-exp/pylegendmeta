@@ -19,6 +19,7 @@ import argparse
 import fnmatch
 import re
 import sys
+from collections import Counter
 from importlib import resources
 from pathlib import Path
 
@@ -1895,7 +1896,7 @@ def validate_dataflow_config() -> None:
 
 
 # ---------------------------------------------------------------------------
-# merge-cal-groupings: derive cal_groupings.yaml from the per-aspect files
+# merge-cal/phy-groupings: derive cal/phy_groupings.yaml from groupings/
 # ---------------------------------------------------------------------------
 def _merge_effective(doc: dict, det: str) -> dict:
     """Effective ``{(period, run): group}`` for one detector.
@@ -1939,43 +1940,40 @@ def _compress_runs(runs: list[str]):
     return pieces
 
 
-def _pair_blocks(runmap: dict) -> dict:
-    """``{run: (g_a, g_b)}`` -> named partition blocks for one period.
+def _group_index(group) -> str | None:
+    """Partition index ``NNN`` of a ``calgroupNNNx`` name (None if absent)."""
+    m = re.search(r"(\d{3})", str(group or ""))
+    return m.group(1) if m else None
 
-    Runs sharing the same aspect-group pair form one partition (holes from
-    exclusions do NOT split it — the human idiom keeps a hole-list in one
-    group). Partitions are lettered a, b, c... in ascending first-run order
-    per numeric index; the index comes from the pair's first group name.
+
+def _pair_blocks(runmap: dict) -> dict:
+    """``{(period, run): (g_a, g_b)}`` -> ``{group: {period: [runs]}}``.
+
+    Runs sharing the same aspect-group pair form one partition, across
+    periods (holes from exclusions do NOT split it — the human idiom keeps a
+    hole-list in one group). Partitions are lettered a, b, c... in time order
+    of their first run, per numeric index; the index comes from the pair's
+    first group name.
     """
     by_pair: dict = {}
-    for run, pair in runmap.items():
-        by_pair.setdefault(pair, []).append(run)
+    for key, pair in runmap.items():
+        by_pair.setdefault(pair, []).append(key)
     ordered = sorted(by_pair.items(), key=lambda kv: min(kv[1]))
     counters: dict[str, int] = {}
     out: dict = {}
-    for pair, runs in ordered:
-        m = re.search(r"(\d{3})", str(pair[0]) or "") or re.search(
-            r"(\d{3})", str(pair[1]) or ""
-        )
-        idx = m.group(1) if m else "000"
+    for pair, keys in ordered:
+        idx = _group_index(pair[0]) or _group_index(pair[1]) or "000"
         letter = chr(ord("a") + counters.get(idx, 0))
         counters[idx] = counters.get(idx, 0) + 1
-        out[f"calgroup{idx}{letter}"] = sorted(runs)
+        block = out.setdefault(f"calgroup{idx}{letter}", {})
+        for period, run in sorted(keys):
+            block.setdefault(period, []).append(run)
     return out
 
 
-def _merge_cal_groupings_data(cal: dict, aspects: dict[str, dict]) -> dict:
-    """Derive the merged calibration groupings.
-
-    Periods present in ANY aspect file are (re)derived as the coarsest common
-    refinement of the aspect groupings: a run belongs to the merged partition
-    keyed by its (psd-group, escale-group) pair, so a boundary in EITHER
-    aspect splits the merged partition, and a run excluded from either aspect
-    is excluded from the merge. Other periods pass through unchanged.
-    Per-detector overrides are emitted minimally (dropped when identical to
-    the derived default).
-    """
-    derived_periods = {
+def _aspect_periods(aspects: dict[str, dict]) -> set:
+    """Periods named anywhere in the per-aspect groupings files."""
+    return {
         period
         for doc in aspects.values()
         for block in (doc or {}).values()
@@ -1984,72 +1982,230 @@ def _merge_cal_groupings_data(cal: dict, aspects: dict[str, dict]) -> dict:
         if isinstance(periods, dict)
         for period in periods
     }
-    # pass-through: strip derived periods from the existing content
+
+
+def _strip_periods(doc: dict, periods: set) -> dict:
+    """Copy of a groupings doc without ``periods`` (emptied groups dropped)."""
     out: dict = {}
-    for key, block in (cal or {}).items():
+    for key, block in (doc or {}).items():
         kept_block: dict = {}
-        for group, periods in (block or {}).items():
-            if not isinstance(periods, dict):
+        for group, per in (block or {}).items():
+            if not isinstance(per, dict):
                 continue
-            kept = {p: r for p, r in periods.items() if p not in derived_periods}
+            kept = {p: r for p, r in per.items() if p not in periods}
             if kept:
                 kept_block[group] = kept
         if kept_block:
             out[key] = kept_block
+    return out
 
+
+def _emit_overrides(out: dict, det: str, blocks: dict, default: dict) -> None:
+    """Write one detector's ``{group: {period: [runs]}}`` into ``out``.
+
+    The consumer replaces a WHOLE partition with the detector's block, so a
+    partition that differs from ``default`` is written with all its periods,
+    an identical one is dropped, and a default partition the detector lacks
+    is masked with empty run lists.
+    """
+    for group, periods in blocks.items():
+        if periods == default.get(group):
+            continue
+        out.setdefault(det, {}).setdefault(group, {}).update(
+            {p: _compress_runs(r) for p, r in periods.items()}
+        )
+    for group in default.keys() - blocks.keys():
+        out.setdefault(det, {}).setdefault(group, {}).update(
+            {p: [] for p in default[group]}  # fresh lists: no YAML aliases
+        )
+
+
+def _merge_cal_groupings_data(
+    cal: dict, aspects: dict[str, dict], overridden=frozenset()
+) -> dict:
+    """Derive the merged calibration groupings.
+
+    Periods present in ANY aspect file are (re)derived as the coarsest common
+    refinement of the aspect groupings: a run belongs to the merged partition
+    keyed by its (psd-group, escale-group) pair, so a boundary in EITHER
+    aspect splits the merged partition, and a run excluded from either aspect
+    is excluded from the merge. Partitions may span several periods. Cal runs
+    replaced in ``run_override.yaml`` (``overridden``) are left out. Other
+    periods pass through unchanged. Per-detector overrides are emitted
+    minimally (dropped when identical to the derived default).
+    """
+    derived = _aspect_periods(aspects)
+    out = _strip_periods(cal, derived)
     detectors = sorted(
         {det for doc in aspects.values() for det in (doc or {}) if det != "default"}
     )
-    for period in sorted(derived_periods):
 
-        def eff_for(det, period=period):  # bind the loop var (B023)
-            named = {}
-            for name, doc in aspects.items():
-                e = _merge_effective(doc or {}, det)
-                named[name] = {r: g for (p, r), g in e.items() if p == period}
-            maps = list(named.values())
-            runs = set(maps[0])
-            for m in maps[1:]:
-                runs &= set(m)
-            if not runs and det != "__none__" and named.get("escale"):
-                # The aspects disagree with NO overlap — deliberate per-aspect
-                # curation, not an error (live case V06649M p16: the psd file
-                # tracks the A/E-restored window r002+, escale keeps only
-                # r000). The merged file's primary consumer is the energy
-                # partition calibration, so side with the escale grouping
-                # alone — matching the human-curated cal_groupings — and tell
-                # the curator.
-                esc = named["escale"]
-                print(  # noqa: T201
-                    f"WARNING: '{det}' {period}: psd and escale groupings "
-                    "have no common run; deriving from escale alone "
-                    "(energy-partition authority) — review the aspect files"
-                )
-                return {r: (None, esc[r]) for r in sorted(esc)}
-            return {r: tuple(m[r] for m in maps) for r in sorted(runs)}
-
-        default_map = eff_for("__none__")
-        default_blocks = _pair_blocks(default_map)
-        for group, runs in default_blocks.items():
-            out.setdefault("default", {}).setdefault(group, {})[period] = (
-                _compress_runs(runs)
+    def pairs_for(det):
+        named = {
+            name: {
+                k: g
+                for k, g in _merge_effective(doc or {}, det).items()
+                if k[0] in derived and k not in overridden
+            }
+            for name, doc in aspects.items()
+        }
+        maps = list(named.values())
+        common = set(maps[0]).intersection(*maps[1:])
+        pairs = {k: tuple(m[k] for m in maps) for k in common}
+        esc = named.get("escale") or {}
+        if det == "__none__":
+            return pairs
+        # An escale partition sharing NO run with psd is deliberate per-aspect
+        # curation, not an error (live case V06649M p16: the psd file tracks
+        # the A/E-restored window r002+, escale keeps only r000). The merged
+        # file's primary consumer is the energy partition calibration, so side
+        # with the escale grouping alone — matching the human-curated
+        # cal_groupings — and tell the curator.
+        covered = {_group_index(esc[k]) for k in common}
+        for idx in sorted({_group_index(g) for g in esc.values()} - covered):
+            print(  # noqa: T201
+                f"WARNING: '{det}' calgroup{idx}: psd and escale groupings "
+                "have no common run; deriving from escale alone "
+                "(energy-partition authority) — review the aspect files"
             )
-        for det in detectors:
-            det_map = eff_for(det)
-            if det_map == default_map:
-                continue
-            det_blocks = _pair_blocks(det_map)
-            for group, runs in det_blocks.items():
-                out.setdefault(det, {}).setdefault(group, {})[period] = _compress_runs(
-                    runs
-                )
-            # a default group the detector does NOT reproduce must be MASKED
-            # (an empty run list), or the consumer's default+override merge
-            # would hand the default's runs straight back
-            for group in default_blocks:
-                if group not in det_blocks:
-                    out.setdefault(det, {}).setdefault(group, {})[period] = []
+            pairs.update(
+                {
+                    k: tuple(g if n == "escale" else None for n in named)
+                    for k, g in esc.items()
+                    if _group_index(g) == idx
+                }
+            )
+        return pairs
+
+    default_blocks = _pair_blocks(pairs_for("__none__"))
+    _emit_overrides(out, "default", default_blocks, {})
+    for det in detectors:
+        _emit_overrides(out, det, _pair_blocks(pairs_for(det)), default_blocks)
     return out
+
+
+def _runinfo_runs(runinfo: dict, datatype: str) -> list[tuple[str, str]]:
+    """Time-ordered ``(period, run)`` that have ``datatype`` data in runinfo."""
+    return sorted(
+        (str(period), str(run))
+        for period, runs in (runinfo or {}).items()
+        if isinstance(runs, dict)
+        for run, info in runs.items()
+        if isinstance(info, dict) and datatype in info
+    )
+
+
+def _override_replacements(entries: list, runinfo: dict) -> dict:
+    """``{(period, run): (period, run)}``: cal runs replaced in run_override.
+
+    A run's window is the last entry starting at or before its cal, so its
+    replacement is that entry's first ``apply`` key (``l200-pNN-rNNN-cal-…``).
+    """
+    ordered = sorted(entries, key=lambda e: str(e["valid_from"]))
+    out = {}
+    for period, run in _get_overridden_runs(entries, runinfo):
+        ts = str(runinfo[period][run]["cal"]["start_key"])
+        entry = [e for e in ordered if str(e["valid_from"]) <= ts][-1]
+        key = str(entry["apply"][0]).split("-")
+        out[(period, run)] = (key[1], key[2])
+    return out
+
+
+def _merge_phy_groupings_data(
+    phy: dict, cal: dict, runinfo: dict, periods: set, replaced=None
+) -> dict:
+    """Derive the physics groupings from the merged calibration groupings.
+
+    A phy run is bracketed by the cal run that calibrates it (its own, or the
+    replacement from ``replaced``) and the next cal run that is not replaced,
+    which may open the next period. Phy run ``(p, r)`` joins ``phygroupNNNx``
+    only when both cal runs are in ``calgroupNNNx`` for that detector. A
+    one-run cal partition is the curators' "not partitioned" placeholder and
+    gets no phy runs. Only ``periods`` are derived; others pass through
+    unchanged. Overrides are emitted minimally, as for cal.
+    """
+    replaced = replaced or {}
+    out = _strip_periods(phy, periods)
+    phy_runs = set(_runinfo_runs(runinfo, "phy"))
+    closing, nxt = {}, None  # cal run -> next cal run that is not replaced
+    for key in reversed(_runinfo_runs(runinfo, "cal")):
+        closing[key] = nxt
+        if key not in replaced:
+            nxt = key
+
+    def blocks_for(det):
+        groups = _merge_effective(cal or {}, det)
+        size = Counter(groups.values())
+        blocks: dict = {}
+        for key in sorted(phy_runs):
+            group = groups.get(replaced.get(key, key))
+            if (
+                key[0] in periods
+                and size[group] > 1
+                and groups.get(closing.get(key)) == group
+            ):
+                phygroup = group.replace("calgroup", "phygroup")
+                blocks.setdefault(phygroup, {}).setdefault(key[0], []).append(key[1])
+        return blocks
+
+    default_blocks = blocks_for("__none__")
+    _emit_overrides(out, "default", default_blocks, {})
+    for det in sorted(k for k in (cal or {}) if k != "default"):
+        _emit_overrides(out, det, blocks_for(det), default_blocks)
+    return out
+
+
+def _groupings_roots(files: list[str]) -> list[Path]:
+    """Dataset roots of hook files (``groupings/`` files sit one level down)."""
+    roots = set()
+    for f in files:
+        p = Path(f).resolve()
+        roots.add(p.parent.parent if p.parent.name == "groupings" else p.parent)
+    return sorted(roots)
+
+
+def _load_aspects(root: Path) -> dict[str, dict]:
+    """The per-aspect groupings files under ``root/groupings``, by aspect."""
+    aspects = {}
+    for name in ("psd", "escale"):
+        ap = root / "groupings" / f"{name}_cal_groupings.yaml"
+        if ap.exists():
+            aspects[name] = utils.load_dict(str(ap))
+    return aspects
+
+
+def _load_overrides(root: Path) -> dict:
+    """Cal-run replacements from ``root/run_override.yaml`` ({} if absent)."""
+    ro_path, runinfo_path = root / "run_override.yaml", root / "runinfo.yaml"
+    if not (ro_path.exists() and runinfo_path.exists()):
+        return {}
+    with ro_path.open() as f:
+        entries = yaml.safe_load(f) or []
+    return _override_replacements(entries, utils.load_dict(str(runinfo_path)))
+
+
+def _rewrite_groupings(path: Path, old: dict, new: dict, check: bool) -> bool:
+    """Write sorted ``new`` to ``path`` if it differs from ``old``.
+
+    Returns True when the file is (or, with ``check``, would be) changed.
+    """
+    new = _sort_groupings_data(new)
+    if new == _sort_groupings_data(old):
+        return False
+    if check:
+        print(f"'{path}' is out of date")  # noqa: T201
+        return True
+    with path.open("w") as f:
+        yaml.dump(
+            new,
+            f,
+            Dumper=_LiteralBlockDumper,
+            default_flow_style=False,
+            sort_keys=False,
+            allow_unicode=True,
+        )
+    print(f"Rewrote '{path}'")  # noqa: T201
+    return True
 
 
 def merge_cal_groupings() -> None:
@@ -2074,39 +2230,58 @@ def merge_cal_groupings() -> None:
     )
     args = parser.parse_args()
 
-    roots = set()
-    for f in args.files:
-        p = Path(f).resolve()
-        roots.add(p.parent.parent if p.parent.name == "groupings" else p.parent)
-
     changed = False
-    for root in sorted(roots):
-        cal_path = root / "cal_groupings.yaml"
-        aspects = {}
-        for name in ("psd", "escale"):
-            ap = root / "groupings" / f"{name}_cal_groupings.yaml"
-            if ap.exists():
-                aspects[name] = utils.load_dict(str(ap))
+    for root in _groupings_roots(args.files):
+        aspects = _load_aspects(root)
         if not aspects:
             continue
+        cal_path = root / "cal_groupings.yaml"
         cal = utils.load_dict(str(cal_path)) if cal_path.exists() else {}
-        merged = _sort_groupings_data(_merge_cal_groupings_data(cal, aspects))
-        if merged == _sort_groupings_data(cal):
+        merged = _merge_cal_groupings_data(cal, aspects, set(_load_overrides(root)))
+        changed |= _rewrite_groupings(cal_path, cal, merged, args.check)
+
+    if changed:
+        sys.exit(1)
+
+
+def merge_phy_groupings() -> None:
+    """Derive ``phy_groupings.yaml`` from ``cal_groupings.yaml``.
+
+    Invoked in CLI as a pre-commit autofix hook (order it AFTER
+    ``merge-cal-groupings`` and BEFORE ``validate-phy-groupings``). Periods
+    covered by the per-aspect files under ``groupings/`` are rewritten from
+    the merged calibration partitions and ``runinfo.yaml``; the hook exits 1
+    on change. Do not edit ``phy_groupings.yaml`` by hand for those periods.
+    """
+    parser = argparse.ArgumentParser(
+        prog="merge-phy-groupings",
+        description="Derive phy_groupings.yaml from cal_groupings.yaml",
+    )
+    parser.add_argument("files", nargs="+", help="groupings files (from pre-commit)")
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="report only; do not rewrite phy_groupings.yaml",
+    )
+    args = parser.parse_args()
+
+    changed = False
+    for root in _groupings_roots(args.files):
+        aspects = _load_aspects(root)
+        cal_path = root / "cal_groupings.yaml"
+        runinfo_path = root / "runinfo.yaml"
+        if not (aspects and cal_path.exists() and runinfo_path.exists()):
             continue
-        changed = True
-        if args.check:
-            print(f"'{cal_path}' is out of date with groupings/")  # noqa: T201
-            continue
-        with cal_path.open("w") as f:
-            yaml.dump(
-                merged,
-                f,
-                Dumper=_LiteralBlockDumper,
-                default_flow_style=False,
-                sort_keys=False,
-                allow_unicode=True,
-            )
-        print(f"Rewrote '{cal_path}' from the per-aspect groupings")  # noqa: T201
+        phy_path = root / "phy_groupings.yaml"
+        phy = utils.load_dict(str(phy_path)) if phy_path.exists() else {}
+        merged = _merge_phy_groupings_data(
+            phy,
+            utils.load_dict(str(cal_path)),
+            utils.load_dict(str(runinfo_path)),
+            _aspect_periods(aspects),
+            _load_overrides(root),
+        )
+        changed |= _rewrite_groupings(phy_path, phy, merged, args.check)
 
     if changed:
         sys.exit(1)
