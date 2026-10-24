@@ -53,7 +53,8 @@ def plot_groupings() -> None:
         description="Plot the partition groupings of a legend-datasets tree",
     )
     parser.add_argument(
-        "--datasets", help="legend-datasets (or legend-metadata) path ($LEGEND_METADATA)"
+        "--datasets",
+        help="legend-datasets (or legend-metadata) path ($LEGEND_METADATA)",
     )
     parser.add_argument("--grouping", default="cal", choices=sorted(GROUPING_YAML_MAP))
     parser.add_argument(

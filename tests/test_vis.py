@@ -8,7 +8,7 @@ import yaml
 mpl = pytest.importorskip("matplotlib")
 mpl.use("Agg")
 
-from legendmeta.vis import cli, common, plot_partition_groupings  # noqa: E402
+from legendmeta.vis import cli, common, plot_partition_groupings
 
 CAL = {"default": {"calgroup011a": {"p20": "r000..r003"}}}
 
