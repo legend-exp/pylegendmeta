@@ -37,11 +37,9 @@ dependencies = [
     "GitPython",
     "pandas",
     "pyyaml",
-    "psycopg2-binary",
+    "psycopg2-binary<=2.9.9; python_version<'3.10' and platform_system=='Darwin'",
+    "psycopg2-binary; python_version>='3.10' or platform_system!='Darwin'",
     "sqlalchemy>=2",
-    "matplotlib",
-    "numpy",
-    "openpyxl",
 ]
 dynamic = [
     "version",
@@ -62,7 +60,7 @@ Changelog = "https://github.com/legend-exp/pylegendmeta/releases"
 
 [project.optional-dependencies]
 all = [
-    "pylegendmeta[docs,tables,test]",
+    "pylegendmeta[docs,tables,test,vis]",
 ]
 docs = [
     "pylegendmeta[tables]",
@@ -75,14 +73,20 @@ docs = [
 tables = [
     "polars>=1.40",
 ]
+vis = [
+    "matplotlib",
+    "numpy",
+    "openpyxl",
+]
 test = [
-    "pylegendmeta[tables]",
+    "pylegendmeta[tables,vis]",
     "pre-commit",
     "pytest>=6.0",
     "pytest-cov",
 ]
 
 [project.scripts]
+plot-groupings = "legendmeta.vis.cli:plot_groupings"
 validate-cal-groupings = "legendmeta.police:validate_cal_groupings"
 validate-dataflow-config = "legendmeta.police:validate_dataflow_config"
 validate-legend-chmaps = "legendmeta.police:validate_legend_channel_map"

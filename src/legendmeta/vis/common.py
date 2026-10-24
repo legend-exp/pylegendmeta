@@ -1,14 +1,20 @@
 from __future__ import annotations
 
+import os
 import re
+from pathlib import Path
 
-import matplotlib.patches as mpatches
-import matplotlib.pyplot as plt
-import numpy as np
-import openpyxl
-from dbetto import Props
-from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
-from openpyxl.utils import get_column_letter
+try:
+    import matplotlib.patches as mpatches
+    import matplotlib.pyplot as plt
+    import numpy as np
+    import openpyxl
+    from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+    from openpyxl.utils import get_column_letter
+except ImportError as e:
+    msg = "legendmeta.vis needs matplotlib, install it with: pip install 'pylegendmeta[vis]'"
+    raise ImportError(msg) from e
+from dbetto import Props, TextDB
 
 from legendmeta import LegendMetadata
 
@@ -25,12 +31,44 @@ NORMAL = Side(style="thin", color="888888")
 HAIR = Side(style="hair", color="CCCCCC")
 FONT = "Arial"
 
-GROUPING_YAML_MAP: dict[str, str] = {
-    "cal": "dataprod/config/partitions/cal_groupings.yaml",
-    "phy": "dataprod/config/partitions/phy_groupings.yaml",
-    "escale": "dataprod/config/partitions/escale_groupings.yaml",
-    "psd": "dataprod/config/partitions/psd_groupings.yaml",
+GROUPING_YAML_MAP: dict[str, str] = {  # relative to legend-datasets
+    "cal": "cal_groupings.yaml",
+    "phy": "phy_groupings.yaml",
+    "escale": "groupings/escale_cal_groupings.yaml",
+    "psd": "groupings/psd_cal_groupings.yaml",
 }
+DET_TYPES = {"B": "BEGe", "C": "Coax", "P": "PPC", "V": "ICPC"}  # row groups
+FIG_FORMATS = (".pdf", ".png", ".svg")
+CHANGED_COLOR = "#000000"  # outline of cells that differ from ``compare``
+
+
+def _metadata(metadata: str | Path | LegendMetadata | None) -> LegendMetadata:
+    """A :class:`LegendMetadata` from a path, an instance or ``None``."""
+    if isinstance(metadata, LegendMetadata):
+        return metadata
+    return LegendMetadata(None if metadata is None else str(metadata))
+
+
+def _datasets_path(source=None) -> Path:
+    """legend-datasets directory of a legend-datasets or legend-metadata tree.
+
+    ``source`` is a path or a :class:`LegendMetadata` (default:
+    ``$LEGEND_METADATA``).
+    """
+    if isinstance(source, LegendMetadata):
+        source = source.__repo_path__
+    if source is None:
+        source = os.environ.get("LEGEND_METADATA")
+        if not source:
+            msg = "no legend-datasets path given and $LEGEND_METADATA is not set"
+            raise ValueError(msg)
+    path = Path(source)
+    return path / "datasets" if (path / "datasets").is_dir() else path
+
+
+def _datasets_file(datasets: Path, name: str) -> dict:
+    """Read ``name`` from a legend-datasets directory."""
+    return Props.read_from(str(datasets / name))
 
 
 def expand_run_list(value: list | str) -> list[str]:
@@ -56,12 +94,12 @@ def expand_run_list(value: list | str) -> list[str]:
 
 def partition_num(part_name: str) -> int:
     """calgroup008b  →  8"""
-    return int(part_name.split("group")[-1][:-1])
+    return int(part_name.rsplit("group", maxsplit=1)[-1][:-1])
 
 
 def partition_label(part_name: str) -> str:
     """calgroup008b  →  '8b'  (short display label)"""
-    temp = part_name.split("group")[-1]
+    temp = part_name.rsplit("group", maxsplit=1)[-1]
     return f"{int(temp[:-1])}{temp[-1]}"
 
 
@@ -95,39 +133,45 @@ def build_period_run_map(
 
 
 def merge_with_defaults(
-    hpge_partitions: dict, default_partitions: dict, min_part: int
+    hpge_partitions: dict,
+    default_partitions: dict,
+    min_part: int,
+    blank_single: bool = True,
 ) -> dict:
     """Merge a detector's partition overrides with the defaults.
-    Returns {(period, run): partition_name} for all valid runs."""
-    all_partitions = {
-        part
-        for part in list(hpge_partitions) + list(default_partitions)
-        if partition_num(part) >= min_part
-    }
+
+    A detector block replaces the WHOLE partition it names, as in
+    legend-dataflow ``CalGrouping``. With ``blank_single``, a one-run
+    detector partition (the "not partitioned" placeholder) is left blank.
+    Returns {(period, run): partition_name} for all valid runs.
+    """
+    merged = {**default_partitions, **hpge_partitions}
     result = {}
-    for part in all_partitions:
-        default_source = default_partitions.get(part, {})
-        if not isinstance(default_source, dict):
-            default_source = {}
-        if part in hpge_partitions:
-            device_source = hpge_partitions[part]
-            if not isinstance(device_source, dict):
-                continue
-            for period, runs in device_source.items():
-                expanded = expand_run_list(runs)
-                if len(expanded) == 1:
-                    continue  # single-run device override → leave blank
-                for run in expanded:
-                    result[(period, run)] = part
-            for period, runs in default_source.items():
-                if period not in device_source:
-                    for run in expand_run_list(runs):
-                        result[(period, run)] = part
-        else:
-            for period, runs in default_source.items():
-                for run in expand_run_list(runs):
-                    result[(period, run)] = part
+    for part, period_runs in merged.items():
+        if partition_num(part) < min_part or not isinstance(period_runs, dict):
+            continue
+        keys = [
+            (p, r) for p, runs in period_runs.items() for r in expand_run_list(runs)
+        ]
+        if blank_single and part in hpge_partitions and len(keys) == 1:
+            continue
+        for key in keys:
+            result[key] = part
     return result
+
+
+def changed_cells(new: dict, old: dict, hpges: list[str]) -> set[tuple]:
+    """``(hpge, period, run)`` whose partition differs between two groupings."""
+    out = set()
+    for hpge in hpges:
+        a = merge_with_defaults(
+            new.get(hpge) or {}, new.get("default") or {}, 0, blank_single=False
+        )
+        b = merge_with_defaults(
+            old.get(hpge) or {}, old.get("default") or {}, 0, blank_single=False
+        )
+        out |= {(hpge, *k) for k in a.keys() | b.keys() if a.get(k) != b.get(k)}
+    return out
 
 
 def cmap_hex(cmap_name: str, n: int) -> list[str]:
@@ -143,15 +187,15 @@ def xl_fill(h: str) -> PatternFill:
     return PatternFill("solid", fgColor=h)
 
 
-def _build_run_layout(period: str, run: str, type: str) -> dict:
+def _build_run_layout(period: str, run: str, type: str, metadata=None) -> dict:
     """Load metadata for a single run.
 
-    Returns a dict with keys: str_pos, usab_map, psd_map, period, run.
+    Returns a dict with keys: meta, str_pos, usab_map, psd_map, period, run.
     """
-    runinfo = Props.read_from("runinfo.yaml")
+    meta = _metadata(metadata)
+    runinfo = _datasets_file(_datasets_path(meta), "runinfo.yaml")
     timestamp = runinfo[period][run][type]["start_key"]
 
-    meta = LegendMetadata()
     run_chmap = meta.channelmap(timestamp)
 
     str_pos = {}
@@ -174,6 +218,7 @@ def _build_run_layout(period: str, run: str, type: str) -> dict:
             psd_map[hpge] = analysis["psd"]
 
     return {
+        "meta": meta,
         "str_pos": str_pos,
         "usab_map": usab_map,
         "psd_map": psd_map,
@@ -201,8 +246,8 @@ def _render_run(
     if not grid or not max_pos:
         return
 
-    if output is not None and not output.endswith((".xlsx", ".pdf")):
-        msg = f"Unsupported output format: {output!r}. Use '.xlsx' or '.pdf'."
+    if output is not None and not output.endswith((".xlsx", *FIG_FORMATS)):
+        msg = f"Unsupported output format: {output!r}. Use .xlsx, .pdf, .png or .svg."
         raise ValueError(msg)
 
     if output is not None and output.endswith(".xlsx"):
@@ -246,7 +291,7 @@ def _render_run(
 
         wb.save(output)
 
-    if output is None or output.endswith(".pdf"):
+    if output is None or output.endswith(FIG_FORMATS):
         n_str = len(strings)
         cell_w = 1.0
         fig, ax = plt.subplots(figsize=(n_str * cell_w + 0.5, max_pos * cell_w + 0.5))
@@ -324,25 +369,31 @@ def _render_run(
             plt.close(fig)
 
 
-def _build_layout(key: str, type: str) -> dict:
-    """Load metadata and compute the common layout structures used by all plot functions.
+def _build_layout(key: str | list[str], type: str, datasets=None) -> dict:
+    """Compute the grid layout from legend-datasets alone.
 
-    Returns a dict with keys: meta, str_pos, hpges, string_groups, strings,
-    string_shade_map, sorted_cols, periods, period_colour_map, period_groups,
-    usab_map, psd_map.
+    ``key`` is a period (``"p16"``), a list of periods or a runlists key
+    (``"napoli26"``). Rows are the germanium detectors in the statuses (the
+    entries with a ``psd`` block), grouped by detector type and sorted by
+    name. Returns a dict with keys: datasets, str_pos, hpges, string_groups,
+    strings, group_labels, string_shade_map, sorted_cols, periods,
+    period_colour_map, period_groups, usab_map, psd_map.
     """
-    is_period_key = bool(re.match(r"^p\d+$", key))
-    runinfo = Props.read_from("runinfo.yaml")
-    runlists = Props.read_from("runlists.yaml") if not is_period_key else None
-
-    meta = LegendMetadata()
+    datasets = _datasets_path(datasets)
+    if isinstance(key, str) and re.match(r"^p\d+$", key):
+        key = [key]
+    runinfo = _datasets_file(datasets, "runinfo.yaml")
 
     period_max: dict[str, int] = {}
-    if is_period_key:
-        runs_in_period = [r for r in runinfo[key] if type in runinfo[key][r]]
-        if runs_in_period:
-            period_max[key] = max(int(r[1:]) for r in runs_in_period)
+    if not isinstance(key, str):
+        for period in key:
+            runs_in_period = [
+                r for r in runinfo.get(period, {}) if type in runinfo[period][r]
+            ]
+            if runs_in_period:
+                period_max[period] = max(int(r[1:]) for r in runs_in_period)
     else:
+        runlists = _datasets_file(datasets, "runlists.yaml")
         for period, runs_spec in runlists[key][type].items():
             runs = expand_run_list(runs_spec)
             if runs:
@@ -362,61 +413,37 @@ def _build_layout(key: str, type: str) -> dict:
     for period, run in sorted_cols:
         period_groups.setdefault(period, []).append((period, run))
 
-    # Build str_pos as a union across periods; the channelmap is stable within a period
-    # so we use the first valid run of each period to get its layout.
-    str_pos = {}
-    for period in periods:
-        period_info = runinfo.get(period, {})
-        first_run = min(
-            (r for r in period_info if type in period_info[r]),
-            key=lambda r: int(r[1:]),
-            default=None,
-        )
-        if first_run is None:
-            continue
-        timestamp = runinfo[period][first_run][type]["start_key"]
-        period_chmap = meta.channelmap(timestamp)
-        for ged, item in period_chmap.items():
-            if item["system"] == "geds" and ged not in str_pos:
-                str_pos[ged] = {
-                    "string": item["location"]["string"],
-                    "position": item["location"]["position"],
-                }
-
-    hpges = sorted(
-        str_pos, key=lambda d: (str_pos[d]["string"], str_pos[d]["position"])
-    )
-    string_groups: dict[int, list] = {}
-    for hpge in hpges:
-        string_groups.setdefault(str_pos[hpge]["string"], []).append(hpge)
-    strings = sorted(string_groups)
-    string_shade_map = {s: STRING_CELL_SHADES[i % 2] for i, s in enumerate(strings)}
-
+    statuses = TextDB(str(datasets)).statuses
     usab_map = {}
     psd_map = {}
     for period, run in sorted_cols:
-        if run not in runinfo.get(period, {}) or type not in runinfo[period][run]:
+        info = runinfo.get(period, {}).get(run, {}).get(type)
+        if info is None:
             continue
-        timestamp = runinfo[period][run][type]["start_key"]
-        run_chmap = meta.channelmap(timestamp)
-        for hpge, item in run_chmap.items():
-            if item["system"] != "geds":
+        for hpge, status in statuses.on(
+            info["start_key"], pattern=None, category="all"
+        ).items():
+            if "psd" not in status:  # only germanium detectors have one
                 continue
-            analysis = item.get("analysis")
-            if not analysis:
-                continue
-            usability = analysis.get("usability")
-            if usability is not None:
-                usab_map[(period, run, hpge)] = usability
-            if "psd" in analysis:
-                psd_map[(period, run, hpge)] = analysis["psd"]
+            psd_map[(period, run, hpge)] = status["psd"]
+            if "usability" in status:
+                usab_map[(period, run, hpge)] = status["usability"]
+
+    hpges = sorted({h for _, _, h in psd_map}, key=lambda d: (d[0], d))
+    string_groups: dict[str, list] = {}
+    for hpge in hpges:
+        string_groups.setdefault(hpge[0], []).append(hpge)
+    strings = sorted(string_groups)
+    string_shade_map = {s: STRING_CELL_SHADES[i % 2] for i, s in enumerate(strings)}
 
     return {
-        "meta": meta,
-        "str_pos": str_pos,
+        "datasets": datasets,
+        "str_pos": dict.fromkeys(hpges),  # no positions without the hardware config
         "hpges": hpges,
         "string_groups": string_groups,
         "strings": strings,
+        "group_labels": {g: DET_TYPES.get(g, g) for g in strings},
+        "group_header": "Type",
         "string_shade_map": string_shade_map,
         "sorted_cols": sorted_cols,
         "periods": periods,
@@ -427,8 +454,19 @@ def _build_layout(key: str, type: str) -> dict:
     }
 
 
-def _render(layout: dict, hpge_maps: dict, cell_colours, output: str | None) -> None:
-    """Render the grid to xlsx, pdf, or an interactive plot."""
+def _render(
+    layout: dict,
+    hpge_maps: dict,
+    cell_colours,
+    output: str | None,
+    highlight: set | None = None,
+    title: str | None = None,
+) -> None:
+    """Render the grid to xlsx, a figure file, or an interactive plot.
+
+    Cells ``(hpge, period, run)`` in ``highlight`` get a thick outline
+    (figures only).
+    """
     hpges = layout["hpges"]
     strings = layout["strings"]
     string_groups = layout["string_groups"]
@@ -438,8 +476,8 @@ def _render(layout: dict, hpge_maps: dict, cell_colours, output: str | None) -> 
     period_colour_map = layout["period_colour_map"]
     period_groups = layout["period_groups"]
 
-    if output is not None and not output.endswith((".xlsx", ".pdf")):
-        msg = f"Unsupported output format: {output!r}. Use '.xlsx' or '.pdf'."
+    if output is not None and not output.endswith((".xlsx", *FIG_FORMATS)):
+        msg = f"Unsupported output format: {output!r}. Use .xlsx, .pdf, .png or .svg."
         raise ValueError(msg)
 
     # ── xlsx ──────────────────────────────────────────────────────────────────
@@ -471,7 +509,9 @@ def _render(layout: dict, hpge_maps: dict, cell_colours, output: str | None) -> 
         ws.row_dimensions[HEADER_ROW].height = 70
         hdr_dark = xl_fill("2F4F7F")
         for col, label in enumerate(
-            ["String", "Detector"] + [f"{p}_{r}" for p, r in sorted_cols], 1
+            [layout.get("group_header", "String"), "Detector"]
+            + [f"{p}_{r}" for p, r in sorted_cols],
+            1,
         ):
             c = ws.cell(HEADER_ROW, col, label)
             c.fill = hdr_dark
@@ -541,7 +581,9 @@ def _render(layout: dict, hpge_maps: dict, cell_colours, output: str | None) -> 
             string_end = current_row - 1
             ws.merge_cells(f"A{string_start}:A{string_end}")
             c = ws.cell(string_start, 1)
-            c.value = f"String {string_num}"
+            c.value = layout.get("group_labels", {}).get(
+                string_num, f"String {string_num}"
+            )
             c.font = Font(bold=True, name=FONT, size=10)
             c.fill = xl_fill(bg)
             c.alignment = Alignment(
@@ -560,7 +602,7 @@ def _render(layout: dict, hpge_maps: dict, cell_colours, output: str | None) -> 
 
     # ── pdf / interactive ─────────────────────────────────────────────────────
 
-    if output is None or output.endswith(".pdf"):
+    if output is None or output.endswith(FIG_FORMATS):
         n_det = len(hpges)
         n_cols = len(sorted_cols)
 
@@ -649,6 +691,23 @@ def _render(layout: dict, hpge_maps: dict, cell_colours, output: str | None) -> 
                         zorder=2,
                     )
 
+        cols_index = {c: i for i, c in enumerate(sorted_cols)}
+        for row_i, det in enumerate(hpges):
+            for _, period, run in sorted(c for c in highlight or () if c[0] == det):
+                if (period, run) not in cols_index:
+                    continue
+                ax.add_patch(
+                    mpatches.Rectangle(
+                        (cols_index[(period, run)] + 0.06, row_i + 0.06),
+                        0.88,
+                        0.88,
+                        facecolor="none",
+                        edgecolor=CHANGED_COLOR,
+                        linewidth=1.4,
+                        zorder=6,
+                    )
+                )
+
         for row_i, det in enumerate(hpges):
             ax.add_patch(
                 mpatches.Rectangle(
@@ -690,7 +749,7 @@ def _render(layout: dict, hpge_maps: dict, cell_colours, output: str | None) -> 
             ax.text(
                 x_str0 + STR_W / 2,
                 start + size / 2,
-                f"Str\n{string_num}",
+                layout.get("group_labels", {}).get(string_num, f"Str\n{string_num}"),
                 ha="center",
                 va="center",
                 fontsize=6.5,
@@ -739,7 +798,7 @@ def _render(layout: dict, hpge_maps: dict, cell_colours, output: str | None) -> 
             ax.text(
                 sc + len(runs) / 2,
                 bar_y_mid,
-                f"{period}  ({runs[0][1]}-{runs[-1][1]})",
+                f"{period}  ({runs[0][1]}-{runs[-1][1]})" if len(runs) > 5 else period,
                 ha="center",
                 va="center",
                 fontsize=7,
@@ -747,7 +806,11 @@ def _render(layout: dict, hpge_maps: dict, cell_colours, output: str | None) -> 
                 zorder=4,
             )
 
-        for x0, w, label in [(x_str0, STR_W, "String"), (x_det0, DET_W, "Detector")]:
+        group_header = layout.get("group_header", "String")
+        for x0, w, label in [
+            (x_str0, STR_W, group_header),
+            (x_det0, DET_W, "Detector"),
+        ]:
             ax.add_patch(
                 mpatches.Rectangle(
                     (x0, bar_y0),
@@ -771,9 +834,11 @@ def _render(layout: dict, hpge_maps: dict, cell_colours, output: str | None) -> 
                 zorder=4,
             )
 
+        if title:
+            ax.set_title(title, fontsize=10, fontweight="bold", loc="left")
         plt.tight_layout(pad=0.2)
         if output is None:
             plt.show()
         else:
-            fig.savefig(output, bbox_inches="tight")
+            fig.savefig(output, bbox_inches="tight", dpi=150)
             plt.close(fig)

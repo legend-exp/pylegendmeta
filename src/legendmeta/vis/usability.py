@@ -19,6 +19,7 @@ def plot_usability_run(
     run: str,
     datatype: str = "cal",
     output: str | None = None,
+    metadata=None,
 ) -> None:
     """Plot detector usability for a single run as a 2D array layout.
 
@@ -31,9 +32,12 @@ def plot_usability_run(
     datatype
         'cal' or 'phy'.
     output
-        Output file path (.pdf or .xlsx). If None, shows the plot interactively.
+        Output file path (.pdf, .png, .svg or .xlsx). If None, shows the plot
+        interactively.
+    metadata
+        legend-metadata path or :class:`LegendMetadata` (default: ``LEGEND_METADATA``).
     """
-    layout = _build_run_layout(period, run, datatype)
+    layout = _build_run_layout(period, run, datatype, metadata)
     usab_map = layout["usab_map"]
     hpge_maps = {hpge: {} for hpge in layout["str_pos"]}
 
@@ -47,6 +51,7 @@ def plot_usability(
     key: str,
     datatype: str = "cal",
     output: str | None = None,
+    datasets=None,
 ) -> None:
     """Plot detector usability (on/ac/off) per run.
 
@@ -57,9 +62,13 @@ def plot_usability(
     datatype
         'cal' or 'phy'.
     output
-        Output file path (.pdf or .xlsx). If None, shows the plot interactively.
+        Output file path (.pdf, .png, .svg or .xlsx). If None, shows the plot
+        interactively.
+    datasets
+        legend-datasets path, or a legend-metadata path or :class:`LegendMetadata`
+        whose ``datasets/`` is used (default: ``$LEGEND_METADATA``).
     """
-    layout = _build_layout(key, datatype)
+    layout = _build_layout(key, datatype, datasets)
     usab_map = layout["usab_map"]
     hpge_maps = {hpge: {} for hpge in layout["str_pos"]}
 

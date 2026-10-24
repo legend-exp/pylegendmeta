@@ -52,6 +52,7 @@ def plot_psd_status_run(
     datatype: str = "cal",
     field: str | None = None,
     output: str | None = None,
+    metadata=None,
 ) -> None:
     """Plot PSD status for a single run as a 2D array layout.
 
@@ -67,9 +68,12 @@ def plot_psd_status_run(
         PSD field to display: 'low_aoe', 'high_aoe', 'lq', 'ann', or 'coax_rt'.
         If None (default), evaluates the per-detector ``is_bb_like`` expression.
     output
-        Output file path (.pdf or .xlsx). If None, shows the plot interactively.
+        Output file path (.pdf, .png, .svg or .xlsx). If None, shows the plot
+        interactively.
+    metadata
+        legend-metadata path or :class:`LegendMetadata` (default: ``LEGEND_METADATA``).
     """
-    layout = _build_run_layout(period, run, datatype)
+    layout = _build_run_layout(period, run, datatype, metadata)
     psd_map = layout["psd_map"]
     hpge_maps = {hpge: {} for hpge in layout["str_pos"]}
 
@@ -85,6 +89,7 @@ def plot_psd_status(
     datatype: str = "cal",
     field: str | None = None,
     output: str | None = None,
+    datasets=None,
 ) -> None:
     """Plot PSD status per detector per run.
 
@@ -99,7 +104,11 @@ def plot_psd_status(
         If None (default), evaluates the per-detector ``is_bb_like`` expression
         (the defined combination of fields for the bb-like cut).
     output
-        Output file path (.pdf or .xlsx). If None, shows the plot interactively.
+        Output file path (.pdf, .png, .svg or .xlsx). If None, shows the plot
+        interactively.
+    datasets
+        legend-datasets path, or a legend-metadata path or :class:`LegendMetadata`
+        whose ``datasets/`` is used (default: ``$LEGEND_METADATA``).
 
     Cell colours
     ------------
@@ -107,7 +116,7 @@ def plot_psd_status(
     For ``is_bb_like`` mode: all fields valid → green, any present but none
     missing → orange, any missing → red. Label shows the abbreviated combination.
     """
-    layout = _build_layout(key, datatype)
+    layout = _build_layout(key, datatype, datasets)
     psd_map = layout["psd_map"]
     hpge_maps = {hpge: {} for hpge in layout["str_pos"]}
 
