@@ -1,4 +1,4 @@
-name: ^[VPBC]\w{6}$
+name: ^([VBP]\d{5}[A-Z]|C00ANG\d|C000RG\d)$
 system: geds
 location:
   string: 0

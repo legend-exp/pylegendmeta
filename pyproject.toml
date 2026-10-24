@@ -33,7 +33,7 @@ classifiers = [
 requires-python = ">=3.10"
 dependencies = [
     "packaging",
-    "dbetto>=1.2.2",
+    "dbetto>=1.4",
     "GitPython",
     "pandas",
     "pyyaml",
@@ -62,24 +62,33 @@ Changelog = "https://github.com/legend-exp/pylegendmeta/releases"
 
 [project.optional-dependencies]
 all = [
-    "pylegendmeta[docs,test]",
+    "pylegendmeta[docs,tables,test]",
 ]
 docs = [
+    "pylegendmeta[tables]",
     "furo",
     "myst-parser",
     "sphinx>=7.2.2",
     "sphinx-copybutton",
     "sphinx-inline-tabs",
 ]
+tables = [
+    "polars>=1.40",
+]
 test = [
+    "pylegendmeta[tables]",
     "pre-commit",
     "pytest>=6.0",
     "pytest-cov",
 ]
 
 [project.scripts]
+validate-cal-groupings = "legendmeta.police:validate_cal_groupings"
+validate-dataflow-config = "legendmeta.police:validate_dataflow_config"
 validate-legend-chmaps = "legendmeta.police:validate_legend_channel_map"
 validate-legend-detdb = "legendmeta.police:validate_legend_detector_db"
+validate-phy-groupings = "legendmeta.police:validate_phy_groupings"
+validate-statuses = "legendmeta.police:validate_statuses"
 validate-validity = "legendmeta.police:validate_validity"
 
 [tool.setuptools]
@@ -102,7 +111,7 @@ namespaces = false
 attr = "legendmeta._version.version"
 
 [tool.codespell]
-ignore-words-list = "crate,nd,unparseable,compiletime"
+ignore-words-list = "crate,nd,unparseable,compiletime,puls"
 
 [tool.pytest.ini_options]
 minversion = "6.0"
@@ -147,9 +156,11 @@ ignore = [
   "PLR2004",  # Magic value used in comparison
   "ISC001",   # Conflicts with formatter
   "PT011",    # too picky pytest.raises() complaint
+  "PLC0415",  # `import` should be at the top-level of a file
 ]
 isort.required-imports = ["from __future__ import annotations"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["T20"]
+"src/legendmeta/police.py" = ["BLE001", "S110"]
 "noxfile.py" = ["T20"]

@@ -16,7 +16,9 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+import warnings
+from copy import deepcopy
+from datetime import datetime, timezone
 
 from dbetto import AttrsDict
 from packaging.version import Version
@@ -58,8 +60,10 @@ class LegendMetadata(MetadataRepository):
     def channelmap(
         self,
         on: str | datetime | None = None,
-        system: str = "all",
+        category: str = "all",
         skip_version_check: bool = False,
+        *,
+        system: str | None = None,
     ) -> AttrsDict:
         """Get a LEGEND channel map.
 
@@ -73,12 +77,15 @@ class LegendMetadata(MetadataRepository):
         on
             a :class:`~datetime.datetime` object or a string matching the
             pattern ``YYYYmmddTHHMMSSZ``.
-        system: 'all', 'phy', 'cal', 'lar', ...
-            query only a data taking "system".
+        category: 'all', 'phy', 'cal', 'lar', ...
+            query only a data taking category.
+        system
+            deprecated alias for `category`. Do not confuse with the detector
+            "system" (``geds``, ``spms``, ...): here the accepted values are
+            data-taking categories.
         skip_version_check
             if ``True``, skip the git version check and assume the latest
-            metadata structure. This is useful when working with non-git
-            repositories (e.g., test data).
+            metadata structure. Implied by ``METADATA_NO_GIT_REPO``.
 
         Warning
         -------
@@ -100,21 +107,33 @@ class LegendMetadata(MetadataRepository):
         --------
         .textdb.TextDB.on
         """
-        if on is None:
-            on = datetime.now()
+        if system is not None:
+            warnings.warn(
+                "the 'system' argument is deprecated, use 'category' instead",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            category = system
 
-        chmap = self.hardware.configuration.channelmaps.on(
-            on, pattern=None, system=system
+        if on is None:
+            on = datetime.now(timezone.utc)
+
+        chmap = deepcopy(
+            self.hardware.configuration.channelmaps.on(
+                on, pattern=None, category=category
+            )
         )
 
         # get analysis metadata
-        if skip_version_check:
+        if skip_version_check or self.__no_git_repo__:
             # assume latest structure (post v0.5.9)
-            anamap = self.datasets.statuses.on(on, pattern=None, system=system)
+            anamap = self.datasets.statuses.on(on, pattern=None, category=category)
         elif self.__closest_tag__ < Version("v0.5.9") or self.__version__ == "v0.5.9":
-            anamap = self.dataprod.config.on(on, pattern=None, system=system).analysis
+            anamap = self.dataprod.config.on(
+                on, pattern=None, category=category
+            ).analysis
         else:
-            anamap = self.datasets.statuses.on(on, pattern=None, system=system)
+            anamap = self.datasets.statuses.on(on, pattern=None, category=category)
 
         # get full detector db
         detdb = self.hardware.detectors
@@ -139,4 +158,5 @@ class LegendMetadata(MetadataRepository):
                 msg = f"Could not find detector '{det}' in dataprod.config database"
                 log.debug(msg)
 
+        chmap.__readonly__ = True
         return chmap

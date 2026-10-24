@@ -1,0 +1,2 @@
+name: ^PULS\d{2}(ANA)?$
+system: puls

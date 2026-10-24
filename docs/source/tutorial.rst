@@ -17,6 +17,13 @@ temporary (i.e. not preserved across system reboots) directory.
    it or, alternatively, as an argument to the :class:`~.core.LegendMetadata`
    constructor. Recommended if a custom legend-metadata_ is needed.
 
+.. tip::
+
+   Set ``$METADATA_NO_GIT_REPO`` to read metadata that is not a Git checkout.
+   The version-dependent features are then unavailable, and
+   :meth:`~.legendmetadata.LegendMetadata.channelmap` assumes the latest
+   metadata layout.
+
 :class:`~.core.LegendMetadata` is a :class:`dbetto.TextDB` object, provided by
 the :mod:`dbetto` package, which implements an interface to a database of text
 files arbitrary scattered in a filesystem. :class:`~dbetto.TextDB` does not

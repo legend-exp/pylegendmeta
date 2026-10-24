@@ -239,3 +239,21 @@ class MuonInfo(Base):
 
     def asdict(self) -> AttrsDict:
         return AttrsDict({"group": self.group, "label": self.label})
+
+
+@dataclass
+class HeadLdoSnap(Base):
+    """Monitored parameters of the HEAD electronics LDO voltage regulators."""
+
+    __tablename__ = "head_ldo_snap"
+
+    rasp: Mapped[int]
+    addr: Mapped[int]
+    name: Mapped[str]
+    vmon: Mapped[float]
+    imon: Mapped[float]
+    almask: Mapped[int]
+    tstamp: Mapped[datetime] = db.orm.mapped_column(primary_key=True)
+
+    def asdict(self) -> AttrsDict:
+        return AttrsDict({"vmon": self.vmon, "imon": self.imon})

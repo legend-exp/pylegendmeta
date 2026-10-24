@@ -60,6 +60,12 @@ class MetadataRepository(TextDB):
         default directory name for cloning in temp directory.
     **kwargs
         further keyword arguments forwarded to :class:`TextDB.__init__`.
+
+    Note
+    ----
+    Set ``METADATA_NO_GIT_REPO`` to read metadata that is not a Git checkout.
+    The version-dependent features are then unavailable, and readers that adapt
+    to the metadata version assume the latest layout.
     """
 
     def __init__(
@@ -73,6 +79,7 @@ class MetadataRepository(TextDB):
         self.__repo_url__ = repo_url
         self.__env_var__ = env_var
         self.__default_dir_name__ = default_dir_name
+        self.__no_git_repo__ = bool(os.getenv("METADATA_NO_GIT_REPO", ""))
 
         if isinstance(path, (str, Path)):
             self.__repo_path__ = path
@@ -106,6 +113,13 @@ class MetadataRepository(TextDB):
             raise ValueError(msg)
 
         if not self.__repo_path__.exists() or not any(self.__repo_path__.iterdir()):
+            if self.__no_git_repo__:
+                msg = (
+                    f"METADATA_NO_GIT_REPO is set but {self.__repo_path__} is empty, "
+                    "there is nothing to read and nothing to clone into"
+                )
+                raise FileNotFoundError(msg)
+
             msg = f"Cloning {self.__repo_url__} in {self.__repo_path__}..."
             # set logging level as warning (default logging level), so it's
             # always printed and the user knows why it takes so long to initialize
@@ -262,9 +276,28 @@ class MetadataRepository(TextDB):
             version = s.module().git.describe("--tags", "--always")
             print(f"{char} {s.name}: {version}")  # noqa: T201
 
+    @property
+    def is_git_repo(self) -> bool:
+        """Whether the metadata can be queried through Git.
+
+        ``False`` if the directory is not a Git checkout, or if
+        ``METADATA_NO_GIT_REPO`` is set (see the class documentation).
+        """
+        return self.__repo__ is not None and not self.__no_git_repo__
+
     def _except_if_not_git_repo(self) -> None:
+        if self.__no_git_repo__:
+            msg = (
+                f"METADATA_NO_GIT_REPO is set, {self.__repo_path__} is read as a "
+                "plain directory and has no version"
+            )
+            raise InvalidGitRepositoryError(msg)
+
         if self.__repo__ is None:
-            msg = f"{self.__repo_path__} is not a Git repository (.git folder missing)"
+            msg = (
+                f"{self.__repo_path__} is not a Git repository (.git folder missing), "
+                "set METADATA_NO_GIT_REPO to read it as a plain directory"
+            )
             raise InvalidGitRepositoryError(msg)
 
         try:

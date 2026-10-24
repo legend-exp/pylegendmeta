@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import pickle
 import tempfile
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -95,7 +95,7 @@ def test_nested_get(metadb):
 
 
 def test_chmap_remapping(metadb):
-    date = datetime(2024, 7, 1)
+    date = datetime(2024, 7, 1, tzinfo=timezone.utc)
     metadb.checkout("63b789e")
     metadb.scan()
     assert (
@@ -107,23 +107,29 @@ def test_chmap_remapping(metadb):
 
 
 def test_channelmap(metadb):
-    date = datetime(2024, 7, 1)
+    date = datetime(2024, 7, 1, tzinfo=timezone.utc)
     metadb.checkout("63b789e")
     metadb.scan()
     assert isinstance(metadb, LegendMetadata)
     assert isinstance(metadb.channelmap(date), AttrsDict)
+    assert metadb.channelmap(date).__readonly__
     channel = metadb.channelmap(on=date).V02160A
     assert isinstance(channel, AttrsDict)
     assert "geometry" in channel
     assert hasattr(channel, "geometry")
     assert "analysis" in channel
 
-    channel = metadb.channelmap(on=date, system="cal").V02160A
+    channel = metadb.channelmap(on=date, category="cal").V02160A
+    assert "analysis" in channel
+
+    # the deprecated 'system' alias must still work
+    with pytest.warns(DeprecationWarning, match="'system' argument is deprecated"):
+        channel = metadb.channelmap(on=date, system="cal").V02160A
     assert "analysis" in channel
 
     metadb.checkout("8c311d5")
     metadb.scan()
-    channel = metadb.channelmap(on=date, system="cal").V02160A
+    channel = metadb.channelmap(on=date, category="cal").V02160A
     assert "analysis" in channel
 
 
@@ -147,7 +153,7 @@ def test_channelmap_skip_version_check(metadb):
 
     This is especially useful for non-git repositories like test data.
     """
-    date = datetime(2024, 7, 1)
+    date = datetime(2024, 7, 1, tzinfo=timezone.utc)
     metadb.checkout("63b789e")
     metadb.scan()
 

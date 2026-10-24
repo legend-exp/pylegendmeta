@@ -18,7 +18,7 @@ from __future__ import annotations
 import copy
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 import pandas as pd
 import sqlalchemy as db
@@ -28,6 +28,7 @@ from .scdb_tables import (
     DiodeConfMon,
     DiodeInfo,
     DiodeSnap,
+    HeadLdoSnap,
     MuonConfMon,
     MuonInfo,
     MuonSnap,
@@ -234,9 +235,9 @@ class LegendSlowControlDB:
             except db.exc.ObjectNotExecutableError:
                 return pd.read_sql(db.text(expr), self.connection)
         # try rolling back transaction if any exception occurs
-        except Exception as exc:
+        except Exception:
             self.connection.rollback()
-            raise exc
+            raise
 
     def status(
         self, channel: dict, on: str | datetime | None = None, system: str | None = None
@@ -245,7 +246,9 @@ class LegendSlowControlDB:
 
         Collect all the relevant information about the status of a channel at a
         certain time from the Slow Control database, based on the channel type
-        (i.e. germanium detector, SiPM or PMT).
+        (i.e. germanium detector, SiPM or PMT). For channels served by a
+        front-end buffer card (HPGe and auxiliary channels), the LDO regulator
+        voltages are added to the output under a ``cc4`` sub-dictionary.
 
         Parameters
         ----------
@@ -254,7 +257,10 @@ class LegendSlowControlDB:
             configuration. Typically a LEGEND channel map entry (obtainable, for
             example, with :meth:`.core.LegendMetadata.channelmap`).
         on
-            time at which the status is requested.
+            time at which the status is requested. A string
+            ``YYYYmmddTHHMMSSZ`` is read as UTC. A
+            :class:`~datetime.datetime` without time zone is read in the time
+            zone of the database server (``Europe/Rome``).
         system: "geds", "spms", "pmts", ...
             system the channel belong to. this information is used to ask the
             Slow Control database the right questions. If ``None`` will try to
@@ -271,6 +277,10 @@ class LegendSlowControlDB:
          'vset': 3400.0,
          'iset': 6.0,
          ...
+         'cc4': {'vb': -0.029, 'vb1': 1.995, 'vb2': 2.005,
+                 'vcc': 8.956, 'vcc1': ..., 'vee': -2.99,
+                 'vee1': -9.054, 'vfet': 12.0},
+         ...
 
         Warning
         -------
@@ -278,18 +288,18 @@ class LegendSlowControlDB:
         Might stop working if that structure is altered.
         """
         if not on:
-            on = datetime.now()
+            on = datetime.now(timezone.utc)
 
         # sanity checks
         if isinstance(on, str):
-            on = datetime.strptime(on, "%Y%m%dT%H%M%SZ")
+            on = datetime.strptime(on, "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc)
         elif not isinstance(on, datetime):
             msg = "Bad input timestamp format"
-            raise ValueError(msg)
+            raise TypeError(msg)
 
         if not isinstance(channel, dict):
             msg = "Bad channel format: dict expected"
-            raise ValueError(msg)
+            raise TypeError(msg)
 
         if not system:
             system = channel.system
@@ -297,6 +307,11 @@ class LegendSlowControlDB:
         # prepare environment to perform query
         if not self.session:
             self.session = self.make_session()
+
+        # a front-end buffer card (HPGe and auxiliary channels) exposes LDO
+        # regulator voltages, queried independently of the system below
+        electronics = channel.get("electronics", {})
+        has_buffer_card = "buffer_card" in electronics
 
         output = AttrsDict()
         if system == "geds":
@@ -359,12 +374,40 @@ class LegendSlowControlDB:
                     continue
 
                 output |= result[0].asdict()
-        else:
+        elif not has_buffer_card:
             msg = f"System '{system}' not (yet) supported"
             raise NotImplementedError(msg)
 
+        # LDO regulator voltages, for any channel with a front-end buffer card
+        if has_buffer_card:
+            rasp = electronics.buffer_card.raspberry_pi
+            address = electronics.buffer_card.address
+            cc4 = AttrsDict()
+            for rail in ("VB", "VB1", "VB2", "VCC", "VCC1", "VEE", "VEE1", "VFET"):
+                stmt = (
+                    db.select(HeadLdoSnap)
+                    .where(HeadLdoSnap.rasp == rasp)
+                    .where(HeadLdoSnap.addr == address)
+                    .where(HeadLdoSnap.name == rail)
+                    .order_by(HeadLdoSnap.tstamp.desc())
+                    .where(HeadLdoSnap.tstamp <= on)
+                    .limit(1)
+                )
+
+                result = self.session.execute(stmt).first()
+
+                if not result:
+                    msg = f"Query on table 'head_ldo_snap' for rail '{rail}' did not produce any result"
+                    log.warning(msg)
+                    continue
+
+                cc4[rail.lower()] = result[0].vmon
+
+            if cc4:
+                output["cc4"] = cc4
+
         if not output:
             msg = "Could not obtain any information about the channel"
-            raise RuntimeError()
+            raise RuntimeError(msg)
 
         return output
