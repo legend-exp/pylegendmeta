@@ -7,6 +7,7 @@ from .common import (
     ON_COLOR,
     _build_layout,
     _build_run_layout,
+    _layout_changes,
     _render,
     _render_run,
 )
@@ -85,12 +86,13 @@ def plot_psd_status_run(
 
 
 def plot_psd_status(
-    key: str,
+    key: str | list[str],
     datatype: str = "cal",
     field: str | None = None,
     output: str | None = None,
     datasets=None,
-) -> None:
+    compare=None,
+) -> set[tuple[str, str, str]]:
     """Plot PSD status per detector per run.
 
     Parameters
@@ -109,6 +111,14 @@ def plot_psd_status(
     datasets
         legend-datasets path, or a legend-metadata path or :class:`LegendMetadata`
         whose ``datasets/`` is used (default: ``$LEGEND_METADATA``).
+    compare
+        Base legend-datasets tree to compare with: cells whose status differs
+        are outlined.
+
+    Returns
+    -------
+    set
+        ``(detector, period, run)`` whose status differs from ``compare``.
 
     Cell colours
     ------------
@@ -118,6 +128,9 @@ def plot_psd_status(
     """
     layout = _build_layout(key, datatype, datasets)
     psd_map = layout["psd_map"]
+    changed = set()
+    if compare is not None:
+        changed = _layout_changes(layout, compare, datatype, "psd")
     hpge_maps = {hpge: {} for hpge in layout["str_pos"]}
 
     def cell_colours(
@@ -126,4 +139,6 @@ def plot_psd_status(
         psd = psd_map.get((period, run, hpge))
         return _psd_cell_colour(psd, field) if psd is not None else (EMPTY_COLOR, "")
 
-    _render(layout, hpge_maps, cell_colours, output)
+    title = f"PSD {field or 'is_bb_like'} ({datatype} runs)"
+    _render(layout, hpge_maps, cell_colours, output, highlight=changed, title=title)
+    return changed

@@ -7,6 +7,7 @@ from .common import (
     ON_COLOR,
     _build_layout,
     _build_run_layout,
+    _layout_changes,
     _render,
     _render_run,
 )
@@ -48,11 +49,12 @@ def plot_usability_run(
 
 
 def plot_usability(
-    key: str,
+    key: str | list[str],
     datatype: str = "cal",
     output: str | None = None,
     datasets=None,
-) -> None:
+    compare=None,
+) -> set[tuple[str, str, str]]:
     """Plot detector usability (on/ac/off) per run.
 
     Parameters
@@ -67,9 +69,20 @@ def plot_usability(
     datasets
         legend-datasets path, or a legend-metadata path or :class:`LegendMetadata`
         whose ``datasets/`` is used (default: ``$LEGEND_METADATA``).
+    compare
+        Base legend-datasets tree to compare with: cells whose status differs
+        are outlined.
+
+    Returns
+    -------
+    set
+        ``(detector, period, run)`` whose status differs from ``compare``.
     """
     layout = _build_layout(key, datatype, datasets)
     usab_map = layout["usab_map"]
+    changed = set()
+    if compare is not None:
+        changed = _layout_changes(layout, compare, datatype, "usability")
     hpge_maps = {hpge: {} for hpge in layout["str_pos"]}
 
     def cell_colours(
@@ -77,4 +90,6 @@ def plot_usability(
     ) -> tuple[str, str]:
         return _STATUS.get(usab_map.get((period, run, hpge)), EMPTY_COLOR), ""
 
-    _render(layout, hpge_maps, cell_colours, output)
+    title = f"usability ({datatype} runs)"
+    _render(layout, hpge_maps, cell_colours, output, highlight=changed, title=title)
+    return changed

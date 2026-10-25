@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import shutil
+
 import pytest
 import yaml
 
@@ -39,7 +41,7 @@ def datasets(tmp_path):
             [
                 {
                     "valid_from": "20260101T000000Z",
-                    "category": "all",
+                    "category": ["all", "cal"],  # as in legend-datasets
                     "apply": ["l200-p20-r%-T%-all-config.yaml"],
                 }
             ]
@@ -152,3 +154,69 @@ def test_label_colours_are_fixed_and_distinct():
     assert len({colours["11a"], colours["11b"], colours["11c"]}) == 3
     assert colours["10a"] != colours["11a"]
     assert not {common.AC_COLOR, common.OFF_COLOR} & set(colours.values())
+
+
+@pytest.fixture
+def changed(datasets, tmp_path_factory):
+    """``datasets`` plus a usability change for all runs from r002, a
+    cal-only PSD change from r003 and a reason-only edit."""
+    new = tmp_path_factory.mktemp("new")
+    shutil.copytree(datasets, new, dirs_exist_ok=True)
+    edits = {
+        "l200-p20-r002-T%-all-config.yaml": (
+            "20260603T000000Z",
+            ["all", "cal"],
+            {"V00001A": {"usability": "ac", "reason": "gain shift"}},
+        ),
+        "l200-p20-r003-T%-cal-config.yaml": (
+            "20260604T000000Z",
+            ["cal"],
+            {"V00002A": {"psd": {"status": {"lq": "present"}}}},
+        ),
+        "l200-p20-r001-T%-all-config.yaml": (
+            "20260602T000000Z",
+            ["all", "cal"],
+            {"V00002A": {"reason": "only a reason"}},
+        ),
+    }
+    validity = yaml.safe_load((new / "statuses" / "validity.yaml").read_text())
+    for name, (ts, category, content) in edits.items():
+        (new / "statuses" / name).write_text(yaml.safe_dump(content))
+        validity.append(
+            {"valid_from": ts, "category": category, "mode": "append", "apply": [name]}
+        )
+    validity.sort(key=lambda e: e["valid_from"])
+    (new / "statuses" / "validity.yaml").write_text(yaml.safe_dump(validity))
+    return new
+
+
+def test_changed_statuses_by_run_type(datasets, changed):
+    cal = common.changed_statuses(changed, datasets, "cal")
+    phy = common.changed_statuses(changed, datasets, "phy")
+    usab = {
+        ("V00001A", "p20", "r002"): ("on", "ac"),
+        ("V00001A", "p20", "r003"): ("on", "ac"),
+    }
+    assert cal["usability"] == usab
+    assert phy["usability"] == usab
+    assert set(cal["psd"]) == {("V00002A", "p20", "r003")}  # cal-only change
+    assert phy["psd"] == {}
+
+
+def test_cli_plots_only_what_changed(datasets, changed, tmp_path, monkeypatch):
+    out = tmp_path / "out"
+    argv = ["plot-statuses", "--datasets", str(changed), "--compare", str(datasets)]
+    monkeypatch.setattr("sys.argv", [*argv, "--outdir", str(out)])
+    cli.plot_statuses()
+    assert sorted(f.name for f in out.iterdir()) == [
+        "psd_cal.md",
+        "psd_cal.png",
+        "usability_cal.md",
+        "usability_cal.png",
+        "usability_phy.md",
+        "usability_phy.png",
+    ]
+    assert (
+        "`V00001A`: p20 r002..r003 (on → ac)" in (out / "usability_phy.md").read_text()
+    )
+    assert "(lq: — → present)" in (out / "psd_cal.md").read_text()

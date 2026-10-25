@@ -410,6 +410,64 @@ def _render_run(
             plt.close(fig)
 
 
+def _statuses_at(datasets, type: str, keys) -> dict:
+    """``{(period, run): {hpge: status}}`` for the germanium detectors.
+
+    Looked up as legend-dataflow does, with ``category=type`` (dbetto falls
+    back to ``all`` for a category without entries, e.g. ``phy``).
+    """
+    datasets = _datasets_path(datasets)
+    runinfo = _datasets_file(datasets, "runinfo.yaml")
+    statuses = TextDB(str(datasets)).statuses
+    out = {}
+    for period, run in keys:
+        info = runinfo.get(period, {}).get(run, {}).get(type)
+        if info is None:
+            continue
+        found = statuses.on(info["start_key"], pattern=None, category=type)
+        out[(period, run)] = {h: s for h, s in found.items() if "psd" in s}  # HPGes
+    return out
+
+
+def changed_statuses(new, old, type: str) -> dict[str, dict]:
+    """Usability and PSD changes between two legend-datasets trees.
+
+    Compares every ``type`` run of the new runinfo. Returns
+    ``{"usability": {...}, "psd": {...}}``, each mapping
+    ``(hpge, period, run)`` to ``(old value, new value)``.
+    """
+    runinfo = _datasets_file(_datasets_path(new), "runinfo.yaml")
+    keys = [
+        (period, run)
+        for period, runs in runinfo.items()
+        if isinstance(runs, dict)
+        for run, info in runs.items()
+        if isinstance(info, dict) and type in info
+    ]
+    a, b = _statuses_at(new, type, keys), _statuses_at(old, type, keys)
+    out: dict[str, dict] = {"usability": {}, "psd": {}}
+    for key in keys:
+        na, nb = a.get(key, {}), b.get(key, {})
+        for hpge in na.keys() | nb.keys():
+            for kind, changes in out.items():
+                x, y = nb.get(hpge, {}).get(kind), na.get(hpge, {}).get(kind)
+                if x != y:
+                    changes[(hpge, *key)] = (x, y)
+    return out
+
+
+def _layout_changes(layout: dict, compare, type: str, kind: str) -> set:
+    """Grid cells whose ``kind`` status ('usability' or 'psd') differs in ``compare``."""
+    new = layout["usab_map"] if kind == "usability" else layout["psd_map"]
+    old = _statuses_at(compare, type, layout["sorted_cols"])
+    return {
+        (h, p, r)
+        for p, r in layout["sorted_cols"]
+        for h in layout["hpges"]
+        if new.get((p, r, h)) != old.get((p, r), {}).get(h, {}).get(kind)
+    }
+
+
 def _build_layout(key: str | list[str], type: str, datasets=None) -> dict:
     """Compute the grid layout from legend-datasets alone.
 
@@ -454,18 +512,10 @@ def _build_layout(key: str | list[str], type: str, datasets=None) -> dict:
     for period, run in sorted_cols:
         period_groups.setdefault(period, []).append((period, run))
 
-    statuses = TextDB(str(datasets)).statuses
     usab_map = {}
     psd_map = {}
-    for period, run in sorted_cols:
-        info = runinfo.get(period, {}).get(run, {}).get(type)
-        if info is None:
-            continue
-        for hpge, status in statuses.on(
-            info["start_key"], pattern=None, category="all"
-        ).items():
-            if "psd" not in status:  # only germanium detectors have one
-                continue
+    for (period, run), found in _statuses_at(datasets, type, sorted_cols).items():
+        for hpge, status in found.items():
             psd_map[(period, run, hpge)] = status["psd"]
             if "usability" in status:
                 usab_map[(period, run, hpge)] = status["usability"]

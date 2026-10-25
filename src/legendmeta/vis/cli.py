@@ -5,8 +5,10 @@ from pathlib import Path
 
 from dbetto import Props
 
-from .common import GROUPING_YAML_MAP, _datasets_path, changed_spans
+from .common import GROUPING_YAML_MAP, _datasets_path, changed_spans, changed_statuses
 from .partitions import _read_groupings, plot_partition_groupings
+from .psd import plot_psd_status
+from .usability import plot_usability
 
 MAX_LISTED = 40  # detectors listed in the summary before truncating
 
@@ -87,3 +89,94 @@ def plot_groupings() -> None:
         )
     if args.summary:
         Path(args.summary).write_text(_summary(args.grouping, changed))
+
+
+def _describe(kind: str, old, new) -> str:
+    """Short text for one status change, e.g. ``on → ac`` or ``lq: valid → present``."""
+    if kind == "usability":
+        return f"{old or '—'} → {new or '—'}"
+    a, b = old or {}, new or {}
+    parts = []
+    if a.get("is_bb_like") != b.get("is_bb_like"):
+        parts.append(
+            f"cut: {a.get('is_bb_like') or '—'} → {b.get('is_bb_like') or '—'}"
+        )
+    sa, sb = a.get("status") or {}, b.get("status") or {}
+    parts += [
+        f"{f}: {sa.get(f) or '—'} → {sb.get(f) or '—'}"
+        for f in sorted(sa.keys() | sb.keys())
+        if sa.get(f) != sb.get(f)
+    ]
+    return ", ".join(parts)
+
+
+def _status_summary(kind: str, datatype: str, changes: dict) -> str:
+    """Markdown list of status changes, one line per detector and change."""
+    groups: dict[tuple[str, str], dict[str, list[str]]] = {}
+    for (det, period, run), (old, new) in changes.items():
+        what = _describe(kind, old, new)
+        groups.setdefault((det, what), {}).setdefault(period, []).append(run)
+    title = "usability" if kind == "usability" else "PSD status"
+    n_dets = len({det for det, _ in groups})
+    lines = [f"**{title} ({datatype} runs)**: {n_dets} detector(s) changed"]
+    for det, what in sorted(groups)[:MAX_LISTED]:
+        periods = groups[(det, what)]
+        runs = "; ".join(f"{p} {_runs_text(periods[p])}" for p in sorted(periods))
+        lines.append(f"- `{det}`: {runs} ({what})")
+    if len(groups) > MAX_LISTED:
+        lines.append(f"- … and {len(groups) - MAX_LISTED} more")
+    return "\n".join(lines) + "\n"
+
+
+def plot_statuses() -> None:
+    """Plot detector usability and PSD status of a legend-datasets tree.
+
+    Invoked in CLI. With ``--compare`` (a base legend-datasets tree), writes
+    ``<kind>_<datatype>.png`` and a Markdown summary ``<kind>_<datatype>.md``
+    (kind: usability, psd) only for what changed, each over the periods with
+    changes; changed cells are outlined. Without it, ``--periods`` is
+    required and every plot is written.
+    """
+    parser = argparse.ArgumentParser(
+        prog="plot-statuses",
+        description="Plot detector usability and PSD status of a legend-datasets tree",
+    )
+    parser.add_argument(
+        "--datasets",
+        help="legend-datasets (or legend-metadata) path ($LEGEND_METADATA)",
+    )
+    parser.add_argument("--compare", help="base legend-datasets tree to compare with")
+    parser.add_argument("--periods", nargs="+", help="periods to plot")
+    parser.add_argument(
+        "--datatypes", nargs="+", default=["cal", "phy"], choices=["cal", "phy"]
+    )
+    parser.add_argument("--outdir", required=True, help="directory for the figures")
+    args = parser.parse_args()
+    if args.compare is None and args.periods is None:
+        parser.error("--periods is required without --compare")
+
+    datasets = _datasets_path(args.datasets)
+    outdir = Path(args.outdir)
+    outdir.mkdir(parents=True, exist_ok=True)
+    diffs = {}
+    if args.compare is not None:
+        diffs = {
+            dt: changed_statuses(datasets, args.compare, dt) for dt in args.datatypes
+        }
+
+    for kind, plot in (("usability", plot_usability), ("psd", plot_psd_status)):
+        for dt in args.datatypes:
+            changes = diffs[dt][kind] if diffs else {}
+            periods = args.periods or sorted({p for _, p, _ in changes})
+            if not periods:
+                continue
+            out = outdir / f"{kind}_{dt}"
+            plot(
+                periods,
+                datatype=dt,
+                output=str(out.with_suffix(".png")),
+                datasets=datasets,
+                compare=args.compare,
+            )
+            if changes:
+                out.with_suffix(".md").write_text(_status_summary(kind, dt, changes))
