@@ -18,7 +18,17 @@ from dbetto import Props, TextDB
 
 from legendmeta import LegendMetadata
 
-PART_CMAP = "tab20"
+#: partition hues (dark, light): tab20 without orange and red, which mean AC/OFF
+PART_HUES = [
+    ("1F77B4", "AEC7E8"),  # blue
+    ("2CA02C", "98DF8A"),  # green
+    ("9467BD", "C5B0D5"),  # purple
+    ("8C564B", "C49C94"),  # brown
+    ("E377C2", "F7B6D2"),  # pink
+    ("7F7F7F", "C7C7C7"),  # grey
+    ("BCBD22", "DBDB8D"),  # olive
+    ("17BECF", "9EDAE5"),  # cyan
+]
 PERIOD_CMAP = "Pastel2"
 STRING_CELL_SHADES = ["F2F2F2", "E4E4E4"]
 EMPTY_COLOR = "FFFFFF"
@@ -101,6 +111,20 @@ def partition_label(part_name: str) -> str:
     """calgroup008b  →  '8b'  (short display label)"""
     temp = part_name.rsplit("group", maxsplit=1)[-1]
     return f"{int(temp[:-1])}{temp[-1]}"
+
+
+def label_colour(label: str) -> str:
+    """Fixed colour of a partition label, the same in every plot.
+
+    The hue follows the partition number (``11`` of ``"11b"``), the shade the
+    letter: a = light, b = dark, c = in between, then repeating.
+    """
+    dark, light = PART_HUES[int(label[:-1]) % len(PART_HUES)]
+    mid = "".join(
+        f"{(int(dark[i : i + 2], 16) + int(light[i : i + 2], 16)) // 2:02X}"
+        for i in (0, 2, 4)
+    )
+    return (light, dark, mid)[(ord(label[-1]) - ord("a")) % 3]
 
 
 def col_sort_key(period_run: tuple) -> tuple:
@@ -697,6 +721,8 @@ def _render(
                 )
                 lbl = label_grid[row_i][col_i]
                 if lbl:
+                    r, g, b, _ = color_grid[row_i, col_i]
+                    dark = 0.299 * r + 0.587 * g + 0.114 * b < 0.5  # luminance
                     ax.text(
                         col_i + 0.5,
                         row_i + 0.5,
@@ -704,7 +730,7 @@ def _render(
                         ha="center",
                         va="center",
                         fontsize=5.5,
-                        color="#333333",
+                        color="white" if dark else "#333333",
                         zorder=2,
                     )
 

@@ -9,7 +9,6 @@ from .common import (
     EMPTY_COLOR,
     GROUPING_YAML_MAP,
     OFF_COLOR,
-    PART_CMAP,
     _build_layout,
     _build_run_layout,
     _datasets_path,
@@ -17,7 +16,7 @@ from .common import (
     _render_run,
     build_period_run_map,
     changed_cells,
-    cmap_hex,
+    label_colour,
     merge_with_defaults,
     partition_label,
 )
@@ -46,10 +45,7 @@ def _load_groupings(groupings: dict, str_pos: dict) -> tuple[dict, dict]:
     all_short_labels = sorted(
         {partition_label(part) for m in hpge_maps.values() for part in m.values()}
     )
-    label_colour_map = {
-        lbl: cmap_hex(PART_CMAP, max(len(all_short_labels), 1))[i]
-        for i, lbl in enumerate(all_short_labels)
-    }
+    label_colour_map = {lbl: label_colour(lbl) for lbl in all_short_labels}
     return hpge_maps, label_colour_map
 
 

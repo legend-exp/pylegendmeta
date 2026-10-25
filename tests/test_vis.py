@@ -143,3 +143,12 @@ def test_changed_spans_cover_the_whole_partition():
     dets = ["V00001A", "V00002A"]
     assert common.changed_spans(new, old, dets) == {"p20", "p21", "p22"}
     assert common.changed_spans(old, old, dets) == set()
+
+
+def test_label_colours_are_fixed_and_distinct():
+    labels = [f"{n}{x}" for n in range(1, 13) for x in "abc"]
+    colours = {lbl: common.label_colour(lbl) for lbl in labels}
+    assert common.label_colour("11a") == colours["11a"]  # same in every plot
+    assert len({colours["11a"], colours["11b"], colours["11c"]}) == 3
+    assert colours["10a"] != colours["11a"]
+    assert not {common.AC_COLOR, common.OFF_COLOR} & set(colours.values())
