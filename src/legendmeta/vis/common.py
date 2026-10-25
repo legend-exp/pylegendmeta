@@ -160,17 +160,34 @@ def merge_with_defaults(
     return result
 
 
+def _effective(groupings: dict, hpge: str) -> dict:
+    """``{(period, run): partition}`` for one detector, no display blanking."""
+    return merge_with_defaults(
+        groupings.get(hpge) or {}, groupings.get("default") or {}, 0, blank_single=False
+    )
+
+
 def changed_cells(new: dict, old: dict, hpges: list[str]) -> set[tuple]:
     """``(hpge, period, run)`` whose partition differs between two groupings."""
     out = set()
     for hpge in hpges:
-        a = merge_with_defaults(
-            new.get(hpge) or {}, new.get("default") or {}, 0, blank_single=False
-        )
-        b = merge_with_defaults(
-            old.get(hpge) or {}, old.get("default") or {}, 0, blank_single=False
-        )
+        a, b = _effective(new, hpge), _effective(old, hpge)
         out |= {(hpge, *k) for k in a.keys() | b.keys() if a.get(k) != b.get(k)}
+    return out
+
+
+def changed_spans(new: dict, old: dict, hpges: list[str]) -> set[str]:
+    """Periods covered by every partition that changed, before or after.
+
+    A run moving from ``calgroup011a`` (p20-p22) to ``calgroup011b`` (p22)
+    gives p20, p21 and p22.
+    """
+    out = set()
+    for hpge in hpges:
+        a, b = _effective(new, hpge), _effective(old, hpge)
+        diff = [k for k in a.keys() | b.keys() if a.get(k) != b.get(k)]
+        parts = {m[k] for k in diff for m in (a, b) if k in m}
+        out |= {p for m in (a, b) for (p, _), g in m.items() if g in parts}
     return out
 
 

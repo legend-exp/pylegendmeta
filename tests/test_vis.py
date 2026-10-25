@@ -8,7 +8,7 @@ import yaml
 mpl = pytest.importorskip("matplotlib")
 mpl.use("Agg")
 
-from legendmeta.vis import cli, common, plot_partition_groupings  # noqa: E402
+from legendmeta.vis import cli, common, plot_partition_groupings
 
 CAL = {"default": {"calgroup011a": {"p20": "r000..r003"}}}
 
@@ -119,3 +119,27 @@ def test_cli_plots_only_changed_periods(datasets, tmp_path, monkeypatch):
     cli.plot_groupings()
     assert out.exists()
     assert "`V00001A`: p20 r000..r003" in summary.read_text()
+
+
+def test_changed_spans_cover_the_whole_partition():
+    """A split in p22 of a p20-p22 partition shows p20-p22; untouched
+    partitions add nothing."""
+    default = {
+        "calgroup010a": {"p19": "r000..r003"},
+        "calgroup011a": {"p20": "r000..r001", "p21": "r000..r003", "p22": "r000..r005"},
+    }
+    old = {"default": default}
+    new = {
+        "default": default,
+        "V00001A": {
+            "calgroup011a": {
+                "p20": "r000..r001",
+                "p21": "r000..r003",
+                "p22": "r000..r002",
+            },
+            "calgroup011b": {"p22": "r003..r005"},
+        },
+    }
+    dets = ["V00001A", "V00002A"]
+    assert common.changed_spans(new, old, dets) == {"p20", "p21", "p22"}
+    assert common.changed_spans(old, old, dets) == set()

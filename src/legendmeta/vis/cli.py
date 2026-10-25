@@ -5,7 +5,7 @@ from pathlib import Path
 
 from dbetto import Props
 
-from .common import GROUPING_YAML_MAP, _datasets_path, changed_cells
+from .common import GROUPING_YAML_MAP, _datasets_path, changed_spans
 from .partitions import _read_groupings, plot_partition_groupings
 
 MAX_LISTED = 40  # detectors listed in the summary before truncating
@@ -45,15 +45,17 @@ def plot_groupings() -> None:
     """Plot the cal/phy groupings of a legend-datasets tree.
 
     Invoked in CLI. With ``--compare``, cells whose partition differs from
-    that groupings file are outlined, and without ``--periods`` only the
-    periods that changed are plotted (no figure if nothing changed).
+    that groupings file are outlined, and without ``--periods`` the plot
+    covers every period of each changed partition (no figure if nothing
+    changed).
     """
     parser = argparse.ArgumentParser(
         prog="plot-groupings",
         description="Plot the partition groupings of a legend-datasets tree",
     )
     parser.add_argument(
-        "--datasets", help="legend-datasets (or legend-metadata) path ($LEGEND_METADATA)"
+        "--datasets",
+        help="legend-datasets (or legend-metadata) path ($LEGEND_METADATA)",
     )
     parser.add_argument("--grouping", default="cal", choices=sorted(GROUPING_YAML_MAP))
     parser.add_argument(
@@ -76,7 +78,7 @@ def plot_groupings() -> None:
         new = _read_groupings(args.grouping, datasets)
         old = Props.read_from(args.compare)
         dets = sorted(({*new, *old} - {"default"}) | {"__default__"})
-        periods = sorted({c[1] for c in changed_cells(new, old, dets)})
+        periods = sorted(changed_spans(new, old, dets))
 
     changed: set = set()
     if periods:
