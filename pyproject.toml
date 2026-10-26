@@ -54,16 +54,16 @@ text = "GPL-3.0"
 
 [project.urls]
 Homepage = "https://github.com/legend-exp/pylegendmeta"
-"Bug Tracker" = "https://github.com/legend-exp/pylegedmeta/issues"
-Discussions = "https://github.com/legend-exp/pylegedmeta/discussions"
-Changelog = "https://github.com/legend-exp/pylegedmeta/releases"
+"Bug Tracker" = "https://github.com/legend-exp/pylegendmeta/issues"
+Discussions = "https://github.com/legend-exp/pylegendmeta/discussions"
+Changelog = "https://github.com/legend-exp/pylegendmeta/releases"
 
 [project.optional-dependencies]
 all = [
-    "pylegendmeta[docs,tables,test]",
+    "pylegendmeta[docs,tables,test,vis]",
 ]
 docs = [
-    "pylegendmeta[tables]",
+    "pylegendmeta[tables,vis]",
     "furo",
     "myst-parser",
     "sphinx>=7.2.2",
@@ -73,14 +73,21 @@ docs = [
 tables = [
     "polars>=1.40",
 ]
+vis = [
+    "matplotlib",
+    "numpy",
+    "openpyxl",
+]
 test = [
-    "pylegendmeta[tables]",
+    "pylegendmeta[tables,vis]",
     "pre-commit",
     "pytest>=6.0",
     "pytest-cov",
 ]
 
 [project.scripts]
+plot-groupings = "legendmeta.vis.cli:plot_groupings"
+plot-statuses = "legendmeta.vis.cli:plot_statuses"
 validate-cal-groupings = "legendmeta.police:validate_cal_groupings"
 merge-cal-groupings = "legendmeta.police:merge_cal_groupings"
 merge-phy-groupings = "legendmeta.police:merge_phy_groupings"

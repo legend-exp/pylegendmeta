@@ -20,3 +20,12 @@ def test_import_without_polars():
     res = _run_without_polars("import legendmeta.tables")
     assert res.returncode != 0
     assert "pip install 'pylegendmeta[tables]'" in res.stderr
+
+
+def test_import_without_matplotlib():
+    code = "import sys; sys.modules['matplotlib'] = None; import legendmeta.vis"
+    res = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, check=False
+    )
+    assert res.returncode != 0
+    assert "pip install 'pylegendmeta[vis]'" in res.stderr
