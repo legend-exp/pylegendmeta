@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 
 from dbetto import Props
@@ -49,9 +50,8 @@ def _load_groupings(groupings: dict, str_pos: dict) -> tuple[dict, dict]:
     return hpge_maps, label_colour_map
 
 
-def plot_partition_groupings_run(
-    period: str,
-    run: str,
+def vis_partition_groupings_run(
+    on: str | datetime,
     grouping: str = "cal",
     datatype: str = "cal",
     output: str | None = None,
@@ -61,28 +61,30 @@ def plot_partition_groupings_run(
 
     Parameters
     ----------
-    period
-        Period string e.g. 'p16'.
-    run
-        Run string e.g. 'r003'.
+    on
+        The run to plot: a file key (``l200-p22-r010-phy-20260717T170734Z``,
+        which also sets ``datatype``), a timestamp (``20260717T170734Z``) or a
+        :class:`~datetime.datetime` (UTC); a time selects the last ``datatype``
+        run starting at or before it.
     grouping
         Which grouping yaml: 'cal', 'phy', 'escale', or 'psd'.
     datatype
-        'cal' or 'phy'.
+        Data type with an entry in ``runinfo.yaml``: 'cal', 'phy' or a special
+        one such as 'ssc', 'rdc' or 'lac'.
     output
         Output file path (.pdf, .png, .svg or .xlsx). If None, shows the plot
         interactively.
     metadata
         legend-metadata path or :class:`LegendMetadata` (default: ``LEGEND_METADATA``).
     """
-    layout = _build_run_layout(period, run, datatype, metadata)
+    layout = _build_run_layout(on, datatype, metadata)
     usab_map = layout["usab_map"]
     hpge_maps, label_colour_map = _load_groupings(
         _read_groupings(grouping, _datasets_path(layout["meta"])), layout["str_pos"]
     )
 
     def cell_colours(hpge: str, part_map: dict) -> tuple[str, str]:
-        part = part_map.get((period, run))
+        part = part_map.get((layout["period"], layout["run"]))
         status = usab_map.get(hpge)
         lbl = partition_label(part) if part else ""
         base_hex = label_colour_map.get(lbl, "CCCCCC") if part else EMPTY_COLOR
@@ -95,7 +97,7 @@ def plot_partition_groupings_run(
     _render_run(layout, hpge_maps, cell_colours, output)
 
 
-def plot_partition_groupings(
+def vis_partition_groupings(
     key: str | list[str],
     grouping: str = "cal",
     datatype: str = "cal",
@@ -113,7 +115,8 @@ def plot_partition_groupings(
     grouping
         Which grouping yaml: 'cal', 'phy', 'escale', or 'psd'.
     datatype
-        'cal' or 'phy'.
+        Data type with an entry in ``runinfo.yaml``: 'cal', 'phy' or a special
+        one such as 'ssc', 'rdc' or 'lac'.
     output
         Output file path (.pdf, .png, .svg or .xlsx). If None, shows the plot
         interactively.

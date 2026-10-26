@@ -6,9 +6,9 @@ from pathlib import Path
 from dbetto import Props
 
 from .common import GROUPING_YAML_MAP, _datasets_path, changed_spans, changed_statuses
-from .partitions import _read_groupings, plot_partition_groupings
-from .psd import plot_psd_status
-from .usability import plot_usability
+from .partitions import _read_groupings, vis_partition_groupings
+from .psd import vis_hpge_psd_status
+from .usability import vis_channel_usability
 
 MAX_LISTED = 40  # detectors listed in the summary before truncating
 
@@ -62,8 +62,8 @@ def plot_groupings() -> None:
     parser.add_argument("--grouping", default="cal", choices=sorted(GROUPING_YAML_MAP))
     parser.add_argument(
         "--datatype",
-        choices=["cal", "phy"],
-        help="run type of the columns (default: phy for phy groupings, else cal)",
+        help="data type of the columns, any in runinfo.yaml (default: phy for phy"
+        " groupings, else cal)",
     )
     parser.add_argument("--periods", nargs="+", help="periods to plot")
     parser.add_argument("--compare", help="groupings file to compare with")
@@ -84,7 +84,7 @@ def plot_groupings() -> None:
 
     changed: set = set()
     if periods:
-        changed = plot_partition_groupings(
+        changed = vis_partition_groupings(
             periods, args.grouping, datatype, args.output, datasets, args.compare
         )
     if args.summary:
@@ -148,7 +148,10 @@ def plot_statuses() -> None:
     parser.add_argument("--compare", help="base legend-datasets tree to compare with")
     parser.add_argument("--periods", nargs="+", help="periods to plot")
     parser.add_argument(
-        "--datatypes", nargs="+", default=["cal", "phy"], choices=["cal", "phy"]
+        "--datatypes",
+        nargs="+",
+        default=["cal", "phy"],
+        help="data types to compare, any in runinfo.yaml (e.g. cal phy ssc)",
     )
     parser.add_argument("--outdir", required=True, help="directory for the figures")
     args = parser.parse_args()
@@ -164,7 +167,10 @@ def plot_statuses() -> None:
             dt: changed_statuses(datasets, args.compare, dt) for dt in args.datatypes
         }
 
-    for kind, plot in (("usability", plot_usability), ("psd", plot_psd_status)):
+    for kind, plot in (
+        ("usability", vis_channel_usability),
+        ("psd", vis_hpge_psd_status),
+    ):
         for dt in args.datatypes:
             changes = diffs[dt][kind] if diffs else {}
             periods = args.periods or sorted({p for _, p, _ in changes})

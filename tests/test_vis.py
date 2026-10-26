@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import shutil
+from datetime import datetime, timezone
 
 import pytest
 import yaml
@@ -10,7 +11,7 @@ import yaml
 mpl = pytest.importorskip("matplotlib")
 mpl.use("Agg")
 
-from legendmeta.vis import cli, common, plot_partition_groupings
+from legendmeta.vis import cli, common, vis_partition_groupings
 
 CAL = {"default": {"calgroup011a": {"p20": "r000..r003"}}}
 
@@ -91,7 +92,7 @@ def test_plot_outlines_changed_cells(datasets, tmp_path):
         "V00002A": {"calgroup011a": {"p20": ["r000"]}},
     }
     out = tmp_path / "cal.png"
-    changed = plot_partition_groupings(
+    changed = vis_partition_groupings(
         ["p20"], "cal", "cal", str(out), datasets, compare=old
     )
     assert out.stat().st_size > 0
@@ -220,3 +221,39 @@ def test_cli_plots_only_what_changed(datasets, changed, tmp_path, monkeypatch):
         "`V00001A`: p20 r002..r003 (on → ac)" in (out / "usability_phy.md").read_text()
     )
     assert "(lq: — → present)" in (out / "psd_cal.md").read_text()
+
+
+def test_columns_follow_runinfo(datasets, tmp_path_factory):
+    """Columns are the runs that have the data type, special types included."""
+    tree = tmp_path_factory.mktemp("ri")
+    shutil.copytree(datasets, tree, dirs_exist_ok=True)
+    runinfo = yaml.safe_load((tree / "runinfo.yaml").read_text())
+    del runinfo["p20"]["r001"]["phy"]
+    runinfo["p20"]["r002"]["ssc"] = {"start_key": "20260603T020000Z"}
+    (tree / "runinfo.yaml").write_text(yaml.safe_dump(runinfo))
+
+    phy = common._build_layout("p20", "phy", tree)
+    assert phy["sorted_cols"] == [("p20", "r000"), ("p20", "r002"), ("p20", "r003")]
+    ssc = common._build_layout("p20", "ssc", tree)
+    assert ssc["sorted_cols"] == [("p20", "r002")]
+    assert ssc["usab_map"][("p20", "r002", "V00001A")] == "on"  # category falls back
+    with pytest.raises(ValueError, match="no 'lac' runs"):
+        common._build_layout("p20", "lac", tree)
+
+
+def test_resolve_on(datasets):
+    runinfo = yaml.safe_load((datasets / "runinfo.yaml").read_text())
+    key = "l200-p20-r002-cal-20260603T000000Z"
+    assert common._resolve_on(key, "phy", runinfo) == (
+        "p20",
+        "r002",
+        "cal",
+        "20260603T000000Z",
+    )
+    noon = datetime(2026, 6, 3, 12, tzinfo=timezone.utc)
+    assert common._resolve_on("20260603T120000Z", "cal", runinfo)[:2] == ("p20", "r002")
+    assert common._resolve_on(noon, "cal", runinfo)[:2] == ("p20", "r002")
+    with pytest.raises(ValueError, match="starts at or before"):
+        common._resolve_on("20250101T000000Z", "cal", runinfo)
+    with pytest.raises(ValueError, match="no 'ssc' entry"):
+        common._resolve_on("l200-p20-r002-ssc-20260603T000000Z", "cal", runinfo)

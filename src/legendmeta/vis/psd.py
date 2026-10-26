@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from .common import (
     AC_COLOR,
     EMPTY_COLOR,
@@ -47,9 +49,8 @@ def _psd_cell_colour(psd: dict, field: str | None) -> tuple[str, str]:
     return _STATUS_COLOR.get(status, EMPTY_COLOR), ""
 
 
-def plot_psd_status_run(
-    period: str,
-    run: str,
+def vis_hpge_psd_status_run(
+    on: str | datetime,
     datatype: str = "cal",
     field: str | None = None,
     output: str | None = None,
@@ -59,12 +60,14 @@ def plot_psd_status_run(
 
     Parameters
     ----------
-    period
-        Period string e.g. 'p16'.
-    run
-        Run string e.g. 'r003'.
+    on
+        The run to plot: a file key (``l200-p22-r010-phy-20260717T170734Z``,
+        which also sets ``datatype``), a timestamp (``20260717T170734Z``) or a
+        :class:`~datetime.datetime` (UTC); a time selects the last ``datatype``
+        run starting at or before it.
     datatype
-        'cal' or 'phy'.
+        Data type with an entry in ``runinfo.yaml``: 'cal', 'phy' or a special
+        one such as 'ssc', 'rdc' or 'lac'.
     field
         PSD field to display: 'low_aoe', 'high_aoe', 'lq', 'ann', or 'coax_rt'.
         If None (default), evaluates the per-detector ``is_bb_like`` expression.
@@ -74,7 +77,7 @@ def plot_psd_status_run(
     metadata
         legend-metadata path or :class:`LegendMetadata` (default: ``LEGEND_METADATA``).
     """
-    layout = _build_run_layout(period, run, datatype, metadata)
+    layout = _build_run_layout(on, datatype, metadata)
     psd_map = layout["psd_map"]
     hpge_maps = {hpge: {} for hpge in layout["str_pos"]}
 
@@ -85,7 +88,7 @@ def plot_psd_status_run(
     _render_run(layout, hpge_maps, cell_colours, output)
 
 
-def plot_psd_status(
+def vis_hpge_psd_status(
     key: str | list[str],
     datatype: str = "cal",
     field: str | None = None,
@@ -98,9 +101,11 @@ def plot_psd_status(
     Parameters
     ----------
     key
-        Runlist key (e.g. 'napoli26') or a period (e.g. 'p16').
+        Runlist key (e.g. 'napoli26'), a period (e.g. 'p16') or a list of
+        periods.
     datatype
-        'cal' or 'phy'.
+        Data type with an entry in ``runinfo.yaml``: 'cal', 'phy' or a special
+        one such as 'ssc', 'rdc' or 'lac'.
     field
         PSD field to display: 'low_aoe', 'high_aoe', 'lq', 'ann', or 'coax_rt'.
         If None (default), evaluates the per-detector ``is_bb_like`` expression

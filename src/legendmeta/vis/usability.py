@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from .common import (
     AC_COLOR,
     EMPTY_COLOR,
@@ -15,9 +17,8 @@ from .common import (
 _STATUS = {"off": OFF_COLOR, "ac": AC_COLOR, "on": ON_COLOR}
 
 
-def plot_usability_run(
-    period: str,
-    run: str,
+def vis_channel_usability_run(
+    on: str | datetime,
     datatype: str = "cal",
     output: str | None = None,
     metadata=None,
@@ -26,19 +27,21 @@ def plot_usability_run(
 
     Parameters
     ----------
-    period
-        Period string e.g. 'p16'.
-    run
-        Run string e.g. 'r003'.
+    on
+        The run to plot: a file key (``l200-p22-r010-phy-20260717T170734Z``,
+        which also sets ``datatype``), a timestamp (``20260717T170734Z``) or a
+        :class:`~datetime.datetime` (UTC); a time selects the last ``datatype``
+        run starting at or before it.
     datatype
-        'cal' or 'phy'.
+        Data type with an entry in ``runinfo.yaml``: 'cal', 'phy' or a special
+        one such as 'ssc', 'rdc' or 'lac'.
     output
         Output file path (.pdf, .png, .svg or .xlsx). If None, shows the plot
         interactively.
     metadata
         legend-metadata path or :class:`LegendMetadata` (default: ``LEGEND_METADATA``).
     """
-    layout = _build_run_layout(period, run, datatype, metadata)
+    layout = _build_run_layout(on, datatype, metadata)
     usab_map = layout["usab_map"]
     hpge_maps = {hpge: {} for hpge in layout["str_pos"]}
 
@@ -48,7 +51,7 @@ def plot_usability_run(
     _render_run(layout, hpge_maps, cell_colours, output)
 
 
-def plot_usability(
+def vis_channel_usability(
     key: str | list[str],
     datatype: str = "cal",
     output: str | None = None,
@@ -60,9 +63,11 @@ def plot_usability(
     Parameters
     ----------
     key
-        Runlist key (e.g. 'napoli26') or a period (e.g. 'p16').
+        Runlist key (e.g. 'napoli26'), a period (e.g. 'p16') or a list of
+        periods.
     datatype
-        'cal' or 'phy'.
+        Data type with an entry in ``runinfo.yaml``: 'cal', 'phy' or a special
+        one such as 'ssc', 'rdc' or 'lac'.
     output
         Output file path (.pdf, .png, .svg or .xlsx). If None, shows the plot
         interactively.

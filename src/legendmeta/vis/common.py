@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import os
 import re
+from bisect import bisect_right
+from datetime import datetime
 from pathlib import Path
 
 try:
@@ -15,6 +17,7 @@ except ImportError as e:
     msg = "legendmeta.vis needs matplotlib, install it with: pip install 'pylegendmeta[vis]'"
     raise ImportError(msg) from e
 from dbetto import Props, TextDB
+from dbetto.time import datetime_to_str
 
 from legendmeta import LegendMetadata
 
@@ -228,16 +231,48 @@ def xl_fill(h: str) -> PatternFill:
     return PatternFill("solid", fgColor=h)
 
 
-def _build_run_layout(period: str, run: str, type: str, metadata=None) -> dict:
-    """Load metadata for a single run.
+_FILE_KEY = re.compile(r"^[^-]+-(p\d+)-(r\d+)-([a-z]+)-(\d{8}T\d{6}Z)$")
+
+
+def _resolve_on(on: str | datetime, type: str, runinfo: dict) -> tuple:
+    """``(period, run, type, timestamp)`` of the run at ``on``.
+
+    ``on`` is a file key (``l200-p22-r010-phy-20260717T170734Z``, which also
+    sets the data type), a timestamp (``20260717T170734Z``) or a datetime;
+    the last ``type`` run starting at or before it is used.
+    """
+    if isinstance(on, str) and (m := _FILE_KEY.match(on)):
+        period, run, type, timestamp = m.groups()
+        if type not in runinfo.get(period, {}).get(run, {}):
+            msg = f"{period} {run} has no {type!r} entry in runinfo.yaml"
+            raise ValueError(msg)
+        return period, run, type, timestamp
+    timestamp = datetime_to_str(on) if isinstance(on, datetime) else on
+    starts = sorted(
+        (info[type]["start_key"], period, run)
+        for period, runs in runinfo.items()
+        if isinstance(runs, dict)
+        for run, info in runs.items()
+        if isinstance(info, dict) and type in info
+    )
+    i = bisect_right([k for k, _, _ in starts], timestamp)
+    if i == 0:
+        msg = f"no {type!r} run in runinfo.yaml starts at or before {timestamp}"
+        raise ValueError(msg)
+    _, period, run = starts[i - 1]
+    return period, run, type, timestamp
+
+
+def _build_run_layout(on: str | datetime, type: str, metadata=None) -> dict:
+    """Load metadata for the run at ``on`` (see :func:`_resolve_on`).
 
     Returns a dict with keys: meta, str_pos, usab_map, psd_map, period, run.
     """
     meta = _metadata(metadata)
     runinfo = _datasets_file(_datasets_path(meta), "runinfo.yaml")
-    timestamp = runinfo[period][run][type]["start_key"]
+    period, run, type, timestamp = _resolve_on(on, type, runinfo)
 
-    run_chmap = meta.channelmap(timestamp)
+    run_chmap = meta.channelmap(timestamp, category=type)  # as legend-dataflow
 
     str_pos = {}
     usab_map = {}
@@ -483,27 +518,23 @@ def _build_layout(key: str | list[str], type: str, datasets=None) -> dict:
         key = [key]
     runinfo = _datasets_file(datasets, "runinfo.yaml")
 
-    period_max: dict[str, int] = {}
     if not isinstance(key, str):
-        for period in key:
-            runs_in_period = [
-                r for r in runinfo.get(period, {}) if type in runinfo[period][r]
-            ]
-            if runs_in_period:
-                period_max[period] = max(int(r[1:]) for r in runs_in_period)
+        wanted = [(p, r) for p in key for r in runinfo.get(p, {})]
     else:
         runlists = _datasets_file(datasets, "runlists.yaml")
-        for period, runs_spec in runlists[key][type].items():
-            runs = expand_run_list(runs_spec)
-            if runs:
-                period_max[period] = max(
-                    period_max.get(period, 0), *(int(r[1:]) for r in runs)
-                )
-
+        wanted = [
+            (p, r)
+            for p, runs in runlists[key][type].items()
+            for r in expand_run_list(runs)
+        ]
+    # only runs that really have this data type in runinfo
     sorted_cols = sorted(
-        [(p, f"r{r:03d}") for p, mx in period_max.items() for r in range(mx + 1)],
+        {(p, r) for p, r in wanted if type in runinfo.get(p, {}).get(r, {})},
         key=col_sort_key,
     )
+    if not sorted_cols:
+        msg = f"no {type!r} runs for {key} in runinfo.yaml"
+        raise ValueError(msg)
     periods = sorted({p for p, _ in sorted_cols}, key=lambda p: int(p[1:]))
     period_colour_map = dict(
         zip(periods, cmap_hex(PERIOD_CMAP, max(len(periods), 1)), strict=False)
