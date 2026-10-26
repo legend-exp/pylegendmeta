@@ -605,7 +605,7 @@ class _LiteralBlockDumper(yaml.Dumper):
     reformatted again by prettier.
     """
 
-    def increase_indent(self, flow=False, indentless=False):
+    def increase_indent(self, flow=False, indentless=False):  # noqa: ARG002
         return super().increase_indent(flow, False)
 
     def choose_scalar_style(self):
