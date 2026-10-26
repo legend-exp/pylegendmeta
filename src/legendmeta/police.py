@@ -598,7 +598,19 @@ _EVT_REF_RE = re.compile(r"(?<![.\w])evt\.(_?\w+)")
 
 
 class _LiteralBlockDumper(yaml.Dumper):
-    """YAML Dumper that preserves multiline strings as literal block scalars."""
+    """YAML Dumper that preserves multiline strings as literal block scalars.
+
+    Lists are indented under their key and quoted strings use double quotes,
+    as prettier formats them, so files rewritten by the autofix hooks are not
+    reformatted again by prettier.
+    """
+
+    def increase_indent(self, flow=False, indentless=False):  # noqa: ARG002
+        return super().increase_indent(flow, False)
+
+    def choose_scalar_style(self):
+        style = super().choose_scalar_style()
+        return '"' if style == "'" else style
 
 
 _LiteralBlockDumper.add_representer(
