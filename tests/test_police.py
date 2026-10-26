@@ -1892,3 +1892,26 @@ def test_validate_dataflow_config_evt_direct_no_group_check(tmp_path, monkeypatc
     monkeypatch.setattr(sys, "argv", ["validate-dataflow-config", str(overlay)])
     # Must not raise SystemExit(1); structural check passes, no group check.
     police.validate_dataflow_config()
+
+
+def test_dumper_writes_prettier_style_yaml():
+    """Lists indented under their key and double quotes, as prettier writes
+    them, so autofix hooks and prettier do not take turns reformatting."""
+    data = {"default": {"calgroup011a": {"p20": ["r000", "r001"]}}, "V1": {"x": "on"}}
+    out = yaml.dump(
+        data,
+        Dumper=police._LiteralBlockDumper,
+        default_flow_style=False,
+        sort_keys=False,
+    )
+    assert out == textwrap.dedent(
+        """\
+        default:
+          calgroup011a:
+            p20:
+              - r000
+              - r001
+        V1:
+          x: "on"
+        """
+    )
