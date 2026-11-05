@@ -25,9 +25,11 @@ from .hadesmetadata import HadesMetadata
 from .legend1000metadata import Legend1000Metadata
 from .legendmetadata import LegendMetadata
 from .slowcontrol import LegendSlowControlDB
+from .utils import FileKey
 
 __all__ = [
     "AttrsDict",
+    "FileKey",
     "HadesMetadata",
     "JsonDB",
     "Legend1000Metadata",
